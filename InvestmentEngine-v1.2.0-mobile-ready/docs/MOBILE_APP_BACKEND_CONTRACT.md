@@ -25,12 +25,18 @@ Ardından Supabase Auth ile kullanıcı login/register akışı açılır.
 ## Auth sonrası tablolar
 
 ### `public.profiles`
+
 Kullanıcının isim alanları.
 
 ### `public.investment_accounts`
+
 Kullanıcının portföy hesapları. Yeni Auth kullanıcısına otomatik `Ana Portföy` oluşturulur.
+Uygulama tek Auth kullanıcısı altında birden çok hesap açılmasını destekler; kullanıcının
+kendisi, eşi veya çocuğu için tuttuğu işlem defterleri `account_id` ile ayrılır. Quasar'da
+seçili hesap tüm portföy çalışma alanını belirler ve SecureLS/Pinia cache içinde saklanır.
 
 ### `public.portfolio_transactions`
+
 Tüm veri girişleri tek normalize transaction tablosunda tutulur.
 
 Desteklenen tipler:
@@ -64,15 +70,21 @@ ile önceki kayda bağlanan yeni bir revizyon satırı ekler. İptal revizyonund
 ```
 
 ### `public.portfolio_positions`
+
 Transaction legs üzerinden türetilmiş kullanıcı/account/asset miktar görünümü.
 Eski revizyonlar ve append-only iptal işaretleri bakiyeye dahil edilmez.
 
 ### `public.user_investment_settings`
+
 Aylık bütçe, plan başlangıç tarihi, BTC/ETH/URA hedef oranları, BTC↔ETH ve
 URA↔USD dönüşüm oranları, DCA günü ve Telegram tercihidir. Yüzde kolonları
 veritabanında `0..1` oranı olarak saklanır; Quasar kullanıcıya `0..100` gösterir.
 Bu ayarlar kullanıcı seviyesindedir; aynı kullanıcının birden çok portföy hesabı
 olursa hesapların tamamında ortak uygulanır. Python karar motoru bu tabloyu okumaz.
+
+Python kararları, Telegram bildirimi ve motor health verileri portföy hesabından
+bağımsızdır. Python bot anahtarı ve Chat ID yalnız Windows Engine ayarlarından gelir;
+Quasar seçili hesap veya bildirim tercihi Python'a fan-out yapılandırması göndermez.
 
 ### `public.reset_portfolio_transaction_history(uuid, text)`
 
@@ -82,15 +94,19 @@ yetkisi kapalı kalır. RPC profil, yatırım ayarları, piyasa/model verileri, 
 sinyal durumu ve engine health kayıtlarını değiştirmez.
 
 ### `public.decision_snapshot`
+
 Windows Engine'in son BTC↔ETH / URA↔USD kararları. Authenticated read-only.
 
 ### `public.decision_history`
+
 Engine tarafından üretilen karar geçmişi. Mobil uygulamada sinyal geçmişi/audit ekranı için authenticated read-only kullanılır. `portfolio_transactions.decision_id` ile gerçek dönüşüm işlemi ilgili karara bağlanabilir.
 
 ### `public.market_snapshot`
+
 Engine referans fiyatları: BTC/USD, ETH/USD, ETH/BTC, URA/USD ve USD/TRY. Authenticated read-only.
 
 ### `public.engine_health_snapshot`
+
 Engine sağlık bilgisi. Authenticated read-only.
 
 ## RLS
