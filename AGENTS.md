@@ -19,6 +19,9 @@ Bu repoda analiz veya değişiklik yapmadan önce aşağıdaki dosyaları sıray
 - Kod ve belge çelişirse yayımlanmış kod/runtime kanıtını esas al; çelişkiyi görünür raporla.
 - Aylık DCA ile dönüşüm sinyalini karıştırma. Motor DCA'yı durduran veya otomatik portföy yöneten bir robot değildir.
 - Python motoru global ve portföyden bağımsız kalır; seçili Quasar hesabı, bakiye veya gerçek işlem adedi okumaz.
+- Python `action_size` yalnız modelin portföyden bağımsız öneri yüzdesidir. Kullanıcının gerçek dönüşüm oranını zorlamaz ve Quasar ile `min(...)` şeklinde sınırlandırılmaz.
+- Signal→Conversion bağı tek yönlü ve isteğe bağlıdır: Quasar `decision_id` ile global kararı seçebilir; Python Quasar işlemlerini geri okuyup sinyalini değiştirmez.
+- Quasar yüzde butonları hesaplama yardımcısıdır. Sinyal seçilirse önerilen oran ön doldurulabilir fakat kullanıcı tarafından değiştirilebilir; sinyal ID'si elle yazdırılmaz.
 - `direction` emir değildir; `ACTION` ile `action_event` farkını koru.
 - LIVE otomatik emir değildir; bildirim ve isteğe bağlı order-book gözlemidir.
 - `PIT_CORE_REPLAY` etiketini strict vintage PIT veya production ACTION backtest olarak sunma. v1.2.0 historical as-of directional-core replay'dir.
@@ -46,4 +49,5 @@ Aşağıdakileri kullanıcı açıkça onaylamadan uygulama:
 1. Kademeler arasında en az 5 karar seansı.
 2. Reversal için iki ardışık qualified kapanış.
 3. Production/replay için tek versioned state machine.
-4. Python action size ile Quasar kullanıcı limitinin `min(...)` sözleşmesi.
+4. `max_regime_pct` değerinin Python ayar penceresinde düzenlenmesi ve gelecek action-size formülünün kesin bileşenleri.
+5. Beş zayıf karar sonrası reset davranışının veri örtüşmesi/idempotency analizi; aynı yön K1 için zorunlu ters rejim kuralı onaylanmış değildir.

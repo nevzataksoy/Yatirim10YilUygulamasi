@@ -16,16 +16,18 @@ Bu belge yayımlanmış motorun matematiksel ve işlevsel gerçeğini açıklar.
 
 ## 2. Değişmez ürün sınırları
 
-| Kural | Durum | Açıklama |
-| --- | --- | --- |
-| Otomatik borsa emri yok | `APPROVED + RELEASED` | LIVE bile yalnız yeni action event bildirimi ve isteğe bağlı order-book gözlemi üretir. |
-| Motor portföyden bağımsız | `APPROVED + RELEASED` | Python seçili Quasar hesabını, adet/bakiyeyi veya kullanıcı işlemlerini okumaz. |
-| Gerçek işlem kullanıcı onaylı | `APPROVED` | Alım/satım/dönüşüm Quasar'da seçili hesapta manuel ve append-only kaydedilir. |
-| Aylık DCA ana disiplin | `APPROVED` | Sinyal motoru aylık sermaye ayırmayı otomatik durdurmaz veya zorunlu dağılım vermez. |
-| READY otomatik LIVE değildir | `APPROVED + RELEASED` | READY yalnız manuel production review kapısıdır. |
-| Eksik veri uydurulmaz | `APPROVED + RELEASED` | Kaynak/history yoksa factor quality `0`; sahte nötr kalite verilmez. |
-| Validation parametre değiştirmez | `APPROVED + RELEASED` | Threshold, weight ve mode yalnız raporla değişmez. |
-| Tek Telegram hedefi | `APPROVED + RELEASED` | Python tek bot/Chat ID kullanır; hesap bazlı fan-out yoktur. |
+| Kural                            | Durum                 | Açıklama                                                                                                                            |
+| -------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Otomatik borsa emri yok          | `APPROVED + RELEASED` | LIVE bile yalnız yeni action event bildirimi ve isteğe bağlı order-book gözlemi üretir.                                             |
+| Motor portföyden bağımsız        | `APPROVED + RELEASED` | Python seçili Quasar hesabını, adet/bakiyeyi veya kullanıcı işlemlerini okumaz.                                                     |
+| Gerçek işlem kullanıcı onaylı    | `APPROVED`            | Alım/satım/dönüşüm Quasar'da seçili hesapta manuel ve append-only kaydedilir.                                                       |
+| Model oranı tavsiyedir           | `APPROVED`            | `action_size` gerçek işlem oranını zorlamaz; kullanıcı Telegram/Quasar bilgisini değerlendirip oranı veya miktarı kendisi belirler. |
+| Sinyal bağı tek yönlüdür         | `APPROVED`            | Quasar isteğe bağlı `decision_id` kaydeder; Python portföy işlemini geri okuyup sinyali değiştirmez.                                |
+| Aylık DCA ana disiplin           | `APPROVED`            | Sinyal motoru aylık sermaye ayırmayı otomatik durdurmaz veya zorunlu dağılım vermez.                                                |
+| READY otomatik LIVE değildir     | `APPROVED + RELEASED` | READY yalnız manuel production review kapısıdır.                                                                                    |
+| Eksik veri uydurulmaz            | `APPROVED + RELEASED` | Kaynak/history yoksa factor quality `0`; sahte nötr kalite verilmez.                                                                |
+| Validation parametre değiştirmez | `APPROVED + RELEASED` | Threshold, weight ve mode yalnız raporla değişmez.                                                                                  |
+| Tek Telegram hedefi              | `APPROVED + RELEASED` | Python tek bot/Chat ID kullanır; hesap bazlı fan-out yoktur.                                                                        |
 
 ## 3. Sistemler ve yön semantiği
 
@@ -115,11 +117,45 @@ Her iki sistemde:
 
 ETH/BTC ayrıca BTC ve ETH notional relative volume ölçer. URA doğrudan ETF fiyat/hacim feature'larını kullanır.
 
+### 5.1 Canlı kararın gerçek veri pencereleri — `RELEASED`
+
+`regime_reset_days=5`, feature geçmişini beş günle sınırlamaz. Reset sayacı yalnız
+`model.signal_state` içindeki aktif K1/K2 hafızasını temizleme eşiğidir. Canlı karar
+her çalıştırmada aşağıdaki birbirinden farklı pencereleri yeniden hesaplar:
+
+| Girdi / gösterge       | ETH/BTC canlı pencere                                                                                                                                  | URA/USD canlı pencere                                                                                                                   | Karardaki rolü                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Ham günlük fiyat       | Her günlük işte yaklaşık son `1300` takvim günü istenir; en az `1100` ortak BTC/ETH günü zorunludur                                                    | Kod `outputsize` sabitlemez; provider'ın döndürdüğü günlük seri kullanılır ve en az `60` bar zorunludur                                 | Bütün günlük teknik göstergelerin kaynak serisi                                         |
+| Uzun dönem değer       | Son `36` tamamlanmış ay percentile + yaklaşık son `52` haftalık örnek z-score                                                                          | Son `36` aylık kapanış percentile + son `52` haftalık kapanış z-score                                                                   | `value` factor ve late-entry kontrolü                                                   |
+| EMA / MACD / RSI       | EMA `10/21`, MACD `12/26/9`, RSI `14`; hesap eldeki günlük serinin tamamında yürür, eski gözlemlerin etkisi üstel olarak azalır                        | Aynı                                                                                                                                    | `trend`, `momentum`, yön ve late-entry                                                  |
+| Trend eğimi / cross    | EMA21'in son `5` günlük değişimi; EMA/MACD cross en fazla `30` bar geriye aranır; late-entry için izin verilen cross yaşı `5` gündür                   | Aynı                                                                                                                                    | Rejim/trend ekseni ve geç kalma kapısı                                                  |
+| Bollinger / volatilite | Bollinger `20`; realized volatility `20/60`                                                                                                            | Aynı                                                                                                                                    | Late-entry, market regime ve sizing/risk                                                |
+| ATR                    | BTC ve ETH için son `80` günlük girdi üzerinde EMA tabanlı ATR `14`                                                                                    | Günlük seride EMA tabanlı ATR `14`                                                                                                      | Feature/audit; directional edge ağırlık listesinde doğrudan factor değildir             |
+| Hacim / flow           | Son `20` ortak günde BTC ve ETH USD-notional relative volume                                                                                           | Son `20` günlük URA relative volume feature'ı                                                                                           | ETH/BTC `flow`; URA'da mevcut directional weight listesinde ayrı `flow` factor'u yoktur |
+| Derivatives            | Aynı venue'dan en fazla `3` saat yaşında son BTC+ETH snapshot çifti                                                                                    | Kullanılmaz                                                                                                                             | ETH/BTC `derivatives` factor                                                            |
+| Makro                  | Her sekiz seri için `as_of` tarihindeki son observation; score VIX, STLFSI4 ve DFII10'un son değerlerinden gelir                                       | Aynı                                                                                                                                    | `macro` factor ve market regime                                                         |
+| Makro freshness        | Günlük serilerde `4/8/14`, haftalık STLFSI4'te `10/17/24` günlük yaş bantları                                                                          | Aynı                                                                                                                                    | Sekiz serinin ortalama data quality değeri                                              |
+| Event / haber          | Bağlı directional crypto event/sentiment provider yoktur; factor `score=0, quality=0`. Yalnız varsa son `48` saatte severity `<=-80` event veto aranır | SEC job son `14` günlük filing'leri toplar; factor son `168` saati, veto son `72` saati kullanır; semantic severity yoksa yön `0` kalır | Veto ve event factor                                                                    |
+| URA holdings           | Kullanılmaz                                                                                                                                            | Son iki farklı holdings tarihi; karşılaştırma aralığı `7/14/31` gün, snapshot freshness `3/7/14` gün bantlarıyla kalite düşer           | `fundamentals` flow proxy                                                               |
+| URA breadth            | Kullanılmaz                                                                                                                                            | Constituent geçmişinde `2/20/50/200` observation; sorgu üst sınırı `220`                                                                | `breadth` factor                                                                        |
+
+Dolayısıyla nihai signed edge yalnız kısa vadeli değildir: `36 ay`, `52 hafta`,
+`60 gün`, `20 gün`, kısa momentum, son türev snapshot'ı ve son makro observation'ı
+rejime göre birlikte ağırlıklandırılır. Bununla birlikte gösterilen
+`market_regime/trend_regime` etiketi daha dar bir sınıflandırmadır: son makro score,
+EMA21'in `5` günlük eğimi ve `rv20/rv60` oranından üretilir. Bu etiket tek başına
+uzun dönem klasik boğa/ayı sınıflandırması olarak sunulmamalıdır.
+
+URA günlük history uzunluğunun provider yanıtına bırakılmış olması bir
+observability/reproducibility açığıdır; görev takvimi sırasında davranış
+değiştirilmez, fakat sonraki hardening incelemesinde gerçek bar sayısı provenance'a
+yazılmalı ve gerekli pencere açıkça versionlanmalıdır.
+
 ## 6. Factor kümeleri ve runtime ağırlık kaynağı
 
-| Sistem | Directional factor'lar |
-| --- | --- |
-| ETH/BTC | `value`, `trend`, `momentum`, `derivatives`, `flow`, `macro`, `event` |
+| Sistem  | Directional factor'lar                                                    |
+| ------- | ------------------------------------------------------------------------- |
+| ETH/BTC | `value`, `trend`, `momentum`, `derivatives`, `flow`, `macro`, `event`     |
 | URA/USD | `value`, `trend`, `momentum`, `macro`, `fundamentals`, `breadth`, `event` |
 
 `volatility` factor score'u üretilebilir fakat directional weighted edge listesinde değildir; risk/sizing katmanında kullanılır.
@@ -398,6 +434,8 @@ recommended_size  = min(max_regime_pct,
 
 Decision status ACTION değilse runtime `recommended_size` değerini `0` yapar. Bir K1/K2 kademesi sabit %25 olmak zorunda değildir; confidence/volatility yüzünden daha küçük olabilir.
 
+Bu yayımlanmış formül `data_quality` değerini doğrudan yüzdeye çevirmez. Kullanıcının “sinyal kalitesine/gücüne göre oran” hedefinin v1.2.0'daki somut karşılığı confidence ve volatiliteyle küçülen model kademesidir. Gelecek formülde hangi strength/quality bileşenlerinin kullanılacağı görev takvimi sonrasında ayrıca kararlaştırılır; bu sözleşme mevcut formülü sessizce değiştirmez.
+
 ## 14. Persistent K1/K2 state — v1.2.0 gerçeği
 
 ### `RELEASED`
@@ -415,13 +453,16 @@ action_size = min(recommended_size, base_tranche 25%, remaining regime cap)
   - `as_of` son action tarihinden farklı,
   - edge `>=80`,
   - confidence `>=80`
-  olduğunda oluşabilir.
+    olduğunda oluşabilir.
 - K2 için yayımlanmış kodda 5 karar seansı bekleme şartı yoktur.
 - Aynı `as_of` tekrarında yeni kademe yoktur.
 - Cumulative regime size `%50`yi aşmaz.
 - Qualified karşı-yön ACTION mevcut rejimi beklemeden sıfırlar ve karşı yönde K1 başlatabilir.
 - Aktif yön aynı ve edge `>=45` ise reset counter sıfırlanır.
 - ACTION dışı/zayıf kararlar reset counter'ı artırır; `5` olduğunda aktif state temizlenir.
+- Reset counter ayrı bir “son 5 gün verisi” penceresi taramaz; `apply_signal_state` çağrılarındaki ardışık zayıf karar değerlendirmelerini sayar. Kod farklı `as_of` şartı aramadığı için aynı tarihli manuel tekrarlar da sayacı etkileyebilir.
+- Her günlük karar kendi uzun/kısa rolling feature geçmişini kullanır; reset sonrası yeni karar önceki turla büyük ölçüde örtüşen veri setine dayanabilir.
+- State temizlendikten sonra yeni qualified ACTION aynı yöndeyse, arada ters rejim görülmeden yeniden K1 başlayabilir. Mevcut üründe “önce mutlaka ters yön görülmeli” kuralı yoktur.
 - State `model.signal_state` tablosunda kalıcıdır; servis restart'ında korunur.
 
 ### Status ile action event farkı
@@ -438,7 +479,37 @@ action_event=true
 
 gerekir. Aynı rejimde yeni kademe şartı oluşmadıysa ACTION satırı olabilir ama yeni event olmaz.
 
-## 15. Python action size ve Quasar kullanıcı limiti
+### Reset araştırması — `OPEN`, görev takvimi sonrası
+
+Beş zayıf değerlendirme sonrası aynı yönün yeniden K1 olabilmesi tek başına hata kabul edilmez. İncelemede şu kanıtlar birlikte değerlendirilir:
+
+- zayıf kararların farklı `as_of` günleri olup olmadığı,
+- kararların kullandığı rolling feature geçmişinin ne kadar örtüştüğü,
+- reset sonrası qualified kararın aynı verilerde gerçekten yeni güç kazanıp kazanmadığı,
+- manuel tekrar/idempotency etkisi,
+- aynı yönü yasaklamak yerine mevcut piyasa yönünün yeniden değerlendirilmesinin daha doğru olup olmadığı.
+
+`regime_reset_days` değerini `5`ten `30`a çıkarmak factor, edge, confidence,
+`market_regime` veya `trend_regime` hesabını değiştirmez. Yalnız persistent state'i
+daha uzun süre aktif tutar. Bunun beklenen etkileri:
+
+- aynı yönde yeni K1'in daha uzun süre engellenmesi,
+- K1/K2 stage ve kümülatif model öneri tavanının daha uzun süre korunması,
+- qualified karşı-yön `ACTION`ın yine beklemeden immediate reversal yapması,
+- gerçek bir durulma ve yeniden güçlenme `5–29` değerlendirme içinde oluşursa yeni
+  aynı-yön K1 fırsatının bastırılabilmesi,
+- aynı `as_of` manuel tekrarlarının reset oluşturma riskinin azalması fakat
+  idempotency sorununun çözülmemesi,
+- aynı yön edge `>=45` oldukça counter her seferinde sıfırlandığı için `30` ardışık
+  zayıf değerlendirmeye ulaşmanın pratikte çok zorlaşması.
+
+Bu nedenle `30`, yönü daha doğru hesaplayan daha uzun veri analizi değildir; yalnız
+rejim hafızasını daha yapışkan hale getirir. Veri pencerelerini uzatmak veya çoklu
+zaman ufuklu boğa/ayı sınıflandırması eklemek ayrı bir model değişikliğidir.
+
+Görev takvimi bitmeden reset, reversal, K1/K2 veya action-size davranışı değiştirilmez. Değişiklik gerekirse yeni model version ve yeni Shadow Epoch açılır.
+
+## 15. Python action size ve Quasar manuel dönüşüm oranı
 
 ### Bugünkü gerçek — `RELEASED`
 
@@ -446,23 +517,25 @@ gerekir. Aynı rejimde yeni kademe şartı oluşmadıysa ACTION satırı olabili
 - Portföy adedi veya kullanıcının gerçek işlemi değildir.
 - Python `public.user_investment_settings` veya seçili Quasar hesabını okumaz.
 - Quasar kullanıcıya bakiye üzerinden yüzde butonları ve manuel miktar sunar.
-- Python yüzdesi ile Quasar limiti otomatik çarpılmaz veya `min(...)` uygulanmaz.
+- Python'un `max_regime_pct=%50` değeri yalnız global model önerilerinin aynı state içindeki kümülatif tavanıdır; gerçek portföyün bağlayıcı dönüşüm sınırı değildir.
+- Python yüzdesi Quasar oranıyla çarpılmaz, `min(...)` ile sınırlandırılmaz veya otomatik uygulanmaz.
+- `public.user_investment_settings.btc_eth_conversion_pct` ve `ura_usd_conversion_pct` bugün kullanıcıya ait varsayılan/hesaplama yüzdeleridir; hard limit değildir.
 
-### Hedef — `PROPOSED`
+### Signal→Conversion hedefi — `APPROVED`, henüz uygulanmadı
 
-- Python action size: modelin önerdiği kademe yüzdesi.
-- Quasar ayarı: kullanıcının bir rejimde izin verdiği maksimum toplam dönüşüm sınırı.
-- Aday formül:
+- Python global sinyal, yön, güç/kalite bilgileri ve `action_size` önerisini yayımlar; Quasar veya portföy verisine bağımlı olmaz.
+- Dönüşüm formunda sinyal bağı isteğe bağlıdır. Kullanıcı ID yazmaz; `AppPopupSelect` üzerinden uygun global karar listesinden seçim yapar.
+- Seçim `portfolio_transactions.decision_id` alanına kaydedilir ve “hangi sinyale istinaden işlem yapıldı?” raporlamasını sağlar.
+- Aynı global karar, farklı `account_id` işlemlerine bağlanabilir; bir portföyde işlem yapılması diğer portföyü veya Python sinyalini etkilemez.
+- Sinyal seçildiğinde `action_size` başlangıç oranı olarak otomatik getirilebilir. Kullanıcı oranı/miktarı kendi riskine göre değiştirebilir; model yüzdesi hard-coded uygulanmaz.
+- Quasar sinyal göstergeleri karar zorlayıcısı değildir; yalnız öngörü, hesaplama ve audit desteğidir.
+- Gerçek adet seçili hesabın işlem anındaki kaynak bakiyesi üzerinden Quasar'da hesaplanır ve kullanıcı özeti/onayıyla kaydedilir.
 
-```text
-uygulanabilir_yüzde = min(Python action_size,
-                          kullanıcı limitinde kalan pay)
-```
+### Görev takvimi sonrasına bırakılan sizing işi — `OPEN`
 
-- Gerçek adet seçili hesabın işlem anındaki kaynak bakiyesinden hesaplanır.
-- İşlem yine kullanıcı özeti/onayıyla kaydedilir.
-
-Bu anlam kullanıcı tarafından kesinleştirilmeden Signal→Conversion otomasyonu yapılmaz.
+- `max_regime_pct` AppSettings içinde vardır fakat v1.2.0 ayar penceresinde düzenlenebilir alan değildir.
+- Bu tavanın Python ayar penceresine eklenip eklenmeyeceği ve action-size formülünde sinyal gücü/kalitesinin tam olarak nasıl ölçekleneceği ayrıca kararlaştırılır.
+- Bu değişiklik Quasar portföy limiti yaratmaz; model öneri otoritesini etkilediği için yeni model version/test/Shadow Epoch gerektirebilir.
 
 ## 16. Historical replay ve calibration — doğru yorum
 
@@ -476,10 +549,18 @@ PIT_CORE_REPLAY / ETH/BTC
 
 ### 16.2 Gerçek kapsam — `RELEASED`
 
+- DB backfill varsayılan olarak `2500` takvim günlük BTC/ETH geçmişi ister.
+- Replay ilk noktayı en az `1120` ortak günlük session prefix'i biriktikten sonra
+  üretir; doğrulanmış son çalışmada bu yapı `1381` replay observation vermiştir.
 - Her tarih için BTC/ETH fiyat prefix'i yalnız o tarihe kadar kesilir.
 - Makroda `observation_date <= as_of` olan son satır seçilir.
 - Historical derivatives/event factor q0 ile dışarıda bırakılır.
 - Değer/trend/momentum/flow/macro directional core yeniden hesaplanır.
+
+Replay selector'daki varsayılan `5-session cooldown`, production
+`regime_reset_days=5` ile aynı mekanizma değildir. Replay production K1/K2,
+reset/reversal state'ini çalıştırmaz; bu iki `5` değeri birbirinin kanıtı veya
+eşdeğeri olarak yorumlanmamalıdır.
 
 ### 16.3 Strict PIT değildir — `OPEN`
 
@@ -642,7 +723,8 @@ gerekir. Eski Shadow kanıtı otomatik devredilmez.
 3. Reversal iki ardışık qualified karşı-yön kapanışı ister.
 4. Event/state olayları idempotent olur.
 5. Restart, reversal, reset ve parity unit testleri yazılır.
-6. Python action size ile Quasar kalan kullanıcı limiti sözleşmesi netleşir.
+6. `max_regime_pct` ayar yüzeyi ve action-size strength/quality formülü kanıtla kesinleştirilir.
+7. Reset sonrası aynı yön K1 davranışında farklı `as_of`, veri örtüşmesi ve idempotency karakterize edilir; zorunlu ters yön kuralı varsayılmaz.
 
 Bu liste v1.2.0 gerçeği değildir.
 
@@ -654,7 +736,7 @@ Bu liste v1.2.0 gerçeği değildir.
 - q0 factor'un edge/data-quality etkisi
 - score=0 factor'un agreement'a katılmaması
 - quality → event → late-entry → action önceliği
-- K1/K2, küçük recommended size ve %50 cap
+- K1/K2, küçük recommended size ve Python model önerisi için `%50` cumulative cap
 - aynı as_of tekrarının event üretmemesi
 - 5 zayıf karar sonrası reset
 - karşı yön immediate reversal karakterizasyonu

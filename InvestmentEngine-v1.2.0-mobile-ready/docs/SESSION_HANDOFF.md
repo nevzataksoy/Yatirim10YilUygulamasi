@@ -7,9 +7,9 @@ Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGI
 
 ## 1. Aktif repo/branch'ler
 
-| Repo | Aktif geliştirme branch'i | Durum |
-| --- | --- | --- |
-| `nevzataksoy/Yatirim10YilUygulamasi` | `agent/portfolio-audit-reset` | Draft PR #1 açık |
+| Repo                                          | Aktif geliştirme branch'i              | Durum            |
+| --------------------------------------------- | -------------------------------------- | ---------------- |
+| `nevzataksoy/Yatirim10YilUygulamasi`          | `agent/portfolio-audit-reset`          | Draft PR #1 açık |
 | `nevzataksoy/tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | Draft PR #1 açık |
 
 HEAD değerleri bu belge güncellendikçe değişir. Yeni oturum her zaman remote HEAD ve değiştireceği dosyanın güncel SHA'sını yeniden doğrular.
@@ -32,6 +32,17 @@ Düzeltilen ana noktalar:
 8. `direction`, `ACTION`, `action_event`, `recommended_size` ve `action_size` kavramları birbirinden ayrıldı.
 9. Ham veri → feature → regime → factor → edge/confidence → veto/risk → status → K1/K2 → Supabase tablo zinciri formülleriyle belgelendi.
 10. Görev 4–7 sonrasındaki observability, strict PIT, gerçek walk-forward ve manual graduation kilometre taşları netleştirildi.
+11. `%50` anlatımı düzeltildi: v1.2.0 `max_regime_pct`, Python'un global kümülatif öneri tavanıdır; Quasar portföyüne uygulanan bağlayıcı bir limit değildir.
+12. Signal→Conversion sınırı kesinleştirildi: Quasar isteğe bağlı `decision_id` bağını `AppPopupSelect` ile seçtirir, `action_size` yalnız düzenlenebilir başlangıç oranıdır ve kullanıcı gerçek oranı kendisi belirler.
+13. Quasar yüzde butonları ve kayıtlı dönüşüm yüzdeleri hesaplama yardımcılarıdır; Python önerisiyle `min(...)` sözleşmesi uygulanmayacaktır.
+14. Beş zayıf karar sonrası resetin ayrı bir beş günlük veri taraması olmadığı, çağrı/evaluation saydığı ve aynı yön qualified ACTION'ın ters rejim olmadan yeni K1 başlatabildiği kaydedildi. Bu davranış görev takvimi bitmeden değiştirilmeyecektir.
+15. Canlı karar veri pencereleri koddan çıkarıldı: ETH/BTC yaklaşık `1300` takvim
+    günlük ham seri ile 36 ay/52 hafta/60 gün/20 gün/kısa momentum pencerelerini
+    birlikte kullanır; derivatives `3` saat, event veto `48/72` saat ve URA
+    breadth `2/20/50/200` observation pencerelerine sahiptir. Resetin `5→30`
+    yapılmasının yön hesabını değil yalnız persistent state süresini değiştireceği
+    açıklaştırıldı. URA günlük history uzunluğunun provider yanıtına bağlı kalması
+    sonraki observability/reproducibility hardening için `OPEN` bırakıldı.
 
 Bu tur yalnız dokümantasyon düzeltmesidir. Python model/app kodu, Quasar uygulama kodu, migration, threshold veya factor weight değiştirilmedi. Bu dokümantasyon turu için yeni build/test çalıştırıldığı iddia edilmez.
 
@@ -85,7 +96,7 @@ Sonuç görülmeden PASS yazılmaz. `SHADOW_READINESS=NOT_READY` bu aşamada nor
 - K2 için 5-session şartı yoktur.
 - Qualified karşı-yön ACTION rejimi hemen çevirebilir.
 - Beş zayıf karar aktif state'i resetleyebilir.
-- Cumulative regime cap `%50`dir.
+- Python global öneri state'inin cumulative cap'i `%50`dir; bu, gerçek portföye bağlayıcı limit değildir.
 - Python portföy bakiyesi okumaz ve otomatik emir göndermez.
 - LIVE yalnız bildirim/order-book gözlemidir.
 
@@ -96,7 +107,8 @@ Aşağıdakiler `PROPOSED/OPEN` kalır:
 1. Kademeler arasında en az 5 karar seansı.
 2. Reversal için iki ardışık qualified karşı-yön kapanışı.
 3. Production ve replay için tek versioned state machine.
-4. Python action size ile Quasar kullanıcı limitinde kalan payın `min(...)` sözleşmesi.
+4. `max_regime_pct` değerinin Python ayar penceresinde yönetilmesi ve action-size formülünün kesin strength/quality bileşenleri.
+5. Reset sonrası aynı yön K1 davranışının veri örtüşmesi ve idempotency analizi; zorunlu ters rejim kuralı onaylanmış değildir.
 
 Bunlar kullanıcı kararı, yeni model version, test ve yeni Shadow Epoch olmadan uygulanmaz.
 
@@ -136,6 +148,8 @@ Scheduler, Shadow dağılımları, realtime, historical replay, walk-forward, mo
 - İşlem formlarında önce/işlem/sonra bakiye bağlamı.
 - Login ve Settings bağlantı alanlarında yerel ayar şifresi; açık parola saklanmaz.
 - Supabase migration `0008` ve `0009` uygulanmış olarak belgelenmiştir; yeni migration `0010+` olmalıdır.
+- Signal→Conversion için DB'de isteğe bağlı `portfolio_transactions.decision_id` hazırdır; frontend seçimi henüz uygulanmamıştır.
+- Onaylanan UX: sinyal ID'si elle yazılmaz, `AppPopupSelect` kullanılır; seçilen sinyal önerisi forma ön doldurulabilir ama kullanıcı değiştirebilir. Yüzde butonları ve ayar oranları hard limit değildir.
 
 ## 9. Quasar'da kullanıcı doğrulaması bekleyen işler
 
@@ -144,7 +158,8 @@ Scheduler, Shadow dağılımları, realtime, historical replay, walk-forward, mo
 3. Sonunda Dashboard, Portföy, İşlem Geçmişi ve Raporlar toplamlarını beklenen matematikle karşılaştır.
 4. Draft PR test tamamlanmadan merge edilmez.
 5. Sonraki production-readiness işi Auth/connection lifecycle'dır.
-6. Signal→Conversion yönlendirmesi, action-size/user-limit semantiği kesinleşmeden otomatik yüzde önermemelidir.
+6. Auth/connection işi sonrasında Signal→Conversion tek yönlü bağını uygula; yalnız `ACTION + action_event=true + action_size>0` kararlarını öneri adayı olarak ayır, seçim ve oran değişikliği kullanıcıda kalsın.
+7. Python reset/reversal/action-size davranışını mevcut Shadow görev takvimi bitmeden değiştirme.
 
 ## 10. Yeni oturumun ilk eylemi
 

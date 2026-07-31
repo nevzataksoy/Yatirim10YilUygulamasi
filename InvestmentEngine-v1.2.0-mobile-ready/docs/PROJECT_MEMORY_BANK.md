@@ -22,11 +22,11 @@ Normatif motor davranışı için `SIGNAL_ENGINE_DECISION_CONTRACT.md`, son akti
 
 ## 2. Katmanların sorumluluk sınırı
 
-| Katman | Sorumluluk | Yapmadığı şey |
-| --- | --- | --- |
-| Python Investment Engine | Piyasa/FX/makro/derivatives/URA holdings-breadth/event verisi; feature, regime, factor, decision, signal state, validation, health, scheduler, Telegram | Kullanıcının portföy bakiyesini okumaz; işlem emri göndermez |
-| Supabase PostgreSQL | Auth, RLS, portföy ledger'ı, motor audit tabloları, global public snapshot'lar | Frontend'e service-role, DB password veya provider secret açmaz |
-| Quasar / Capacitor | Login, çoklu portföy hesabı, manuel işlem girişi, append-only düzeltme/iptal, maliyet/KZ, raporlama, motor görünümü | Factor weight/threshold/mode değiştirmez; Telegram secret yönetmez |
+| Katman                   | Sorumluluk                                                                                                                                              | Yapmadığı şey                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Python Investment Engine | Piyasa/FX/makro/derivatives/URA holdings-breadth/event verisi; feature, regime, factor, decision, signal state, validation, health, scheduler, Telegram | Kullanıcının portföy bakiyesini okumaz; işlem emri göndermez       |
+| Supabase PostgreSQL      | Auth, RLS, portföy ledger'ı, motor audit tabloları, global public snapshot'lar                                                                          | Frontend'e service-role, DB password veya provider secret açmaz    |
+| Quasar / Capacitor       | Login, çoklu portföy hesabı, manuel işlem girişi, append-only düzeltme/iptal, maliyet/KZ, raporlama, motor görünümü                                     | Factor weight/threshold/mode değiştirmez; Telegram secret yönetmez |
 
 Sinyaller globaldir; Dashboard/Portföy/İşlemler/Raporlar ise seçili `account_id` bazlıdır.
 
@@ -142,7 +142,8 @@ Bu nedenle doğru ürün adı/yorumu: **historical as-of directional-core replay
 - `WAIT` veya `NO_ACTION_DATA` satırındaki yön kullanıcıya dönüşüm önerisi sayılmaz.
 - `ACTION`, günlük model koşuludur; yeni Telegram/kademe olayı için `action_event=true` gerekir.
 - Python `action_size`, global model kademe yüzdesidir; kullanıcı bakiyesinden çevrilecek adet değildir.
-- Quasar'ın kullanıcı dönüşüm limitiyle otomatik birleşme v1.2.0'da yoktur.
+- v1.2.0'daki `max_regime_pct=%50`, Python'un kendi global öneri state'inin kümülatif tavanıdır; gerçek portföyün `%50`si için bağlayıcı Quasar limiti değildir.
+- Quasar'ın kayıtlı dönüşüm yüzdeleri ve `%25/%50/%75/%100` butonları hesaplama yardımcılarıdır; Python yüzdesiyle `min(...)` uygulanmaz ve gerçek işlem oranını zorlamaz.
 - Realtime Execution order-book gözlemidir; emir göndermez.
 - Validation ve calibration hiçbir parametreyi otomatik değiştirmez.
 - Eksik veri q0'dır; quality yükselsin diye sentetik history/score eklenmez.
@@ -288,15 +289,34 @@ Birlikte değerlendirilir:
 2. Dashboard/Portföy/İşlemler/Raporlar toplamlarını ekran görüntüsü ve beklenen matematikle doğrula.
 3. Gerçek Supabase bağlantı sağlık testi, anlaşılır hata teşhisi, e-posta doğrulama, şifremi unuttum ve SPA/Capacitor reset dönüşünü production-ready yap.
 4. Çoklu hesap, append-only revision/cancellation ve reset RPC davranışını gerçek Supabase üzerinde doğrula.
-5. Signal→Conversion yönlendirmesine ancak Python `action_size` ile kullanıcı limitinin anlamı kullanıcı tarafından kesinleştirildikten sonra geç.
+5. Auth/connection yaşam döngüsünden sonra Signal→Conversion bağını tek yönlü kur: dönüşüm formunda global karar `AppPopupSelect` ile seçilsin, `decision_id` otomatik kaydedilsin, sinyalin `action_size` değeri başlangıç oranı olarak getirilebilsin ve kullanıcı bu oranı serbestçe değiştirebilsin.
 6. Capacitor aşamasında session/refresh secret'ı native secure storage'a taşı.
 
-## 12. Hâlâ onaylanmamış model önerileri
+### Signal→Conversion için kesin ürün sınırı
+
+- Python seçili hesabı, bakiyeyi veya Quasar'da gerçekleşen oranı okumaz.
+- Quasar sinyal kartları karar mekanizmasını zorlayan talimat değil, öngörü ve raporlama desteğidir.
+- Bir dönüşüm sinyale bağlanabilir fakat bağ isteğe bağlıdır; aynı global `decision_id` birden fazla portföy işlemiyle ilişkilendirilebilir.
+- Kullanıcıya ID yazdırılmaz. Sinyal listesi `AppPopupSelect` üzerinden seçilir.
+- Sinyal seçildiğinde Python önerisi ön doldurulabilir; kullanıcı gerçek risk kararına göre oranı veya miktarı değiştirebilir.
+- `btc_eth_conversion_pct` ve `ura_usd_conversion_pct` zorlayıcı üst sınır değil, Quasar hesaplama/varsayılan oran yardımcılarıdır.
+
+## 12. Hâlâ onaylanmamış veya görev takvimi sonrasına bırakılmış model işleri
 
 - Kademeler arasında en az 5 karar seansı.
 - Karşı yöne geçiş için iki ardışık qualified kapanış.
 - Production ve replay için tek versioned state machine.
-- Python önerisi ile Quasar maksimum limitinin `min(...)` sözleşmesi.
+- Python ayar penceresinde `max_regime_pct` alanının yönetilmesi ve gelecek action-size formülünün hangi sinyal gücü/kalitesi bileşenlerini kullanacağının kesinleştirilmesi.
+- Beş zayıf değerlendirme sonrası resetin aynı `as_of` tekrarları ve örtüşen feature geçmişiyle davranışının incelenmesi. Mevcut kod reset sonrası yeniden aynı yön K1'e izin verir; önce ters rejim görülmesini zorunlu kılan ürün kuralı yoktur.
+
+Reset eşiği veri penceresi değildir. Canlı ETH/BTC işi yaklaşık `1300` takvim
+günlük fiyat serisi üzerinde 36 ay/52 hafta/60 gün/20 gün ve daha kısa teknik
+pencereleri birlikte kullanır; derivatives son `3` saat, makro her serinin son
+geçerli observation'ıdır. URA günlük history uzunluğu kodda sabitlenmemiştir;
+provider yanıtı kullanılır, yalnız en az `60` günlük bar ile `52` haftalık ve `36`
+aylık history zorunludur. `5→30` reset değişikliği bu verileri veya yön hesabını
+uzatmaz; yalnız K1/K2 persistent state'ini daha uzun süre korur. Ayrıntılı pencere
+haritası signal contract bölüm 5.1'dedir.
 
 Bunlar mantıklı adaylardır fakat `APPROVED` veya `RELEASED` değildir.
 
@@ -316,6 +336,7 @@ Amaç: 25.07.2026–25.07.2036 BTC/ETH/URA yatırımını audit edilebilir biçi
 DCA: aylık ana disiplin; sinyal motoru DCA'yı durdurmaz.
 Python: v1.2.0, global ETH/BTC + URA/USD karar desteği, SHADOW, Realtime OFF, otomatik emir yok.
 Quasar: seçili hesapta gerçek işlem ledger'ı ve raporlama.
+Signal→Conversion: gelecekte tek yönlü ve isteğe bağlı decision_id bağı; öneri oranı düzenlenebilir, bağlayıcı limit yok.
 Validation: historical as-of directional core; strict vintage PIT/production K1-K2 parity değil.
 Görevler: 1 ve 2 PASS; Görev 3 kullanıcı kanıtı bekliyor.
 Kural: test sonucu threshold/weight/mode/LIVE'ı otomatik değiştirmez.

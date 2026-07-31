@@ -47,7 +47,9 @@ Proje durumu değişirse bitmeden önce handoff'u; kalıcı karar değişirse me
 - Aylık DCA/sermaye ayırma ana disiplinidir; sinyal motoru aylık alımı iptal eden veya otomatik portföy yöneten bir robot değildir.
 - Python yalnız iki global göreli sistemi değerlendirir: `ETH/BTC` ve `URA/USD`.
 - Python seçili Quasar hesabını, kullanıcı bakiyesini veya gerçek çevrilecek adedi okumaz.
+- Python `action_size` portföyden bağımsız model önerisidir; Telegram veya Quasar'da gösterilen oran kullanıcının gerçek dönüşüm yüzdesini zorlamaz.
 - Quasar gerçek `OPENING / CASH_IN / BUY / CONVERSION / SELL / CASH_OUT` hareketlerini seçili yatırım hesabında tutar.
+- Quasar yüzde seçenekleri hesaplama yardımcısıdır. Gelecekte seçilen global sinyalin `decision_id` bağı ve öneri oranı forma taşınabilir; kullanıcı oranı değiştirebilir.
 - Otomatik borsa emri yoktur. `LIVE`, uygun yeni kademe için bildirim ve isteğe bağlı order-book gözlemi demektir; alım/satım emri demek değildir.
 - `READY`, otomatik LIVE değildir; yalnız manuel production review kapısıdır.
 - Validation sonucu threshold, factor weight, mode veya kullanıcı işlemini otomatik değiştirmez.
@@ -74,7 +76,8 @@ Proje durumu değişirse bitmeden önce handoff'u; kalıcı karar değişirse me
 - Kademeler arasında en az 5 karar seansı.
 - Ters yöne geçiş için iki ardışık qualified kapanış.
 - Production ve replay için tek versioned state machine.
-- Python `action_size` ile Quasar kullanıcı limitinin `min(...)` olarak birleştirilmesi.
+- `max_regime_pct` değerinin Python ayar penceresinde düzenlenmesi ve gelecek action-size formülünün kesin bileşenleri.
+- Beş zayıf karar sonrasındaki resetin veri örtüşmesi/idempotency analizi. Yeniden aynı yön K1 için önce ters rejim görülmesini zorunlu kılan onaylı bir kural yoktur.
 
 ## 6. Güncel kısa durum
 
