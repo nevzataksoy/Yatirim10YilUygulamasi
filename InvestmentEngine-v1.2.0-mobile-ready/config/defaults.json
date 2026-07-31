@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "fred_series": [
+    "DGS2",
+    "DGS10",
+    "DFII10",
+    "VIXCLS",
+    "STLFSI4",
+    "DTWEXBGS",
+    "NASDAQCOM",
+    "SP500"
+  ],
+  "factor_weights": {
+    "ETH/BTC": {
+      "RISK_ON_TREND": {
+        "value": 0.12,
+        "trend": 0.23,
+        "momentum": 0.17,
+        "derivatives": 0.23,
+        "flow": 0.1,
+        "macro": 0.1,
+        "event": 0.05
+      },
+      "MEAN_REVERSION": {
+        "value": 0.28,
+        "trend": 0.07,
+        "momentum": 0.22,
+        "derivatives": 0.18,
+        "flow": 0.1,
+        "macro": 0.1,
+        "event": 0.05
+      },
+      "RISK_OFF": {
+        "value": 0.12,
+        "trend": 0.18,
+        "momentum": 0.12,
+        "derivatives": 0.23,
+        "flow": 0.05,
+        "macro": 0.25,
+        "event": 0.05
+      },
+      "NEUTRAL": {
+        "value": 0.17,
+        "trend": 0.18,
+        "momentum": 0.17,
+        "derivatives": 0.18,
+        "flow": 0.1,
+        "macro": 0.15,
+        "event": 0.05
+      }
+    },
+    "URA/USD": {
+      "RISK_ON_TREND": {
+        "value": 0.18,
+        "trend": 0.23,
+        "momentum": 0.17,
+        "macro": 0.12,
+        "fundamentals": 0.15,
+        "breadth": 0.1,
+        "event": 0.05
+      },
+      "MEAN_REVERSION": {
+        "value": 0.28,
+        "trend": 0.07,
+        "momentum": 0.22,
+        "macro": 0.1,
+        "fundamentals": 0.15,
+        "breadth": 0.13,
+        "event": 0.05
+      },
+      "RISK_OFF": {
+        "value": 0.18,
+        "trend": 0.12,
+        "momentum": 0.12,
+        "macro": 0.18,
+        "fundamentals": 0.18,
+        "breadth": 0.15,
+        "event": 0.07
+      },
+      "NEUTRAL": {
+        "value": 0.23,
+        "trend": 0.17,
+        "momentum": 0.17,
+        "macro": 0.13,
+        "fundamentals": 0.15,
+        "breadth": 0.1,
+        "event": 0.05
+      }
+    }
+  }
+}

@@ -1,0 +1,24 @@
+# Production Checklist — Investment Engine v1.2.0
+
+- [ ] `VERSION = 1.2.0`
+- [ ] `pytest` PASS
+- [ ] `release_check` PASS
+- [ ] `InvestmentEngineSetup-1.2.0.exe` oluştu
+- [ ] Migration `0007_v1_2_model_validation.sql` çalıştı
+- [ ] CLI wrapper CMD içinde gerçek çıktı veriyor
+- [ ] Service RUNNING / Automatic
+- [ ] Supabase/FRED/AlphaVantage/Telegram testleri OK
+- [ ] Macro freshness OK
+- [ ] Derivatives provider/fallback OK
+- [ ] Crypto stale derivatives preflight refresh OK
+- [ ] Global X holdings history birikiyor
+- [ ] SEC coverage weight-bazlı ve DEGRADED/OK semantiği doğru
+- [ ] Realtime smoke test BTC-USD + ETH-USD başarılı
+- [ ] `--validate-model` başarıyla tamamlanıyor
+- [ ] `public.model_validation_snapshot` güncelleniyor
+- [ ] Yeni kararlar `model_version=1.2.0`
+- [ ] Shadow gözlem süresi tamamlandı
+- [ ] `SHADOW_READINESS = READY`
+- [ ] Calibration raporu manuel incelendi; parametreler otomatik değiştirilmedi
+- [ ] Full PIT geçmişi olmayan faktörlerin backtestte varmış gibi kullanılmadığı doğrulandı
+- [ ] LIVE modu ancak manuel production review sonrası açıldı
