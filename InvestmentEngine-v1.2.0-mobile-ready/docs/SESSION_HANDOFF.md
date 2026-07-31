@@ -7,12 +7,14 @@ Bu belge yalnız en güncel çalışma durumunu taşır. Kalıcı proje kararlar
 
 ## 1. Aktif repo durumu
 
-| Repo                              | Branch                                 | Bu belge çalışması öncesi origin commit | Çalışma amacı                                                     |
-| --------------------------------- | -------------------------------------- | --------------------------------------- | ----------------------------------------------------------------- |
-| `Yatirim10YilUygulamasi`          | `agent/portfolio-audit-reset`          | `65d17d3`                               | Python Engine, Supabase migration/sözleşmesi, ortak proje bağlamı |
-| `tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | `1290d8d`                               | Quasar tek kullanıcı–çoklu portföy uygulaması                     |
+| Repo                              | Branch                                 | Bağlam setini oluşturan commit | Çalışma amacı                                                     |
+| --------------------------------- | -------------------------------------- | ------------------------------ | ----------------------------------------------------------------- |
+| `Yatirim10YilUygulamasi`          | `agent/portfolio-audit-reset`          | `d056531`                      | Python Engine, Supabase migration/sözleşmesi, ortak proje bağlamı |
+| `tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | `619441d`                      | Quasar tek kullanıcı–çoklu portföy uygulaması                     |
 
-Dokümantasyon revizyonu yayınlandığında bu tablo yeni commitlerle güncellenmelidir.
+Bu SHA'lar memory/contract/start/handoff bağlam setinin ilk yayımlandığı commitlerdir.
+Handoff senkronizasyonu nedeniyle branch HEAD daha yeni olabilir; yeni oturum güncel
+HEAD'i her zaman `git log -1 --oneline` ile doğrular.
 
 ## 2. Son tamamlanan geliştirmeler
 
