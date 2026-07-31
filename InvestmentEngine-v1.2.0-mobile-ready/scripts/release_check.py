@@ -27,6 +27,8 @@ def main() -> int:
         "migrations/0005_v1_1_2_macro_derivatives.sql",
         "migrations/0006_v1_1_3_hardening_realtime_ura.sql",
         "migrations/0007_v1_2_model_validation.sql",
+        "migrations/0008_portfolio_audit_hardening.sql",
+        "migrations/0009_portfolio_self_service_reset.sql",
         "app/collectors/globalx_ura.py",
         "app/collectors/sec.py",
         "app/engines/ura.py",
@@ -144,6 +146,26 @@ def main() -> int:
         "migrations/0007_v1_2_model_validation.sql",
         ["model.validation_runs", "public.model_validation_snapshot", "shadow_min_calendar_days"],
         "Model validation migration",
+    )
+    _require_markers(
+        "migrations/0008_portfolio_audit_hardening.sql",
+        [
+            "ux_portfolio_transactions_single_successor",
+            "validate_portfolio_revision_reference",
+            "revoke update, delete on public.portfolio_transactions",
+            "btc_eth_conversion_pct",
+        ],
+        "Portföy audit hardening migration",
+    )
+    _require_markers(
+        "migrations/0009_portfolio_self_service_reset.sql",
+        [
+            "reset_portfolio_transaction_history",
+            "authenticated_user_id uuid := auth.uid()",
+            "transaction_row.user_id = authenticated_user_id",
+            "grant execute on function",
+        ],
+        "Kullanıcı portföy sıfırlama migration",
     )
     _require_markers(
         "app/backtest/validation.py",
