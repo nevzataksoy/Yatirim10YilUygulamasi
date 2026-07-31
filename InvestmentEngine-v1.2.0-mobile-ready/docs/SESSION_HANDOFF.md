@@ -7,10 +7,10 @@ Kalıcı kararlar `PROJECT_MEMORY_BANK.md`, normatif motor davranışı `SIGNAL_
 
 ## 1. Son doğrulanan repo durumu
 
-| Repo | Aktif branch | Bu handoff öncesi doğrulanan HEAD | PR |
-| --- | --- | --- | --- |
-| `nevzataksoy/Yatirim10YilUygulamasi` | `agent/portfolio-audit-reset` | `0a4a40c` | Draft PR #1 |
-| `nevzataksoy/tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | `1ab1018` | Draft PR #1 |
+| Repo                                          | Aktif branch                           | Bu handoff öncesi doğrulanan HEAD | PR          |
+| --------------------------------------------- | -------------------------------------- | --------------------------------- | ----------- |
+| `nevzataksoy/Yatirim10YilUygulamasi`          | `agent/portfolio-audit-reset`          | `21932c6`                         | Draft PR #1 |
+| `nevzataksoy/tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | `aa8e3fe`                         | Draft PR #1 |
 
 Bu dosya güncellenince branch HEAD değişir. Yeni oturum her zaman remote branch'i yeniden okuyup güncel HEAD'i doğrular; bu tabloda yazan SHA'yı körlemesine kullanmaz.
 
@@ -100,6 +100,10 @@ Kullanıcı onayı bekleyen öneriler:
 - Seçili portföy işlem geçmişi kontrollü reset RPC'siyle sıfırlanabilir.
 - Alım/satış/dönüşüm/sermaye ekranlarında önce–işlem–sonra bakiye bağlamı bulunur.
 - `/signals` karar status pill'i üst boşlukla hizalanmıştır.
+- Login ve `/settings` içindeki Supabase bağlantı alanları ortak yerel ayar şifresiyle korunur.
+- İlk erişimde parola oluşturma, her açılışta yeniden doğrulama ve açık parola yerine PBKDF2-SHA256 doğrulayıcısı saklama uygulanmıştır.
+- Hatalı denemeler kalıcı kilit üretmez; bağlantı penceresi kapanınca URL/key taslağı bellek state'inden temizlenir.
+- Ayar şifresi ana uygulama commit'i Quasar dalındaki `ccaacd6`, handoff commit'i `aa8e3fe`dir.
 - Prettier, ESLint ve Quasar SPA production build, Draft PR #1 açıklamasına göre geçti.
 
 ## 7. Quasar'da henüz kullanıcı doğrulaması bekleyen iş
@@ -109,6 +113,8 @@ Kullanıcı onayı bekleyen öneriler:
 - Her adımda önce/işlem/sonra bakiyesi kontrol edilmeli; ilk sapmada zincir durdurulup ekran görüntüsü paylaşılmalı.
 - Sonunda Dashboard, Portföy, İşlem Geçmişi ve Raporlar ekran görüntüleriyle beklenen toplamlar karşılaştırılmalı.
 - Draft PR testler tamamlanmadan merge edilmemeli.
+
+Sıradaki production-readiness geliştirmesi bağlantı ve Auth yaşam döngüsüdür: gerçek bağlantı sağlık testi, anlaşılır hata teşhisi, e-posta doğrulama, şifremi unuttum ve SPA/Capacitor parola sıfırlama dönüşü. Signal→Conversion yönlendirmesi bunun ardından ve Python `action_size` ile Quasar kullanıcı limitinin semantiği kesinleştirildikten sonra ele alınır.
 
 ## 8. Veritabanı/audit durumu
 

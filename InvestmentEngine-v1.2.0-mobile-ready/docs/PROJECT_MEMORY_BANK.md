@@ -37,11 +37,11 @@ Durum etiketleri:
 
 ## 3. İki repo ve sorumluluk sınırı
 
-| Katman | Repo / teknoloji | Sorumluluk | Bilinçli sınır |
-| --- | --- | --- | --- |
-| Investment Engine | `nevzataksoy/Yatirim10YilUygulamasi`, Python / Windows Service | Piyasa, FX, makro, derivatives, URA holdings/breadth ve event toplama; feature/factor/regime/decision; scheduler, validation, health ve Telegram | Portföy bakiyesi/seçili hesap okumaz; otomatik emir göndermez |
-| Veri ve güvenlik | Supabase / PostgreSQL | Auth, RLS, portföy ledger'ı, motor tabloları, public read-only snapshot'lar | Frontend'e DB password, service-role veya provider secret verilmez |
-| Kullanıcı uygulaması | `nevzataksoy/tr.rosayazilim.yatirimdashboard`, Quasar / Pinia / Capacitor | Login, çoklu portföy hesabı, işlem girişi, append-only düzeltme, maliyet/KZ, raporlar ve motor görünümü | Model eşiği/ağırlığı değiştirmez; Telegram secret yönetmez |
+| Katman               | Repo / teknoloji                                                          | Sorumluluk                                                                                                                                       | Bilinçli sınır                                                     |
+| -------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Investment Engine    | `nevzataksoy/Yatirim10YilUygulamasi`, Python / Windows Service            | Piyasa, FX, makro, derivatives, URA holdings/breadth ve event toplama; feature/factor/regime/decision; scheduler, validation, health ve Telegram | Portföy bakiyesi/seçili hesap okumaz; otomatik emir göndermez      |
+| Veri ve güvenlik     | Supabase / PostgreSQL                                                     | Auth, RLS, portföy ledger'ı, motor tabloları, public read-only snapshot'lar                                                                      | Frontend'e DB password, service-role veya provider secret verilmez |
+| Kullanıcı uygulaması | `nevzataksoy/tr.rosayazilim.yatirimdashboard`, Quasar / Pinia / Capacitor | Login, çoklu portföy hesabı, işlem girişi, append-only düzeltme, maliyet/KZ, raporlar ve motor görünümü                                          | Model eşiği/ağırlığı değiştirmez; Telegram secret yönetmez         |
 
 Google Sheets ve Apps Script production mimarisinden çıkarılmıştır.
 
@@ -116,20 +116,20 @@ Bu yaklaşım prototip ve ihtiyaç keşfi için yararlı oldu; ancak 10 yıllık
 
 ## 6. Denenen yaklaşım ve kesinleşen sonuçlar
 
-| Konu | Denenen/ilk yaklaşım | Kesinleşen sonuç |
-| --- | --- | --- |
-| Kullanıcı uygulaması | Google Sheets + Apps Script | Quasar + Supabase; Sheets production dışı |
-| Sinyal | 36 aylık ratio/percentile odaklı tek kural | Çoklu factor + regime + quality + veto + risk + persistent state |
-| Crypto fiyat | Binance dahil alternatifler | Coinbase günlük spot ana kaynak; güvenilir fallback yaklaşımı |
-| Derivatives | Deribit tek başına | Deribit erişilemezse atomik OKX fallback |
-| Eksik veri | Nötr/sahte quality | `quality=0`; kaynak yokken score/quality uydurulmaz |
-| Model ayarı | Backtest sonucuna göre otomatik threshold | Validation yalnız raporlar; threshold/weight/mode otomatik değişmez |
-| Bildirim | E-posta | Tek Telegram botu + tek Chat ID; secret yalnız Python ayarlarında |
-| Execution | LIVE/realtime kavramlarının karışması | LIVE karar/bildirim modu; Realtime Execution ayrı; otomatik emir yok |
-| Portföy | Tek defter | Tek Auth kullanıcısı altında çoklu portföy hesabı |
-| İşlem düzeltme | Eski kaydı update/delete | Append-only revision/cancellation; rapor yalnız etkin son revizyonu kullanır |
-| Nakit | USDT dahil etme fikri | İlk sürümde yalnız TRY/USD; USDT eklenmez |
-| Muhasebe | Ekran para birimine göre hesap | İç ledger USD normalize; display asset yalnız sunum |
+| Konu                 | Denenen/ilk yaklaşım                       | Kesinleşen sonuç                                                             |
+| -------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
+| Kullanıcı uygulaması | Google Sheets + Apps Script                | Quasar + Supabase; Sheets production dışı                                    |
+| Sinyal               | 36 aylık ratio/percentile odaklı tek kural | Çoklu factor + regime + quality + veto + risk + persistent state             |
+| Crypto fiyat         | Binance dahil alternatifler                | Coinbase günlük spot ana kaynak; güvenilir fallback yaklaşımı                |
+| Derivatives          | Deribit tek başına                         | Deribit erişilemezse atomik OKX fallback                                     |
+| Eksik veri           | Nötr/sahte quality                         | `quality=0`; kaynak yokken score/quality uydurulmaz                          |
+| Model ayarı          | Backtest sonucuna göre otomatik threshold  | Validation yalnız raporlar; threshold/weight/mode otomatik değişmez          |
+| Bildirim             | E-posta                                    | Tek Telegram botu + tek Chat ID; secret yalnız Python ayarlarında            |
+| Execution            | LIVE/realtime kavramlarının karışması      | LIVE karar/bildirim modu; Realtime Execution ayrı; otomatik emir yok         |
+| Portföy              | Tek defter                                 | Tek Auth kullanıcısı altında çoklu portföy hesabı                            |
+| İşlem düzeltme       | Eski kaydı update/delete                   | Append-only revision/cancellation; rapor yalnız etkin son revizyonu kullanır |
+| Nakit                | USDT dahil etme fikri                      | İlk sürümde yalnız TRY/USD; USDT eklenmez                                    |
+| Muhasebe             | Ekran para birimine göre hesap             | İç ledger USD normalize; display asset yalnız sunum                          |
 
 ## 7. Güncel Python deployment gerçeği
 
@@ -192,12 +192,12 @@ Sonucu paylaşılmamış görev başarılı sayılmaz. Normal durumda servis dur
 
 ## 9. Görevlerden Python revizyonuna geçiş kuralı
 
-| Kanıt aşaması | İzin verilen revizyon | Yasak |
-| --- | --- | --- |
-| Görev 1–3 | Gerçek scheduler/provider/freshness/snapshot/health sapmasını düzeltmek | Model threshold/weight değiştirmek |
-| Görev 4 | Açık Shadow Epoch, run-kind ayrımı, expected/actual job sayısı, OK/completed rate, edge/status diagnostics, mevcut K1/K2 karakterizasyon testleri | Sinyal davranışını sessizce değiştirmek |
-| Görev 5–6 | ETH/BTC ve URA factor quality/freshness katkılarını ayrıştırmak, walk-forward ve strict PIT katmanını güçlendirmek | Quality yükselsin diye sentetik score/history eklemek |
-| Görev 7 | PIT, walk-forward, monthly realized, Shadow dağılımları ve scheduler güvenilirliğini birlikte review etmek | Otomatik LIVE geçişi |
+| Kanıt aşaması | İzin verilen revizyon                                                                                                                             | Yasak                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Görev 1–3     | Gerçek scheduler/provider/freshness/snapshot/health sapmasını düzeltmek                                                                           | Model threshold/weight değiştirmek                    |
+| Görev 4       | Açık Shadow Epoch, run-kind ayrımı, expected/actual job sayısı, OK/completed rate, edge/status diagnostics, mevcut K1/K2 karakterizasyon testleri | Sinyal davranışını sessizce değiştirmek               |
+| Görev 5–6     | ETH/BTC ve URA factor quality/freshness katkılarını ayrıştırmak, walk-forward ve strict PIT katmanını güçlendirmek                                | Quality yükselsin diye sentetik score/history eklemek |
+| Görev 7       | PIT, walk-forward, monthly realized, Shadow dağılımları ve scheduler güvenilirliğini birlikte review etmek                                        | Otomatik LIVE geçişi                                  |
 
 Model factor, weight, threshold, K1/K2, reversal, cooldown veya action-size otoritesi değişirse yeni model version ve yeni Shadow Epoch gerekir. Eski 30 günlük kanıt otomatik devredilmez.
 
@@ -241,6 +241,9 @@ Kullanıcı açıkça onaylamadan kodlanmaz.
 - Seçili portföy geçmişi kontrollü RPC ile sıfırlanabilir; profil, diğer hesaplar, ayarlar ve motor verileri korunur.
 - Alım, satış, dönüşüm ve sermaye hareketlerinde önce/işlem/sonra bakiye bağlamı gösterilir.
 - İç muhasebe USD normalize; display asset `USD/TRY/BTC/ETH` sunum katmanıdır.
+- Supabase bağlantı ayarları hem Login hem `/settings` giriş noktasında yerel ayar şifresiyle korunur.
+- İlk erişimde en az 6 karakterli ayar şifresi oluşturulur; bağlantı alanları her yeniden açıldığında şifre tekrar doğrulanır.
+- Hatalı denemeler kalıcı kilit oluşturmaz; bağlantı penceresi kapanınca URL/key taslağı bellek state'inden temizlenir.
 
 ## 12. Portföy işlem semantiği
 
@@ -257,6 +260,8 @@ Kullanıcı açıkça onaylamadan kodlanmaz.
 
 - Supabase DB password, service-role key, FRED/Alpha Vantage key, Telegram token/Chat ID repo veya bağlam belgelerine yazılmaz.
 - Quasar yalnız Project URL ve publishable/anon key kullanır.
+- Ayar şifresinin açık değeri saklanmaz; rastgele salt ile `PBKDF2-SHA256` doğrulayıcısı türetilip SecureLS/AES içindeki localStorage kaydında tutulur.
+- Yerel ayar şifresi cihaz içi yanlışlıkla erişimi azaltır; native keychain veya sunucu tarafı secret kasası değildir.
 - Python settings/rosalock uygulama klasöründe şifreli/hashed ve atomik tutulur.
 - SecureLS frontend cache korumasıdır; XSS veya native secure enclave yerine geçmez.
 - Capacitor aşamasında refresh/session secret native secure storage'a taşınmalıdır.
