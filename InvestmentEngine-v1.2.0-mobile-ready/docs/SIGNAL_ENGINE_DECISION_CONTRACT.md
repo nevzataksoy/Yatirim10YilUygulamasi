@@ -1,115 +1,347 @@
 # Dönüşüm Sinyali Motoru Karar Sözleşmesi
 
-Son güncelleme: 31 Temmuz 2026  
-Kapsam: Rosa Investment Engine v1.2.0, ETH/BTC ve URA/USD  
-Amaç: Yeni oturumların mevcut kod davranışıyla hedeflenen sonraki davranışı birbirine karıştırmasını engellemek.
+Son güncelleme: 01 Ağustos 2026  
+Kapsam: Rosa Investment Engine **v1.2.0**, `ETH/BTC` ve `URA/USD`
+
+Bu belge yayımlanmış motorun matematiksel ve işlevsel gerçeğini açıklar. Amaç yeni oturumların “kodda var”, “ürün kararı olarak kesin”, “önerilmiş” ve “henüz kanıt bekliyor” kavramlarını birbirine karıştırmasını önlemektir.
 
 ## 1. Durum etiketleri
 
-Bu belgede her önemli kural aşağıdaki etiketlerden biriyle değerlendirilir:
+- `RELEASED`: v1.2.0 kodunda veya uygulanan veritabanı sözleşmesinde mevcut davranış.
+- `APPROVED`: kullanıcı tarafından kesinleştirilmiş ürün/mimari kararı; kodu ayrıca doğrulanır.
+- `PROPOSED`: önerilmiş fakat kullanıcı tarafından bağlayıcı biçimde onaylanmamış hedef.
+- `OPEN`: kanıt, ürün kararı veya teknik parity bekleyen konu.
 
-- `RELEASED`: v1.2.0 kodunda ve/veya veritabanı sözleşmesinde uygulanmış davranış.
-- `APPROVED`: Kullanıcı tarafından kesinleştirilmiş ürün/mimari kararı; kodu ayrıca doğrulanmalıdır.
-- `PROPOSED`: Önceki analizde önerilmiş, fakat kullanıcı tarafından henüz bağlayıcı şekilde onaylanmamış hedef.
-- `OPEN`: Kanıt veya ürün kararı bekleyen konu.
-
-Bir `PROPOSED` ya da `OPEN` madde, yeni oturum tarafından sessizce uygulanamaz. Davranış değişecekse kullanıcı kararı, test, model version ve yeni Shadow Epoch birlikte ele alınır.
+`PROPOSED` veya `OPEN` madde kullanıcı onayı olmadan kodlanamaz. Model davranışı değişiyorsa model version, test, deployment ve yeni Shadow Epoch birlikte ele alınır.
 
 ## 2. Değişmez ürün sınırları
 
-| Kural                                   | Durum                   | Açıklama                                                                                                  |
-| --------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| Motor otomatik emir göndermez           | `APPROVED` + `RELEASED` | `live` modu dahi karar/bildirim ve isteğe bağlı execution observation üretir.                             |
-| Sinyaller portföyden bağımsızdır        | `APPROVED` + `RELEASED` | Sistemler `ETH/BTC` ve `URA/USD` olarak global çalışır; Python portföy bakiyesi veya seçili hesap okumaz. |
-| İşlem kullanıcı tarafından yapılır      | `APPROVED`              | Gerçek alım/satım/dönüşüm Quasar'da manuel ve append-only kaydedilir.                                     |
-| Tek Telegram botu ve Chat ID            | `APPROVED` + `RELEASED` | Bildirim hesap bazlı fan-out yapmaz.                                                                      |
-| Shadow'dan LIVE'a otomatik geçiş yok    | `APPROVED` + `RELEASED` | `READY` yalnız manuel production review kapısını açar.                                                    |
-| Eksik veri uydurulmaz                   | `APPROVED` + `RELEASED` | Kaynak/history yoksa factor `quality=0`; sahte nötr kalite verilmez.                                      |
-| Model parametreleri otomatik ayarlanmaz | `APPROVED` + `RELEASED` | Validation/calibration yalnız rapor üretir.                                                               |
+| Kural | Durum | Açıklama |
+| --- | --- | --- |
+| Otomatik borsa emri yok | `APPROVED + RELEASED` | LIVE bile yalnız yeni action event bildirimi ve isteğe bağlı order-book gözlemi üretir. |
+| Motor portföyden bağımsız | `APPROVED + RELEASED` | Python seçili Quasar hesabını, adet/bakiyeyi veya kullanıcı işlemlerini okumaz. |
+| Gerçek işlem kullanıcı onaylı | `APPROVED` | Alım/satım/dönüşüm Quasar'da seçili hesapta manuel ve append-only kaydedilir. |
+| Aylık DCA ana disiplin | `APPROVED` | Sinyal motoru aylık sermaye ayırmayı otomatik durdurmaz veya zorunlu dağılım vermez. |
+| READY otomatik LIVE değildir | `APPROVED + RELEASED` | READY yalnız manuel production review kapısıdır. |
+| Eksik veri uydurulmaz | `APPROVED + RELEASED` | Kaynak/history yoksa factor quality `0`; sahte nötr kalite verilmez. |
+| Validation parametre değiştirmez | `APPROVED + RELEASED` | Threshold, weight ve mode yalnız raporla değişmez. |
+| Tek Telegram hedefi | `APPROVED + RELEASED` | Python tek bot/Chat ID kullanır; hesap bazlı fan-out yoktur. |
 
 ## 3. Sistemler ve yön semantiği
 
-### ETH/BTC
+### 3.1 ETH/BTC
 
-- Pozitif signed edge: `BTC→ETH`
-- Negatif signed edge: `ETH→BTC`
-- Amaç, toplam portföy performansında BTC ve ETH arasında göreli güç/rejim değişimini değerlendirmektir.
-
-### URA/USD
-
-- Pozitif signed edge: `USD→URA`
-- Negatif signed edge: `URA→USD`
-- `fundamentals` factor adı v1.2.0'da fiziksel uranyum arz-talep modeli değildir; Global X URA holdings/price-adjusted AUM flow proxy'sidir.
-
-Signed edge sıfır olduğunda kod yön etiketini pozitif bacağa verir; fakat edge sıfır olduğu için bu tek başına `ACTION` üretemez.
-
-## 4. v1.2.0 karar zinciri — `RELEASED`
+Motor BTC ve ETH'nin USD fiyatlarından:
 
 ```text
-Raw Data
-→ Freshness / Data Quality
-→ Features
-→ Market Regime + Trend Regime
-→ Factors
-→ Quality-adjusted Edge
-→ Confidence / Uncertainty
-→ Late Entry + Event Veto
-→ Risk Sizing
-→ Decision Status
-→ Persistent Signal State (K1/K2)
-→ Supabase snapshots/history
-→ Shadow veya LIVE bildirim davranışı
+ETH/BTC ratio = ETH-USD close / BTC-USD close
 ```
 
-### 4.1 Teknik girdiler
+üretir.
 
-Her iki sistemin fiyat çekirdeğinde aşağıdaki göstergeler bulunur:
+- `signed_edge > 0` → yön etiketi `BTC→ETH`
+- `signed_edge < 0` → yön etiketi `ETH→BTC`
+
+Bu etiket göreli avantaj yönüdür. `WAIT`, `WATCH`, `NO_ACTION_DATA` veya blocker ile gelen yön işlem talimatı değildir.
+
+### 3.2 URA/USD
+
+- `signed_edge > 0` → `USD→URA`
+- `signed_edge < 0` → `URA→USD`
+
+`fundamentals` adı fiziksel uranyum arz-talep modeli değildir. v1.2.0'da resmî Global X URA holdings verisinden türetilen price-adjusted AUM flow proxy'sidir.
+
+### 3.3 Sıfır signed edge
+
+Kod `signed_edge >= 0` olduğunda pozitif yön etiketini seçebilir. `edge=0` action eşiğini geçemeyeceğinden bu etiket tek başına aksiyon değildir.
+
+## 4. Runtime karar zinciri — `RELEASED`
+
+```text
+Ham veri
+→ freshness/source quality
+→ features
+→ macro + market/trend regime
+→ factor scores ve factor quality
+→ rejime göre factor weights
+→ quality-adjusted signed edge
+→ edge, data quality, directional agreement
+→ confidence / uncertainty
+→ event veto + late-entry gate
+→ volatility risk / recommended size
+→ decision status
+→ persistent signal state (K1/K2)
+→ model/public tablolar
+→ SHADOW kayıt veya LIVE bildirim/order-book gözlemi
+```
+
+### Günlük ETH/BTC işi
+
+1. Coinbase BTC-USD ve ETH-USD günlük history alınır.
+2. Son kapanış tarihleri eşit değilse karar üretilmez.
+3. `market.daily_prices` ve `public.market_snapshot` güncellenir.
+4. ETH/BTC features üretilip `model.features`a yazılır.
+5. As-of makro observation'ları alınır; macro score ve quality hesaplanır.
+6. Regime oluşturulup `model.regimes`a yazılır.
+7. Derivatives pair 3 saatten eski/eksikse best-effort refresh yapılır.
+8. Factor'lar hesaplanır ve `model.factor_scores`a yazılır.
+9. Decision üretilir; persistent state uygulanır.
+10. Private decision, public snapshot/history, health ve job audit yazılır.
+
+### Günlük URA/USD işi
+
+1. Alpha Vantage daily/weekly/monthly URA fiyatları alınır.
+2. Global X dated holdings best-effort yenilenir.
+3. Holdings geçmişinden flow proxy; constituent geçmişinden breadth üretilir.
+4. SEC monitor health/event metadata alınır.
+5. Technical, macro, fundamentals, breadth ve event factor'ları hesaplanır.
+6. Aynı decision/state/audit zinciri çalışır.
+
+## 5. Teknik feature çekirdeği — `RELEASED`
+
+Her iki sistemde:
 
 - EMA 10 ve EMA 21
-- EMA cross age ve EMA21 beş günlük eğimi
-- MACD 12/26/9 ve cross age
+- Bull/bear EMA cross age
+- EMA21 beş günlük yüzde eğimi
+- MACD 12/26/9, signal, histogram; ETH/BTC için cross age
 - RSI 14
-- Bollinger 20/2, `%B` ve band genişliği
-- 36 aylık percentile
+- Bollinger 20/2 `%B` ve band width
+- 36 aylık percentile rank
 - 52 haftalık z-score
-- 20/60 dönem realized volatility
+- realized volatility 20 ve 60 dönem
+- ATR yüzde girdileri
 - hacim/relative-volume girdileri
 
-ETH/BTC ayrıca BTC ve ETH günlük fiyat/hacimlerini oranlar, derivatives ve makro girdileri kullanır. URA/USD, URA fiyatlarına ek olarak Global X holdings/flow, coverage-aware breadth ve SEC event-monitor kalitesi kullanır.
+ETH/BTC ayrıca BTC ve ETH notional relative volume ölçer. URA doğrudan ETF fiyat/hacim feature'larını kullanır.
 
-### 4.2 Factor kümeleri
+## 6. Factor kümeleri ve runtime ağırlık kaynağı
 
-| Sistem  | Directional model factor'ları                                             |
-| ------- | ------------------------------------------------------------------------- |
-| ETH/BTC | `value`, `trend`, `momentum`, `derivatives`, `flow`, `macro`, `event`     |
+| Sistem | Directional factor'lar |
+| --- | --- |
+| ETH/BTC | `value`, `trend`, `momentum`, `derivatives`, `flow`, `macro`, `event` |
 | URA/USD | `value`, `trend`, `momentum`, `macro`, `fundamentals`, `breadth`, `event` |
 
-Volatilite yön oyu değildir; risk ve büyüklük katmanını etkiler. Factor ağırlıkları `config/defaults.json` içinde `RISK_ON_TREND`, `MEAN_REVERSION`, `RISK_OFF`, `NEUTRAL` rejimlerine göre versioned kaynak olarak tutulur.
+`volatility` factor score'u üretilebilir fakat directional weighted edge listesinde değildir; risk/sizing katmanında kullanılır.
 
-## 5. Skor matematiği — `RELEASED`
+### Kritik kaynak otoritesi
 
-Her factor için:
+v1.2.0 `DecisionEngine`, factor ağırlıklarını **`config/defaults.json`** dosyasından okur. `model.factor_weights` tablosu şemada vardır fakat yayımlanmış runtime bu tabloyu okumaz. DB tablosunun varlığı onu aktif configuration source yapmaz.
+
+Rejim bazlı ağırlık setleri:
+
+- `RISK_ON_TREND`
+- `MEAN_REVERSION`
+- `RISK_OFF`
+- `NEUTRAL`
+
+## 7. Factor skorları — `RELEASED`
+
+Tüm skorlar `[-100, 100]` aralığına kırpılır.
+
+### 7.1 Value
+
+```text
+value_score = (0.5 - percentile_36m) × 160
+            + (-zscore_52w) × 20
+```
+
+Düşük percentile/z-score pozitif göreli değer, yüksek seviye negatif göreli değer üretir.
+
+### 7.2 Trend
+
+```text
+ema_gap_pct = (EMA10 / EMA21 - 1) × 100
+trend_score = ema_gap_pct × 350 + ema21_slope_5d × 12
+```
+
+### 7.3 Momentum
+
+```text
+rsi_score  = (RSI14 - 50) × 2.3
+scale      = max(abs(ratio_or_price) × 0.001, 1e-8)
+macd_score = clamp(MACD_hist / scale, -50, 50)
+momentum   = rsi_score + macd_score
+```
+
+### 7.4 ETH/BTC flow
+
+```text
+btc_rvol = son BTC USD-notional hacmi / 20 günlük ortalama
+eth_rvol = son ETH USD-notional hacmi / 20 günlük ortalama
+relative_rvol = eth_rvol / btc_rvol
+flow_score = ln(relative_rvol) × 40
+```
+
+Yayımlanmış factor quality `80`dir.
+
+### 7.5 ETH/BTC derivatives
+
+BTC ve ETH snapshot'ı yoksa veya venue farklıysa:
+
+```text
+score = 0
+quality = 0
+```
+
+Aynı provider pair bulunduğunda:
+
+```text
+funding_diff_bps = (ETH funding_8h - BTC funding_8h) × 10000
+basis_diff_pct   = ETH basis_pct - BTC basis_pct
+oi_ratio         = ETH OI_USD / BTC OI_USD
+crowd_penalty    = max(0, funding_diff_bps - 1.5) × 20
+score            = basis_diff_pct × 20
+                 + ln(oi_ratio) × 8
+                 - crowd_penalty
+quality          = 90
+```
+
+Deribit inverse perpetual OI zaten USD amount units; OKX `oiUsd` kullanır. BTC ve ETH farklı venue'dan karıştırılmaz.
+
+### 7.6 Macro
+
+Macro score yönü bugün üç bileşenden gelir:
+
+```text
+VIX contribution      = clamp((22 - VIXCLS) × 2, -40, 40)
+Stress contribution   = clamp(-STLFSI4 × 20, -30, 30)
+Real-rate contribution= clamp((1.5 - DFII10) × 8, -20, 20)
+macro_score            = toplam
+```
+
+Macro quality ise sekiz beklenen serinin freshness quality ortalamasıdır:
+
+```text
+DGS2, DGS10, DFII10, VIXCLS,
+STLFSI4, DTWEXBGS, NASDAQCOM, SP500
+```
+
+API isteğinin başarılı olması tek başına quality=100 değildir. Observation yaşı freshness bantlarına göre puanlanır.
+
+### 7.7 URA fundamentals
+
+İlk holdings snapshot yalnız kaynağın erişilebilir olduğunu kanıtlar:
+
+```text
+score = 0
+quality = 0
+```
+
+İkinci farklı tarih oluşunca:
+
+```text
+score = flow_proxy_pct × 12
+quality = holdings_weight_coverage
+          × comparison_window_quality
+          × snapshot_freshness_quality
+```
+
+Bu factor “Global X URA holdings price-adjusted AUM flow proxy”dir; uranium spot fundamentals değildir.
+
+### 7.8 URA breadth
+
+Mümkün bileşenler:
+
+- `% above 20 DMA`
+- `% above 50 DMA`
+- `% above 200 DMA`
+- `% positive day`
+- `% new 20-day high`
+
+History coverage ve freshness yoksa q0. Score, mevcut bileşenlerin nötr tabandan ölçeklenmiş ortalamasıdır.
+
+### 7.9 Event
+
+ETH/BTC event provider bağlı değildir:
+
+```text
+score = 0
+quality = 0
+```
+
+URA SEC monitor quality:
+
+```text
+quality = min(70, exact SEC ticker ile eşleşen URA fon ağırlığı yüzdesi)
+```
+
+Semantic severity bulunmadığında “monitor çalıştı ve sessiz” durumu `score=0, quality>0` olabilir. Filing var diye yön uydurulmaz.
+
+## 8. Regime sınıflandırması — `RELEASED`
+
+```text
+trend_strength = min(100, abs(ema21_slope_5d) × 25)
+vol_ratio      = rv20 / rv60
+```
+
+Market axis:
+
+```text
+macro_score < -35 veya vol_ratio > 1.6 → RISK_OFF
+macro_score >= -10                       → RISK_ON
+diğer                                   → NEUTRAL
+```
+
+Trend axis:
+
+```text
+trend_strength > 35 → STRONG_UPTREND / STRONG_DOWNTREND
+trend_strength < 15 → FLAT
+diğer               → TRANSITION
+```
+
+Primary weight regime:
+
+```text
+market RISK_OFF                         → RISK_OFF
+trend_strength > 35 ve macro >= -10    → RISK_ON_TREND
+trend_strength < 15 ve vol_ratio < 1.15→ MEAN_REVERSION
+diğer                                  → NEUTRAL
+```
+
+`model.regimes.probabilities` öğrenilmiş/kalibre edilmiş probability değildir. Primary rejime `0.7`, diğerlerinin her birine `0.1` yazan sabit gösterim dağılımıdır.
+
+## 9. Edge, quality ve confidence matematiği — `RELEASED`
+
+Her configured directional factor için:
 
 ```text
 quality_weight = factor_weight × factor_quality / 100
-signed_edge    = Σ(factor_score × quality_weight) / Σ(quality_weight)
-edge           = abs(signed_edge)
-data_quality   = Σ(factor_quality × factor_weight) / Σ(configured_factor_weight)
 ```
 
-`quality <= 0` factor edge hesabına katılmaz. Ancak data quality paydası tüm yapılandırılmış ağırlıkları içerdiği için eksik factor toplam kaliteyi düşürür.
-
-Directional agreement yalnız pozitif ve negatif factor skorlarından hesaplanır:
+Yalnız `quality > 0` factor edge numerator/denominator'a girer:
 
 ```text
-agreement = abs(Σ(sign(score))) / directional_factor_count × 100
-confidence = clamp(edge × 0.65 + data_quality × 0.20 + agreement × 0.15, 0, 100)
+signed_edge = Σ(factor_score × quality_weight)
+              / Σ(quality_weight)
+edge        = abs(signed_edge)
+```
+
+Toplam data quality, eksik factor'ları gizlememek için bütün configured weight paydasını korur:
+
+```text
+data_quality = Σ(factor_quality × factor_weight)
+               / Σ(all configured factor weights)
+```
+
+Directional agreement yalnız non-zero factor score işaretlerinden hesaplanır:
+
+```text
+agreement = abs(Σ(sign(nonzero score)))
+            / nonzero_directional_factor_count × 100
+```
+
+```text
+confidence  = clamp(edge × 0.65
+                  + data_quality × 0.20
+                  + agreement × 0.15, 0, 100)
 uncertainty = 100 - confidence
 ```
 
-`score=0` directional oy sayılmaz. Gerçekten izlenen fakat yön üretmeyen bir kaynak `score=0, quality>0` olabilir; hiç izlenmeyen kaynak `score=0, quality=0` olmalıdır.
+`score=0` directional oy değildir. Ancak `score=0, quality>0`, gerçekten izlenen fakat yön üretmeyen kaynağın data-quality katkısı olabilir.
 
-## 6. Varsayılan eşikler — `RELEASED`, Shadow süresince kilitli
+## 10. Varsayılan eşikler — `RELEASED`
 
 ```text
 Minimum Data Quality = 80
@@ -117,228 +349,339 @@ Minimum Edge         = 70
 Minimum Confidence   = 70
 Strong Edge          = 80
 Strong Confidence    = 80
+WATCH Edge           = 55
 Regime Reset Edge    = 45
 Regime Reset Days    = 5
-Base Tranche         = %25
-Max Regime           = %50
-WATCH Edge           = 55
+Base Tranche         = 25%
+Max Regime           = 50%
 ```
 
-31.07.2026–29.08.2026 Shadow gözleminde bu değerler checkpoint sonuçlarına bakılarak değiştirilmez.
+31.07.2026–29.08.2026 Shadow süresinde checkpoint çıktısına bakıp bu değerler değiştirilmez.
 
-## 7. Karar statüsü önceliği — `RELEASED`
+## 11. Karar status önceliği — `RELEASED`
 
 Sıra bağlayıcıdır:
 
 1. `data_quality < 80` → `NO_ACTION_DATA`
-2. Event veto → `BLOCKED_EVENT`
-3. Late entry ve `edge >= 70` → `BLOCKED_LATE`
+2. event veto → `BLOCKED_EVENT`
+3. late-entry ve `edge >= 70` → `BLOCKED_LATE`
 4. `edge >= 70` ve `confidence >= 70` → `ACTION`
 5. `edge >= 55` → `WATCH`
-6. Diğer durumlar → `WAIT`
+6. diğer → `WAIT`
 
-Event veto, late-entry ve quality kapıları geçilmeden edge tek başına aksiyon değildir.
+Yüksek edge, quality/veto/late-entry kapılarını atlayamaz.
 
-## 8. Late-entry kuralları — `RELEASED`
+## 12. Late-entry kuralları — `RELEASED`
 
-Yön için aşağıdakilerden biri oluşursa late-entry işaretlenir:
+İlgili yön için aşağıdakilerden biri late-entry sebebidir:
 
-- İlgili EMA cross age `> 5` gün veya cross bulunamaması
-- Pozitif yön RSI `>= 68`
-- Negatif yön RSI `<= 32`
-- Pozitif yön Bollinger `%B > 0.85`
-- Negatif yön Bollinger `%B < 0.15`
-- Pozitif yön 36 aylık percentile `> %45`
-- Negatif yön 36 aylık percentile `< %55`
+- EMA cross age `> 5` veya cross bulunamaması
+- Pozitif yön: `RSI >= 68`
+- Negatif yön: `RSI <= 32`
+- Pozitif yön: Bollinger `%B > 0.85`
+- Negatif yön: Bollinger `%B < 0.15`
+- Pozitif yön: 36 aylık percentile `> 0.45`
+- Negatif yön: 36 aylık percentile `< 0.55`
 
-Late-entry yalnız edge minimum action eşiğine ulaştığında `BLOCKED_LATE` statüsünü doğurur. Daha düşük edge, `WATCH` veya `WAIT` akışında kalabilir.
+Late-entry, status'u yalnız edge action eşiğine ulaştığında `BLOCKED_LATE` yapar. Düşük edge yine WATCH/WAIT olabilir.
 
-## 9. Risk ve önerilen büyüklük — `RELEASED`
+## 13. Risk ve recommended size — `RELEASED`
 
 ```text
-vol_ratio        = rv20 / rv60
-risk             = clamp(50 + (vol_ratio - 1) × 50, 0, 100)
-confidence_factor= clamp(confidence / 90, 0.40, 1.00)
-vol_factor       = clamp(1 / max(vol_ratio, 0.70), 0.35, 1.00)
-recommended_size = min(max_regime_pct, base_tranche_pct × confidence_factor × vol_factor)
+vol_ratio         = rv20 / rv60
+risk              = clamp(50 + (vol_ratio - 1) × 50, 0, 100)
+confidence_factor = clamp(confidence / 90, 0.40, 1.00)
+vol_factor        = clamp(1 / max(vol_ratio, 0.70), 0.35, 1.00)
+recommended_size  = min(max_regime_pct,
+                        base_tranche_pct × confidence_factor × vol_factor)
 ```
 
-Bu nedenle K1/K2'nin her biri sabit `%25` olmak zorunda değildir; `recommended_size` confidence ve volatilite nedeniyle daha küçük olabilir.
+Decision status ACTION değilse runtime `recommended_size` değerini `0` yapar. Bir K1/K2 kademesi sabit %25 olmak zorunda değildir; confidence/volatility yüzünden daha küçük olabilir.
 
-## 10. Persistent K1/K2 state — mevcut v1.2.0 gerçeği
+## 14. Persistent K1/K2 state — v1.2.0 gerçeği
 
-### Uygulanmış davranış — `RELEASED`
+### `RELEASED`
 
-- İlk uygun `ACTION`, aktif yön farklıysa yeni rejimi **hemen** başlatır ve K1 üretir.
-- K1 büyüklüğü `min(recommended_size, %25, rejimde kalan pay)` değeridir.
-- K2 yalnız aynı yönde, K1'den farklı bir `as_of` tarihinde, edge `>=80` ve confidence `>=80` ise üretilebilir.
-- K2 için mevcut kodda beş karar seansı bekleme şartı yoktur.
-- Aynı `as_of` tekrarında yeni kademe oluşmaz.
-- Toplam rejim büyüklüğü `%50`yi aşmaz.
-- Karşı yönde yeterli `ACTION` gelirse mevcut rejim beklemeden sıfırlanır ve karşı yönde K1 başlar.
-- Aktif yön aynı ve edge `>=45` ise reset sayacı sıfırlanır.
-- `ACTION` dışı/zayıf koşullar reset sayacını artırır; sayaç 5'e ulaştığında aktif rejim temizlenir.
-- State `model.signal_state` tablosunda tutulur; servis yeniden başladığında korunur.
+- İlk qualified `ACTION`, aktif yön farklıysa karşı yön dahil yeni rejimi **hemen** başlatır.
+- K1:
 
-### Bilinen doğrulama açığı — `OPEN`
+```text
+action_size = min(recommended_size, base_tranche 25%, remaining regime cap)
+```
 
-Production K1/K2 state machine'i, PIT replay sinyal seçicisi tarafından birebir kullanılmıyor. Bu nedenle v1.2.0 replay çıktısı gerçek K1/K2 olay sayısını, kademeler arası süreyi veya toplam dönüşüm yüzdesini doğrulamaz.
+- K2 yalnız:
+  - aktif yön aynı,
+  - stage `1`,
+  - `as_of` son action tarihinden farklı,
+  - edge `>=80`,
+  - confidence `>=80`
+  olduğunda oluşabilir.
+- K2 için yayımlanmış kodda 5 karar seansı bekleme şartı yoktur.
+- Aynı `as_of` tekrarında yeni kademe yoktur.
+- Cumulative regime size `%50`yi aşmaz.
+- Qualified karşı-yön ACTION mevcut rejimi beklemeden sıfırlar ve karşı yönde K1 başlatabilir.
+- Aktif yön aynı ve edge `>=45` ise reset counter sıfırlanır.
+- ACTION dışı/zayıf kararlar reset counter'ı artırır; `5` olduğunda aktif state temizlenir.
+- State `model.signal_state` tablosunda kalıcıdır; servis restart'ında korunur.
 
-## 11. Python action size ve Quasar dönüşüm oranı
+### Status ile action event farkı
 
-### Bugünkü teknik gerçek — `RELEASED`
+```text
+status=ACTION
+```
 
-- Python `action_size`, global piyasa kararı için modelin önerdiği rejim kademesidir; portföy adedi değildir.
-- Python `public.user_investment_settings` tablosunu ve Quasar'daki `%50` dönüşüm ayarlarını okumaz.
-- Quasar `btc_eth_conversion_pct` ve `ura_usd_conversion_pct` değerlerini kullanıcı seviyesinde tutar.
-- Mevcut `ConversionForm` dönüşümü otomatik uygulamaz; kullanıcı mevcut bakiyeden `%25/%50/%75/%100` veya manuel miktar seçer.
-- Dolayısıyla v1.2.0'da Python yüzdesi ile Quasar yüzdesinin otomatik çarpıldığı ya da `min(...)` ile uygulandığı bir entegrasyon yoktur.
+günlük koşulun uygun olduğunu söyler. Telegram/yeni kademe için:
 
-### Hedef yorum — `PROPOSED`, henüz bağlayıcı değil
+```text
+action_event=true
+```
 
-- Python `action_size`: modelin önerdiği gerçek kademe yüzdesi.
-- Quasar dönüşüm oranı: kullanıcının bir rejimde izin verdiği maksimum toplam dönüşüm sınırı.
-- Uygulanacak öneri: `min(Python action_size, kullanıcı limitinde kalan pay)`.
-- Quasar gerçek çevrilecek adedi seçili hesabın güncel kaynak bakiyesinden hesaplar; işlem yine kullanıcı onayıyla kaydedilir.
+gerekir. Aynı rejimde yeni kademe şartı oluşmadıysa ACTION satırı olabilir ama yeni event olmaz.
 
-Bu hedef kabul edilirse backend sözleşmesi, Quasar sinyal→dönüşüm akışı ve testleri aynı değişiklik setinde güncellenmelidir. Onay gelmeden mevcut `%50` ayarlarının anlamı sessizce değiştirilemez.
+## 15. Python action size ve Quasar kullanıcı limiti
 
-## 12. PIT replay ve calibration — `RELEASED`
+### Bugünkü gerçek — `RELEASED`
 
-### ETH/BTC directional core
+- Python `action_size` global model kademesidir.
+- Portföy adedi veya kullanıcının gerçek işlemi değildir.
+- Python `public.user_investment_settings` veya seçili Quasar hesabını okumaz.
+- Quasar kullanıcıya bakiye üzerinden yüzde butonları ve manuel miktar sunar.
+- Python yüzdesi ile Quasar limiti otomatik çarpılmaz veya `min(...)` uygulanmaz.
 
-- Yalnız geçmiş tarihte mevcut olabilecek fiyat ve makro verileri kullanır.
-- Güvenilir point-in-time geçmişi olmadığı için derivatives ve event factor'ları `quality=0` ile dışarıda bırakılır.
-- Bugünkü derivatives/event verisi geçmiş tarihe taşınmaz.
-- Bu nedenle çıktı “historical production ACTION backtest” değil, directional core doğrulamasıdır.
+### Hedef — `PROPOSED`
 
-### Replay sinyal seçimi
+- Python action size: modelin önerdiği kademe yüzdesi.
+- Quasar ayarı: kullanıcının bir rejimde izin verdiği maksimum toplam dönüşüm sınırı.
+- Aday formül:
 
-Mevcut seçici:
+```text
+uygulanabilir_yüzde = min(Python action_size,
+                          kullanıcı limitinde kalan pay)
+```
 
-- edge threshold'u geçen,
-- late-entry olmayan,
-- yön işareti sıfır olmayan
+- Gerçek adet seçili hesabın işlem anındaki kaynak bakiyesinden hesaplanır.
+- İşlem yine kullanıcı özeti/onayıyla kaydedilir.
 
-noktaları seçer; sinyaller arasında varsayılan 5 seans cooldown uygular. Ancak production decision statüsündeki quality/confidence kapılarını ve persistent K1/K2 state'ini birebir çalıştırmaz.
+Bu anlam kullanıcı tarafından kesinleştirilmeden Signal→Conversion otomasyonu yapılmaz.
 
-### Exploratory calibration
+## 16. Historical replay ve calibration — doğru yorum
 
-- Aday edge eşikleri: `50, 55, 60, 65, 70, 75, 80`
-- Train/holdout ayrımı: `%70 / %30`
-- Birincil horizon: 20 seans
-- Minimum uygunluk: train'de 8, holdout'ta 3 sinyal
-- Sonuç yalnız aday raporudur; settings'e yazılmaz.
+### 16.1 Kod etiketi
 
-### URA/USD
+DB ve kod validation type:
 
-Holdings, breadth ve event point-in-time geçmişi yeterli olmadıkça full replay `NOT_READY` kalır. Bugünkü holdings bileşenlerini geçmişe taşıyarak sonuç üretmek yasaktır.
+```text
+PIT_CORE_REPLAY / ETH/BTC
+```
 
-## 13. Monthly realized-performance audit — `RELEASED`
+### 16.2 Gerçek kapsam — `RELEASED`
 
-- Gerçek Shadow/production `ACTION` ve `WATCH` kararlarını 5/20/60 trading-session horizonlarında değerlendirir.
-- Direction-adjusted return, hit rate ve gözlem sayısını `model.performance` tablosuna yazar.
-- Factor ağırlığı veya eşik değiştirmez.
-- Bu audit, full PIT backtestin yerine geçmez; farklı bir kanıt katmanıdır.
+- Her tarih için BTC/ETH fiyat prefix'i yalnız o tarihe kadar kesilir.
+- Makroda `observation_date <= as_of` olan son satır seçilir.
+- Historical derivatives/event factor q0 ile dışarıda bırakılır.
+- Değer/trend/momentum/flow/macro directional core yeniden hesaplanır.
 
-## 14. Shadow Readiness — mevcut v1.2.0 sözleşmesi
+### 16.3 Strict PIT değildir — `OPEN`
 
-### Eşikler — `RELEASED`
+- FRED revision/vintage history (`realtime_start/realtime_end`) gerçek yayın anına göre replay edilmez.
+- Derivatives/event PIT history yoktur.
+- Bu nedenle “production ACTION backtest” veya “strict PIT” denemez.
+- Doğru yorum: **historical as-of directional-core replay**.
+
+### 16.4 Replay selector production parity değildir
+
+Mevcut selector:
+
+- edge threshold'u geçer,
+- late-entry değildir,
+- signed direction sıfır değildir,
+- varsayılan 5-session cooldown uygular.
+
+Ancak production:
+
+- data-quality kapısını,
+- confidence kapısını,
+- event veto sırasını,
+- status önceliğini,
+- persistent K1/K2/reversal/reset state'ini
+
+birebir replay etmez.
+
+### 16.5 Calibration gerçek walk-forward değildir
+
+v1.2.0:
+
+- aday threshold: `50,55,60,65,70,75,80`
+- tek chronological split: `%70 train / %30 holdout`
+- primary horizon: `20 seans`
+- eligibility: train `>=8`, holdout `>=3` sinyal
+- settings'e auto-apply yok
+
+Bu, expanding/rolling çok-fold walk-forward değil; exploratory train/holdout raporudur.
+
+### 16.6 URA replay
+
+URA holdings, breadth ve event point-in-time history yeterli olmadan `PIT_FULL_REPLAY / URA/USD = NOT_READY` kalır. Bugünkü holdings'i geçmişe taşıyıp sahte sonuç üretmek yasaktır.
+
+## 17. Monthly realized audit — `RELEASED`
+
+- Gerçek kaydedilmiş `ACTION` ve `WATCH` kararlarını 5/20/60 trading-session horizonlarında değerlendirir.
+- Direction-adjusted return ve hit bilgisini `model.performance`a yazar.
+- Full PIT backtest değildir.
+- Weight/threshold/mode değiştirmez.
+
+## 18. Shadow Readiness — `RELEASED`
+
+Kriterler:
 
 ```text
 Shadow calendar days       >= 30
 ETH/BTC decision days      >= 25
 URA/USD decision days      >= 20
 Median data quality        >= 80
-Recent job success         >= %98
+Recent job success         >= 98%
 Realtime smoke age         <= 7 gün
 URA holdings dates         >= 2
 URA breadth dates          >= 20
 ```
 
-Sonuçlar:
-
 - `NOT_READY`: süre/history birikmedi.
-- `BLOCKED`: süre/history yeterli, fakat quality/health/realtime blocker var.
-- `READY`: manuel LIVE değerlendirmesine izin verir; otomatik geçiş değildir.
+- `BLOCKED`: waiting tamamlandı fakat health/quality/realtime blocker var.
+- `READY`: manuel LIVE review yapılabilir; otomatik geçiş değildir.
+
+### Runtime config uyarısı
+
+Migration 0007 bu kriterleri `model.parameters`a seed eder. Fakat v1.2.0 `classify_shadow_readiness()` bu tablodan okumaz; hard-coded defaults kullanır. DB kayıtları bugün runtime source of truth değildir. Bu `OPEN` observability/config-authority işidir.
 
 ### Bilinen readiness açıkları — `OPEN`
 
-- Shadow süresi, aynı model version'daki ilk ve son karar arasından türetiliyor; açık bir `shadow_epoch_id`/`shadow_started_at` yok.
-- Son 7 gün job hesabında `OK`, `DEGRADED` ve `SKIPPED` başarılı kabul ediliyor.
-- Beklenen scheduler çalışma sayısı gerçekleşen sayıyla karşılaştırılmıyor.
-- Development/manual/backfill çalışmaları ayrı epoch/run-kind ile dışlanmıyor.
-- `OK rate` ile `completed rate` ayrıştırılmıyor.
+- Açık `shadow_epoch_id`/`shadow_started_at` yok.
+- Manual/backfill/development run-kind ayrımı yok.
+- Beklenen scheduler run sayısı gerçek run sayısıyla karşılaştırılmıyor.
+- `OK`, `DEGRADED`, `SKIPPED` completed/healthy ayrımı yeterince açık değil.
+- OK rate ve completed rate ayrıştırılmıyor.
 
-Bu açıklar Görev 4 sonrası diagnostics/readiness hardening kapsamıdır; eşik değişikliği değildir.
+## 19. Supabase tablo sözleşmesi
 
-## 15. Shadow görevlerinin model geliştirmesine etkisi
+### Ham/girdi
 
-| Görev | Kanıt                                            | İzin verilen geliştirme                                                                    |
-| ----- | ------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| 1–3   | Scheduler, provider, snapshot, health, job audit | Operasyonel sapmayı düzelt; model davranışını değiştirme.                                  |
-| 4     | 7 günlük ilk güvenilirlik                        | Shadow Epoch, job sınıflandırması, edge/status diagnostics; eşikleri değiştirme.           |
-| 5–6   | 14 günlük stabilite ve URA 20 günlük quality     | Factor katkılarını/freshness'i ayrıştır; kanıtsız score/quality ekleme.                    |
-| 7     | 30 günlük graduation                             | PIT, walk-forward, monthly realized sonuçlar ve Shadow dağılımlarını birlikte değerlendir. |
+- `market.daily_prices`
+- `market.derivatives_snapshots`
+- `market.execution_snapshots`
+- `macro.observations`
+- `fundamentals.ura_holdings`
+- `fundamentals.ura_breadth`
+- `events.events`
 
-Görev sonucu tek başına weight/threshold değişikliği yetkisi vermez.
+### Model/audit
 
-## 16. v1.3 için önerilen parity/whipsaw hedefi — `PROPOSED`
+- `model.features`
+- `model.regimes`
+- `model.factor_scores`
+- `model.decisions`
+- `model.signal_state`
+- `model.performance`
+- `model.validation_runs`
+- `model.parameters`
+- `model.factor_weights` — şemada mevcut, runtime weight source değil
+- `system.job_runs`
+- `system.data_sources`
 
-Aşağıdaki hedef önceki oturum analizinin önerisidir; henüz v1.2.0 davranışı veya onaylanmış karar değildir:
+### Public/read-only motor yüzeyi
 
-1. Production ve replay aynı versioned state machine'i kullanır.
-2. K1 ilk normal `ACTION` olayında oluşur.
-3. K2 aynı yönde `80/80` koşuluna ek olarak önceki aksiyondan en az 5 karar seansı sonra oluşur.
-4. Karşı yöne geçiş için en az iki ardışık kapanışta yeterli karşı-yön `ACTION` doğrulaması gerekir.
-5. Her kademe arasında en az 5 karar seansı bulunur.
-6. Aynı sistem/tarih/yön/kademe olayı idempotenttir; tekrar bildirilemez.
-7. Toplam rejim ve kullanıcı limiti aşılmaz.
-8. Servis restart, reversal, reset ve production/replay parity unit testlerle kanıtlanır.
+- `public.market_snapshot`
+- `public.decision_snapshot`
+- `public.decision_history`
+- `public.engine_health_snapshot`
+- `public.model_validation_snapshot`
 
-Bu değişiklikler sinyal sıklığını ve zamanlamasını değiştireceği için basit hotfix değildir; kullanıcı onayından sonra yeni model version ve yeni Shadow Epoch gerektirir.
+Quasar `public` snapshot'ları gösterir; private factor/model tablolarını değiştirmez.
 
-## 17. Zorunlu test matrisi — sonraki model davranış değişikliği için
+## 20. Shadow görevlerinden sonraki değişiklik kapısı
+
+### Görev 1–3
+
+Scheduler/provider/freshness/snapshot/health sapması düzeltilebilir. Model davranışı değiştirilmez.
+
+### Görev 4 sonrası — v1.2.x hardening
+
+- Shadow epoch
+- run kind
+- expected/actual run
+- OK/completed rate
+- decision bucket diagnostics
+- mevcut K1/K2 davranışını karakterize eden unit testler
+- runtime config source görünürlüğü
+
+Bunlar davranışı değiştirmeden yapılırsa v1.2.x olabilir.
+
+### Görev 5–6 sonrası
+
+- gerçek expanding/rolling walk-forward
+- strict FRED-vintage PIT
+- production/replay gap report
+- URA factor quality decomposition
+
+### Model davranışı değişirse
+
+Factor formülü/ağırlığı, threshold, status gate, K1/K2, reversal, cooldown, action-size otoritesi veya production/replay state parity değişirse:
+
+1. kullanıcı onayı,
+2. yeni model version,
+3. migration/provenance ihtiyacı,
+4. test matrisi,
+5. yeni deployment,
+6. yeni Shadow Epoch
+
+gerekir. Eski Shadow kanıtı otomatik devredilmez.
+
+## 21. v1.3 adayı — `PROPOSED`, uygulanmış değil
+
+1. Production ve replay tek versioned state machine kullanır.
+2. Her kademe arasında en az 5 karar seansı bulunur.
+3. Reversal iki ardışık qualified karşı-yön kapanışı ister.
+4. Event/state olayları idempotent olur.
+5. Restart, reversal, reset ve parity unit testleri yazılır.
+6. Python action size ile Quasar kalan kullanıcı limiti sözleşmesi netleşir.
+
+Bu liste v1.2.0 gerçeği değildir.
+
+## 22. Zorunlu test matrisi
 
 - Quality `79.99 / 80.00`
 - Edge `69.99 / 70.00`
 - Confidence `69.99 / 70.00`
-- Eksik factor `quality=0`
-- Nötr factor'un directional oy sayılmaması
-- Quality → event veto → late-entry → action önceliği
-- K1, K2, küçük `recommended_size` ve `%50` cumulative cap
-- Aynı gün tekrar aksiyon üretmeme
-- Beş zayıf karar sonrası reset
-- Karşı yön değişimi
-- State'in servis restart sonrası korunması
-- Production/replay parity
-- Shadow epoch ve job-kind ayrımı
-- Beklenen/gerçekleşen scheduler run hesabı
+- q0 factor'un edge/data-quality etkisi
+- score=0 factor'un agreement'a katılmaması
+- quality → event → late-entry → action önceliği
+- K1/K2, küçük recommended size ve %50 cap
+- aynı as_of tekrarının event üretmemesi
+- 5 zayıf karar sonrası reset
+- karşı yön immediate reversal karakterizasyonu
+- restart sonrası state korunması
+- replay/production farkı
+- Shadow epoch ve job-kind
+- expected/actual scheduler run
 
-Mevcut repoda `scripts/release_check.py` marker/sözleşme kontrolleri yapar; bu state-machine sınırlarını kapsayan gerçek unit test paketi bulunmadığı için “release check geçti” ifadesi bu davranışların test edildiği anlamına gelmez.
+Mevcut `scripts/release_check.py` marker/sözleşme kontrolleridir; bu davranışların tamamını test eden unit-test paketi olduğu anlamına gelmez.
 
-## 18. Versioning ve değişiklik kapısı
+## 23. Kaynak gerçekleri
 
-- Veri/scheduler/observability hatası, model davranışını değiştirmiyorsa v1.2.x hotfix olabilir.
-- Factor, ağırlık, eşik, K1/K2, reversal, cooldown, action-size otoritesi veya replay parity değişirse yeni model version gerekir.
-- Yeni model version, eski Shadow kanıtını kendiliğinden devralmaz; yeni Shadow Epoch başlatılır.
-- Contract, test planı, migration/provenance ihtiyacı ve Quasar yüzeyi aynı release içinde güncellenir.
-- LIVE geçişi her durumda manuel production review gerektirir.
+Bu sözleşme aşağıdaki yayımlanmış kaynaklarla uyumlu tutulur:
 
-## 19. Kaynak gerçekleri
-
-Bu sözleşme aşağıdaki repo kaynaklarıyla çapraz doğrulanmıştır:
-
+- `app/engine.py`
+- `app/features/builders.py`
+- `app/engines/factors.py`
+- `app/engines/regime.py`
 - `app/engines/decision.py`
-- `app/engines/signal_state.py`
 - `app/engines/veto.py`
 - `app/engines/risk.py`
+- `app/engines/signal_state.py`
+- `app/engines/ura.py`
 - `app/backtest/validation.py`
-- `app/database/repository.py`
 - `config/defaults.json`
-- `MODEL_AND_SCHEDULE.md`
-- `MODEL_VALIDATION_AND_SHADOW.md`
-- `TEST_PLAN_V1_2_0.md`
-- `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`
+- `migrations/0001_schema.sql`
+- `migrations/0003_mobile_api.sql`
+- `migrations/0007_v1_2_model_validation.sql`
 
-Kod ile bu belge çelişirse yeni oturum önce çelişkiyi raporlar; kullanıcı kararı olmadan belgeyi veya kodu sessizce “doğru” kabul etmez.
+Kod ile belge çelişirse önce çelişki raporlanır; kullanıcı kararı olmadan kod veya belge sessizce doğru kabul edilmez.
