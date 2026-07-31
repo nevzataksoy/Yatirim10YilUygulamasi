@@ -1,123 +1,143 @@
 # BTC_ETH_URA_10YIL — Oturum Devir Kaydı
 
-Son güncelleme: 31 Temmuz 2026  
+Son güncelleme: 01 Ağustos 2026 00:44 TRT  
 Amaç: Yeni sohbetin son aktif durumu konuşma geçmişini yeniden keşfetmeden devralması.
 
-Bu belge yalnız en güncel çalışma durumunu taşır. Kalıcı proje kararları `PROJECT_MEMORY_BANK.md`, sinyal motorunun normatif davranışı `SIGNAL_ENGINE_DECISION_CONTRACT.md` içindedir.
+Kalıcı kararlar `PROJECT_MEMORY_BANK.md`, normatif motor davranışı `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, sonuç geçmişi `SHADOW_CHECKPOINT_LOG.md` içindedir.
 
-## 1. Aktif repo durumu
+## 1. Son doğrulanan repo durumu
 
-| Repo                              | Branch                                 | Bağlam setini oluşturan commit | Çalışma amacı                                                     |
-| --------------------------------- | -------------------------------------- | ------------------------------ | ----------------------------------------------------------------- |
-| `Yatirim10YilUygulamasi`          | `agent/portfolio-audit-reset`          | `d056531`                      | Python Engine, Supabase migration/sözleşmesi, ortak proje bağlamı |
-| `tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | `619441d`                      | Quasar tek kullanıcı–çoklu portföy uygulaması                     |
+| Repo | Aktif branch | Bu handoff öncesi doğrulanan HEAD | PR |
+| --- | --- | --- | --- |
+| `nevzataksoy/Yatirim10YilUygulamasi` | `agent/portfolio-audit-reset` | `0a4a40c` | Draft PR #1 |
+| `nevzataksoy/tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | `1ab1018` | Draft PR #1 |
 
-Bu SHA'lar memory/contract/start/handoff bağlam setinin ilk yayımlandığı commitlerdir.
-Handoff senkronizasyonu nedeniyle branch HEAD daha yeni olabilir; yeni oturum güncel
-HEAD'i her zaman `git log -1 --oneline` ile doğrular.
+Bu dosya güncellenince branch HEAD değişir. Yeni oturum her zaman remote branch'i yeniden okuyup güncel HEAD'i doğrular; bu tabloda yazan SHA'yı körlemesine kullanmaz.
 
-## 2. Son tamamlanan geliştirmeler
+## 2. Python Engine — güncel operasyon durumu
 
-### Python / Supabase
+- Yayımlanmış/deploy edilmiş model: **v1.2.0**.
+- Windows Service: `RosaInvestmentEngine`, Automatic / Local System.
+- Son doğrulama: `STATE : 4 RUNNING`, exit code `0`.
+- Mode: `SHADOW`.
+- Realtime Execution: `OFF`.
+- Crypto history backfill: Coinbase, 2500 ortak gün, `OK`.
+- Validation: 1381 observation, directional core `OK`, Shadow `NOT_READY`.
+- Calibration exploratory ve limited-signal; hiçbir threshold otomatik uygulanmadı.
+- URA full PIT history yeterli olmadığı için `NOT_READY` olabilir.
 
-- Append-only portföy revision zinciri hardening tamamlandı.
-- Kullanıcı kontrollü seçili portföy işlem geçmişi sıfırlama RPC'si eklendi.
-- `0008_portfolio_audit_hardening.sql` ve `0009_portfolio_self_service_reset.sql` 31.07.2026 tarihinde Supabase SQL Editor'de başarıyla uygulandı.
-- Python motoru portföyden ve Telegram fan-out'tan bağımsız bırakıldı.
+## 3. Doğrulanmış Shadow checkpoint'leri
 
-### Quasar
+### Görev 1 — ilk otomatik günlük döngü: `PASS`
 
-- Tek Auth hesabı altında çoklu portföy çalışma alanı eklendi.
-- `/accounts` Portföy Hesaplarım sayfası ve yeni hesap oluşturma akışı eklendi.
-- Profil/right drawer içine global `AppPopupSelect` hesap seçimi eklendi.
-- Seçili hesap SecureLS/AES destekli Pinia persistence ile korunuyor.
-- Dashboard, portföy, işlemler, raporlar ve girişler seçili `account_id` ile çalışıyor.
-- Sinyaller hesabın dışında/global kalıyor.
-- İşlem düzenleme ve iptal append-only revision akışında çalışıyor.
-- Native `q-select` kullanımı bırakılarak proje formları `AppPopupSelect` standardına geçirildi.
+- Servis gece boyunca çalışmaya devam etti.
+- Scheduler hourly, macro, SEC, daily URA ve daily crypto işlerini otomatik çalıştırdı.
+- ETH/BTC: `BTC→ETH`, edge `35.640`, confidence `46.250`, quality `90.450`, `WAIT`.
+- URA/USD: `URA→USD`, edge `33.990`, confidence `36.170`, quality `70.400`, `NO_ACTION_DATA`.
+- Deribit timeout → OKX fallback; derivatives job `OK`.
+- Macro quality `97.5`.
+- SEC coverage `%14.04` → `DEGRADED`, fakat scheduler/job çökmemiştir.
+- Karar: servis SHADOW kalır; threshold/weight/mode değişmez; job'lar manuel tekrarlanmaz.
 
-## 3. Doğrulanmış görev
+### Görev 2 — TCMB/FX: `PASS`
 
-### Görev 2 — TCMB/FX scheduler: başarılı
+- 31.07.2026 16:30 TRT planı doğru çalıştı.
+- Data date `31.07.2026`, USD/TRY `47.4305`.
+- `FX=OK`, job `OK`, süre yaklaşık `2.48 s`.
+- Snapshot, health ve job audit tutarlı.
 
-```text
-Planlanan: 31.07.2026 16:30 TRT
-Başlangıç: 13:30:00 UTC
-Data date: 31.07.2026
-USD/TRY: 47.4305
-Health: FX=OK
-Job: OK
-Süre: yaklaşık 2,48 saniye
-```
+### Sıradaki checkpoint
 
-`market_snapshot`, `engine_health_snapshot` ve `system.job_runs` uyumludur. Bu sonuç model threshold değişikliği gerektirmez.
+**Görev 3 — 01.08.2026 09:30 TRT**
 
-## 4. Devam eden Shadow takvimi
+Kullanıcı şu üç çıktıyı paylaşmalıdır:
 
-- Görev 3: 01.08.2026 — weekly + monthly audit scheduler kontrolü.
-- Görev 4: 07.08.2026 — 7 günlük ilk gerçek güvenilirlik checkpoint'i.
-- Görev 5: 14.08.2026 — 14 günlük stabilite.
-- Görev 6: 20.08.2026 — URA 20 günlük quality değerlendirmesi.
-- Görev 7: 29.08.2026 — 30 günlük Shadow Graduation Review.
+1. `weekly_job` ve `monthly_audit_job` son kayıtları.
+2. `public.model_validation_snapshot`.
+3. Son `model.validation_runs` kayıtları.
 
-Sonucu paylaşılmamış görev başarılı varsayılmaz.
+`SHADOW_READINESS=NOT_READY` bu aşamada normaldir. Sonuç paylaşılmadan görev başarılı sayılmaz.
 
-## 5. Sinyal motorunda son analiz sonucu
+## 4. Görev 4 sonrasında planlanan davranış değiştirmeyen Python hardening
 
-### Mevcut/released gerçek
-
-- Eşikler: quality `80`, edge `70`, confidence `70`, strong `80/80`.
-- K1/K2 persistent state ve `%50` cumulative cap mevcut.
-- K2 farklı gün + strong `80/80` ister; 5 seans bekleme şartı mevcut değil.
-- Karşı-yön qualified `ACTION`, production state'i hemen yeni K1'e çevirebilir.
-- PIT replay 5 seans cooldown kullanır; fakat production K1/K2 state'ini ve bütün quality/confidence kapılarını birebir yürütmez.
-- Python action size ile Quasar kullanıcı dönüşüm yüzdesi otomatik entegre değildir.
-
-### Onay bekleyen öneri
-
-1. K2 ve her yeni kademe arasında en az 5 karar seansı.
-2. Ters yön için iki ardışık qualified close.
-3. Production ve replay için tek versioned state machine.
-4. Python `action_size` model önerisi; Quasar dönüşüm oranı maksimum kullanıcı limiti; uygulanacak öneri `min(...)`.
-
-Bu dört madde kullanıcı tarafından açıkça onaylanmadan kodlanmaz veya released karar gibi belgelenmez.
-
-## 6. Görev 4 sonrası davranış değiştirmeyen Python işi
-
-- `shadow_epoch_id` veya `shadow_started_at` ile açık epoch.
+- Açık `shadow_epoch_id` / `shadow_started_at`.
 - `scheduled/manual/backfill/development` run-kind ayrımı.
-- Beklenen job sayısı ve gerçekleşen job sayısı karşılaştırması.
-- `OK rate` ve `completed rate` ayrımı.
+- Beklenen ve gerçekleşen scheduler run sayısı.
+- `OK rate` ile `completed rate` ayrımı.
 - Edge/confidence/quality/status/direction bucket diagnostics.
 - Mevcut v1.2.0 K1/K2 davranışını karakterize eden unit testler.
 
-Bu işler mevcut threshold veya yön davranışını değiştirmeden v1.2.x hardening olarak ele alınabilir.
+Bunlar v1.2.x observability/readiness hardening olabilir; threshold, factor yönü veya K1/K2 semantiği sessizce değiştirilemez.
 
-## 7. Açık ürün/teknik kararlar
+## 5. Model davranışında açık kararlar
 
-- Whipsaw koruması için önerilen reversal ve cooldown kuralları kabul edilecek mi?
-- Quasar kullanıcı dönüşüm oranının semantiği “maksimum rejim limiti” olarak değiştirilecek mi?
-- Bu kararlar kabul edilirse yeni model sürümü `1.3.0` mı olacak?
-- Signal→Conversion UX, seçili hesaptaki kaynak bakiyeden önerilen miktarı nasıl gösterecek?
+Released gerçek:
 
-## 8. Yeni oturum için ilk eylem
+- Minimum quality/edge/confidence `80/70/70`, strong `80/80`.
+- Persistent K1/K2 ve `%50` cumulative cap var.
+- K2 farklı tarih + strong `80/80` ister; 5 seans şartı yok.
+- Karşı yön qualified `ACTION` rejimi hemen çevirebilir.
+- PIT replay production state machine'ini birebir kullanmaz.
+- Python action size ve Quasar kullanıcı yüzdesi otomatik birleşmez.
 
-Yeni sohbet doğrudan kod değiştirmeden önce:
+Kullanıcı onayı bekleyen öneriler:
 
-1. `PROJECT_MEMORY_BANK.md` ve `SIGNAL_ENGINE_DECISION_CONTRACT.md` ayrımını özetlesin.
-2. Bu handoff'taki repo branch/commit değerlerini `git status` ve `git log -1` ile doğrulasın.
-3. Kullanıcı yeni Shadow çıktısı verdiyse ilgili görev sorgularıyla karşılaştırsın.
-4. Sonucu operasyonel sapma, data-quality sapması veya model-karar kanıtı olarak sınıflandırsın.
-5. Öneri ile released davranışı birbirine karıştırmadan ilerlesin.
+1. Kademeler arası en az 5 karar seansı.
+2. Reversal için iki ardışık qualified kapanış.
+3. Production ve replay için tek versioned state machine.
+4. Python önerisi ile Quasar maksimum limitinin `min(...)` sözleşmesi.
 
-## 9. Oturum kapanış kuralı
+## 6. Quasar — son tamamlanan durum
 
-Proje durumunu değiştiren her sohbet bitmeden önce:
+- Tek Supabase Auth kullanıcısı altında çoklu portföy hesabı.
+- `/accounts` ve global seçili hesap akışı.
+- Seçili hesap ve display asset SecureLS/Pinia persistence.
+- Dashboard, Portföy, İşlemler, Raporlar ve girişler seçili hesap bazlı.
+- Sinyaller/market/validation/health global.
+- `AppPopupSelect.vue` proje genelinde select standardı; tekli/çoklu, arama/filtreleme ve responsive dialog destekli.
+- İşlem düzenleme/iptal append-only revision; eski kayıt korunur.
+- Revision sonrası tüm kronolojik bakiye zinciri replay edilir; sonraki işlemi bozan değişiklik reddedilir.
+- Seçili portföy işlem geçmişi kontrollü reset RPC'siyle sıfırlanabilir.
+- Alım/satış/dönüşüm/sermaye ekranlarında önce–işlem–sonra bakiye bağlamı bulunur.
+- `/signals` karar status pill'i üst boşlukla hizalanmıştır.
+- Prettier, ESLint ve Quasar SPA production build, Draft PR #1 açıklamasına göre geçti.
 
-- tamamlanan işi,
-- doğrulama sonuçlarını,
-- yeni branch/commit'i,
-- kesinleşen kararları,
-- kalan açık işi ve sıradaki checkpoint'i
+## 7. Quasar'da henüz kullanıcı doğrulaması bekleyen iş
 
-bu dosyaya işler. Kalıcı karar `PROJECT_MEMORY_BANK.md` veya `SIGNAL_ENGINE_DECISION_CONTRACT.md` içinde de güncellenir. Secret değerler yazılmaz.
+- Son AppPopupSelect, multi-account, append-only revision ve reset değişikliklerinden sonra manuel finansal regression tamamlanmış sayılmıyor.
+- `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki 12 işlem adım adım uygulanmalı.
+- Her adımda önce/işlem/sonra bakiyesi kontrol edilmeli; ilk sapmada zincir durdurulup ekran görüntüsü paylaşılmalı.
+- Sonunda Dashboard, Portföy, İşlem Geçmişi ve Raporlar ekran görüntüleriyle beklenen toplamlar karşılaştırılmalı.
+- Draft PR testler tamamlanmadan merge edilmemeli.
+
+## 8. Veritabanı/audit durumu
+
+31.07.2026 tarihinde Supabase'e uygulanmış migration'lar:
+
+- `0008_portfolio_audit_hardening.sql`
+- `0009_portfolio_self_service_reset.sql`
+
+Yeni migration `0010+` olmalıdır. Uygulanmış migration dosyaları geriye dönük değiştirilmez. Python reposundaki `migrations/` ve `supabase-migrations/` kopyaları birebir tutulur.
+
+## 9. Dönüşümlü Git çalışma protokolü
+
+1. Asistan kullanıcının mesajını okuduktan sonra aksiyon almadan önce remote branch'in güncel HEAD/dosyalarını yeniden okur.
+2. Asistan değişiklikleri branch'e push eder.
+3. Kullanıcı `git pull` yapar ve test eder.
+4. Kullanıcı dosya üretmiş/değiştirmişse commit+push eder.
+5. Asistan bir sonraki değişiklikten önce remote'u tekrar okur.
+6. Eşzamanlı yazma yapılmaz.
+7. Git hata/ayrışma çözümünde kullanıcıya bir seferde yalnız bir komut verilir.
+
+## 10. Yeni oturumun ilk eylemi
+
+1. `CHATGPT_PROJECT_START_HERE.md` ve zorunlu bağlam dosyalarını tamamen oku.
+2. `RELEASED/APPROVED/PROPOSED/OPEN` ayrımını kısa biçimde kullanıcıya doğrula.
+3. İki repo için aktif branch ve güncel HEAD'i remote'dan doğrula.
+4. Kullanıcının son mesajında yeni Shadow çıktısı varsa checkpoint loguyla karşılaştır.
+5. Quasar işi ise en son kullanıcı push'ını okumadan kod değiştirme.
+6. Proje durumunu değiştirirsen oturum bitmeden bu handoff'u ve gerekiyorsa memory/contract'ı iki repoda senkron güncelle.
+
+## 11. Secret ve güvenlik sınırı
+
+API key, parola, Telegram token/Chat ID, Supabase service-role veya DB password hiçbir bağlam belgesine yazılmaz. Otomatik emir, otomatik LIVE ve otomatik threshold/weight değişikliği yoktur.
