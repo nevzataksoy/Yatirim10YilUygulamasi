@@ -698,39 +698,62 @@ Quasar `public` snapshot'ları gösterir; private factor/model tablolarını de�
 - Mevcut latest/replay okumaları bu günlük kopyaları versioned revision kaynağı
   olarak deterministik biçimde seçen tam bir vintage-PIT sözleşmesi sağlamaz.
 
-#### Görev takvimi sonrası hedef — `APPROVED`
+#### Görev takvimi sonrası araştırma kapısı — yön `APPROVED`, çözüm `OPEN`
 
-1. Current katmanda `(series_id, observation_date)` başına tek değer bulunur. Aynı
-   değer yeniden geldiyse yalnız son görülme/fetch metadata'sı ilerler.
-2. Değer değiştiğinde önceki/yeni değer, sıralı revision numarası ve motorun değişimi
-   ilk gördüğü zaman append-only change-point olarak yazılır. Current güncellemesi ve
-   revision insert'i tek transaction içinde idempotent olmalıdır.
-3. `unique(series_id, observation_date, value)` nihai çözüm değildir; A→B→A geçişinde
-   son A olayını ilk A ile çakıştırır. Yalnız `unique(series_id, observation_date)`
-   kullanıp geçmişi ezmek de yasaktır.
-4. Latest/factor okuyucuları current katmanını deterministik okur. Historical PIT
-   okuyucuları revision/vintage katmanını `known_at <= as_of` kuralıyla okur.
-5. Günlük polling change-point'i resmî FRED vintage yayın zamanı sayılmaz. Strict
-   vintage PIT için ayrı ALFRED/FRED vintage endpoint backfill'i ve provenance
-   gerekir.
-6. Her `macro_job`, seri bazında `received/inserted/unchanged/revised/skipped`
-   sayılarını ve beklenen sekiz serideki eksikleri audit'e yazar. Bir serinin boş
-   dönmesi diğer serilerin başarılı upsert'i içinde görünmez hale gelmez.
-7. Sinyal penceresinden çıkmış olsa da portföy ledger'ı, `model.decisions`, bağlı
-   `public.decision_history`, performance/validation, fiyat geçmişi ve gerekli
-   macro/URA PIT kanıtı otomatik silinmez.
-8. Tekrar eden ya da kalıcı günlük/aylık özeti üretildikten sonra ham ayrıntısı
-   gereksizleşen derivatives, execution-test ve `system.job_runs` kayıtları tablo
-   bazlı retention/aggregation adayıdır.
-9. Cleanup işlemi Shadow gününü, K1/K2 state'ini, karar–işlem `decision_id` bağını,
-   maliyet/KZ replay'ini veya kullanıcı portföyünü sıfırlamayacaktır.
+Doğrudan `UNIQUE (series_id, observation_date)` uygulanması onaylanmış politika
+değildir. Current + revision/change-point yapısı da güçlü bir adaydır; gerçek FRED
+üretim/kayıt akışı ve geçmiş-veri backtest'i tamamlanmadan normatif sözleşme sayılmaz.
 
-Kesin current/revision tablo tasarımı, retention süreleri, günlük/aylık özet şeması,
-batch boyutu, dry-run/ölçüm raporu ve rollback yaklaşımı `OPEN`dır. Görev 7 öncesinde
-runtime yazma/silme davranışı değiştirilmez. Uygulama yeni numaralı migration,
-repository transaction/idempotency testleri, mevcut kopyalarda
-`lag(value)`/sıralı-geçiş dry-run'ı, kontrollü backfill/dedup ve kapasite
-karşılaştırmasıyla yapılacaktır.
+Zorunlu inceleme sırası:
+
+1. Sekiz FRED serisinin frekansı, yayın/revision karakteri ve resmî real-time/vintage
+   semantiği seri bazında çıkarılır. FRED'in varsayılan real-time period'inin bugün
+   olduğu; `series/vintagedates` tarihinin ise yeni veya değişmiş seri değeri anlamına
+   geldiği temel alınır.
+2. Günde dört `macro_job` turu ayrı izlenir. Her tam tur yaklaşık
+   `8 × 1500 = 12.000`, günlük toplam yaklaşık `48.000` observation işler. Aynı
+   `realtime_start` conflict UPDATE'lerinin yeni satır üretmese bile `fetched_at`,
+   WAL/dead-tuple, I/O ve job süresine etkisi; değişen `realtime_start` satırlarıyla
+   birlikte ölçülür. FRED dokümanı varsayılanı “today” olarak tanımlar fakat saat
+   dilimini burada belirtmez; dört TRT turunun provider tarih sınırını geçip geçmediği
+   response alanlarından kanıtlanır, yerel takvim gününden varsayılmaz.
+3. Mevcut yapı, yalnız-current, current + sıralı append-only change-point, resmî
+   FRED/ALFRED vintage PIT ve seri-bazlı hibrit adaylar aynı veri üzerinde
+   karşılaştırılır. Pure observation-date watermark eski tarihli revision
+   kaçırabileceği için peşinen seçilmez.
+4. Historical replay/backtest aynı `as_of` tarihleri için latest observation,
+   macro score/quality, regime ve iki sistemin karar çıktılarını karşılaştırır.
+   Revision günleri, yeni veri, tatil/hafta sonu, eksik değer, geç düzeltme ve A→B→A
+   sırası test edilir; look-ahead bias ve nondeterministic row seçimi kabul edilmez.
+5. Her aday için `received/inserted/unchanged/revised/skipped`, satır/indeks büyümesi,
+   write amplification, 10 yıllık kapasite, job/API süresi ve rollback maliyeti
+   raporlanır. İki günlük `4.343` aynı-değer kopyası/`0` değer değişimi bulgusu
+   başlangıç kanıtıdır; tek başına uzun vadeli şema kararı değildir.
+6. Kabul edilen çözüm, aynı gün dört kez gelen değişmeyen observation'ı idempotent
+   işlemeli; gerçek revision/vintage kanıtını kaybetmemeli; latest ile PIT
+   okuyucularını açıkça ayırmalı ve dry-run/backfill sonuçlarıyla geri alınabilir
+   olmalıdır.
+
+Bu araştırmada en az `series/vintagedates`, `series/observations` içindeki
+`output_type=3`, response/hash skip, kayan backfill penceresi ve current + event
+seçenekleri incelenecektir. FRED kaynakları:
+
+- <https://fred.stlouisfed.org/docs/api/fred/realtime_period.html>
+- <https://fred.stlouisfed.org/docs/api/fred/series_observations.html>
+- <https://fred.stlouisfed.org/docs/api/fred/series_vintagedates.html>
+
+`unique(series_id, observation_date, value)` A→B→A olay sırasını kaybedebilir;
+yalnız `(series_id, observation_date)` geçmişi ezebilir. Hangisinin yerine hangi
+şemanın kullanılacağı backtest raporundan sonra `APPROVED` hale gelir. Görev 7
+öncesinde runtime yazma/silme davranışı değiştirilmez. Portföy ledger'ı,
+`model.decisions`, bağlı `public.decision_history`, performance/validation, fiyat
+geçmişi ve gerekli PIT/URA kanıtı otomatik silinmez; cleanup Shadow gününü, K1/K2
+state'ini, `decision_id` bağını veya maliyet/KZ replay'ini sıfırlamaz.
+
+Uygulanmış `0001` geriye dönük değiştirilmez. Araştırma bir çözüm seçerse yeni
+numaralı migration, repository transaction/idempotency testleri, mevcut kopyalarda
+dry-run, kontrollü backfill/dedup, kapasite karşılaştırması ve rollback planı birlikte
+uygulanır.
 
 ## 20. Shadow görevlerinden sonraki değişiklik kapısı
 

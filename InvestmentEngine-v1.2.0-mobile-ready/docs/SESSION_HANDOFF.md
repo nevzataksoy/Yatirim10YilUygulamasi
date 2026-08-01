@@ -51,15 +51,23 @@ Düzeltilen ana noktalar:
     `1500` observation, sabitlenmemiş real-time period ve
     `(series_id, observation_date, realtime_start)` conflict anahtarı. İki günlük
     `14.513` satır örneğinde `4.343` aynı-değer kopyası, `0` gerçek değişim bulundu.
-18. FRED önerisi current + sıralı append-only change-point + ayrı resmî vintage
-    backfill olarak güncellendi. `unique(series,date,value)` A→B→A olayını
-    kaybedebileceği için reddedildi; migration/uygulama Görev 7 sonrası `OPEN`dır.
+18. FRED current + sıralı append-only change-point + ayrı resmî vintage backfill
+    yapısı güçlü bir aday olarak kaydedildi; ancak bu yapı veya doğrudan
+    `(series_id, observation_date)` tekilliği onaylanmış nihai politika değildir.
+    Önce gerçek FRED üretim/kayıt davranışı, gün içindeki dört çekimin write etkisi,
+    seri bazlı revision özellikleri ve geçmiş-veri backtest'i tamamlanacaktır.
 19. Quasar Auth/connection kodu tamamlandı: gerçek Auth health testi, authenticated
     user/RLS probe, client/listener/refresh/realtime dispose-re-init, bütün Auth
     event'leri, PKCE confirmation/recovery callback'i ve hata sınıflandırması eklendi.
 20. Otomatik service testleri, Prettier/ESLint ve SPA build geçti. Gerçek Supabase
     health/login/RLS/e-posta recovery zinciri ile Capacitor cihaz deep-link testi
     dış ortam gerektirdiği için runtime kanıtı `OPEN` kaldı.
+21. FRED tekilleştirme kararı araştırma kapısına alındı: mevcut, yalnız-current,
+    current + change-point, resmî vintage PIT ve hibrit adaylar; sinyal çıktısı,
+    revision kaybı, look-ahead, write amplification ve 10 yıllık kapasite açısından
+    aynı geçmiş veri üzerinde karşılaştırılmadan migration/dedup yapılmayacaktır.
+    Dört TRT turu yerel gün varsayımıyla değil, response'taki gerçek
+    `realtime_start/realtime_end` değerleriyle sınıflandırılacaktır.
 
 Python model/app kodu, migration, threshold veya factor weight değiştirilmedi.
 Quasar uygulama kodu ve Auth dokümantasyonu değişti.
@@ -155,7 +163,17 @@ Scheduler, Shadow dağılımları, realtime, historical replay, walk-forward, mo
 
 ### Görev 7 sonrası veri hardening
 
-- FRED current/revision tekilleştirme ve mevcut kopyaların kontrollü dedup'ı.
+- FRED'in sekiz seri bazında resmî real-time/vintage ve revision davranışını araştır.
+- Günlük dört `macro_job` turunda aynı-gün update churn'ü ile günler-arası mantıksal
+  kopyaları ayrı ölç; `received/inserted/unchanged/revised/skipped`, WAL/dead-tuple,
+  job süresi ve kapasite baseline'ı çıkar.
+- Mevcut, yalnız-current, current + append-only change-point, resmî vintage PIT ve
+  hibrit adayları geçmiş-veri replay/backtest'inde sinyal, audit ve kapasite
+  sonuçlarıyla karşılaştır.
+- Yalnız rapor sonrasında tekilleştirme politikasını `APPROVED` yap; doğrudan
+  `(series_id, observation_date)` constraint'ine geçme.
+- Seçilen politika için mevcut kopyalarda kontrollü dry-run/backfill/dedup ve
+  rollback planı oluştur.
 - Tablo bazlı korunacak/özetlenecek/silinecek veri matrisi.
 - Dry-run kapasite ve etkilenecek satır raporu.
 - Portföy, decision, PIT/replay ve Shadow kanıtını koruyan idempotency/bütünlük

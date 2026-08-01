@@ -283,52 +283,98 @@ Birlikte değerlendirilir:
 
 `READY` görülse bile otomatik LIVE yoktur. Kanıt zayıfsa Shadow devam eder. Factor, weight, threshold, K1/K2, reversal, cooldown veya action-size otoritesi değişecekse yeni model version ve yeni Shadow Epoch gerekir; mevcut 30 günlük kanıt otomatik devredilmez.
 
-### Görev takvimi sonrası: veri yaşam döngüsü ve FRED tekilleştirme
+### Görev takvimi sonrası: veri yaşam döngüsü ve FRED tekilleştirme araştırması
 
-Bu geliştirme yönü `APPROVED`, somut migration/retention süreleri ise tasarım ve
-ölçüm beklediği için `OPEN`dır. Mevcut v1.2.0 Supabase tablolarında yaşa göre çalışan
-otomatik retention/cleanup yoktur; görev takvimi sırasında veri toplama davranışı
-değiştirilmeyecektir.
+Veri büyümesini ölçme ve güvenli bir FRED tekilleştirme politikası seçme yönü
+`APPROVED`dır. Buna karşılık `(series_id, observation_date)` başına tek current kayıt,
+ayrı revision tablosu veya başka bir şema **henüz onaylanmış çözüm değildir**;
+adayların gerçek FRED akışı ve geçmiş veriyle karşılaştırılması `OPEN`dır. Mevcut
+v1.2.0 Supabase tablolarında yaşa göre çalışan otomatik retention/cleanup yoktur ve
+Görev 3 dahil Shadow kanıtı toplanırken veri yazma davranışı değiştirilmez.
 
 Görev 7 sonrasında Python tarafında iki bağlı çalışma ele alınacaktır:
 
 1. Sinyal penceresinden çıkan ham ve operasyonel veriler için tablo bazlı yaşam
-   döngüsü oluşturulacak. Portföy ledger'ı, karar/sinyal bağı, fiyat geçmişi,
+   döngüsü araştırılacak. Portföy ledger'ı, karar/sinyal bağı, fiyat geçmişi,
    validation/performance ve gerekli PIT/revision kanıtı kalıcı korunacak; yalnız
    tekrar eden veya özetlendikten sonra ham ayrıntısı atıl hale gelen derivatives,
    execution-test ve scheduler/job verileri temizlik adayı olacaktır.
-2. FRED ingest sözleşmesi current ve revision/change-point olarak ayrılacak. Aynı
-   `series_id` ve `observation_date` için değer değişmediyse yalnız `last_seen_at`
-   benzeri gözlem metadata'sı ilerleyecek; yeni revision satırı oluşmayacaktır.
-   Değer değiştiğinde önceki/yeni değer ve ilk görülme zamanı append-only değişim
-   olayı olarak saklanacaktır. `value` alanını unique anahtarına eklemek tek başına
-   yeterli değildir; A→B→A sıralı revizyonunu tek kayda düşürebilir.
+2. FRED ingest davranışı önce ölçülecek, sonra tekilleştirme politikası seçilecektir.
+   Doğrudan `UNIQUE (series_id, observation_date)` eklenmeyecek; bu yaklaşımın güncel
+   değer, gerçek revision, strict PIT/replay ve audit üzerindeki etkisi kanıtlanmadan
+   current/revision şeması production kararı sayılmayacaktır.
 
-Kök neden kod ve gerçek veriyle doğrulandı: `macro_job` günde dört kez sekiz serinin
-son `1500` gözlemini çeker; collector FRED real-time dönemini açıkça sabitlemez ve
-repository `(series_id, observation_date, realtime_start)` çatışma anahtarını kullanır.
+#### Doğrulanmış başlangıç bulgusu — nihai karar değildir
+
+`macro_job` günde `00:15`, `06:15`, `12:15` ve `18:15` olmak üzere dört kez çalışır;
+sekiz serinin her biri için son `1500` observation yeniden alınır. Bu, tur başına
+yaklaşık `12.000`, günde yaklaşık `48.000` gelen observation ve bulk upsert denemesi
+demektir.
+Collector `realtime_start/realtime_end` göndermediği için FRED bunları kendi “today”
+değerine varsayar. Aynı `realtime_start` dönen turlar mevcut
+`(series_id, observation_date, realtime_start)` constraint'ine çarparak yeni mantıksal
+satır üretmez; fakat `value`, `realtime_end` ve `fetched_at` tekrar update edildiğinden
+WAL/dead-tuple, I/O ve job süresi etkisi ayrıca ölçülmelidir. FRED'in “today” için
+kullandığı saat dilimi belgede açık değildir; TRT'deki dört tur provider tarih
+sınırını aşarsa aynı TRT gününde bile farklı `realtime_start` ve yeni satır oluşabilir.
+Bu nedenle analiz yerel takvim gününe değil, her response içindeki gerçek
+`realtime_start/realtime_end` değerine dayanacaktır.
+
 29–30.07.2026 örneğinde `14.513` satırın `4.343`ü aynı seri/tarih/değerin yalnız yeni
-`realtime_start` altında tekrarıdır; ortak kayıtlar içinde gerçek değer değişimi `0`dır.
-Bu nedenle varsayılan günlük `realtime_start`, tek başına gerçek revision kanıtı
-sayılmayacaktır.
+`realtime_start` altında tekrarıdır; karşılaştırılabilen ortak satırlarda gerçek değer
+değişimi `0`dır. Bu iki günlük örnek çoğalma riskini kanıtlar, fakat bütün serilerin
+revision karakterini veya uzun vadede doğru şemayı tek başına kanıtlamaz.
 
-Görev 7 sonrasındaki tasarım hedefi:
+FRED'in resmî sözleşmesinde varsayılan real-time period bugündür; bu, “geçmiş hakkında
+bugün bilinen bilgi” görünümüdür. `fred/series/vintagedates` ise yalnız yeni değer
+yayınlanan veya seri değerleri gerçekten revize edilen tarihleri döndürür. Araştırma
+bu iki semantiği günlük polling alanlarıyla karıştırmayacaktır:
 
-- `(series_id, observation_date)` başına tek deterministik current kayıt,
-- yalnız değer geçişinde sıralı append-only revision/change-point olayı,
-- aynı değer tekrarında idempotent `last_seen_at/fetched_at` güncellemesi,
-- latest okuyucuların current katmanını, PIT okuyucuların revision katmanını seçmesi,
-- mevcut kopyaların `lag(value)` benzeri geçiş analiziyle dry-run/backfill edilmesi,
-- resmî geçmiş vintage gerekiyorsa günlük current polling'den ayrı ALFRED/FRED
-  vintage endpoint'iyle backfill yapılması,
-- her `macro_job` için seri bazında `received/inserted/unchanged/revised/skipped`
-  sayıları ve beklenen sekiz seriden eksik olanların job audit'inde görünmesi.
+- <https://fred.stlouisfed.org/docs/api/fred/realtime_period.html>
+- <https://fred.stlouisfed.org/docs/api/fred/series_observations.html>
+- <https://fred.stlouisfed.org/docs/api/fred/series_vintagedates.html>
 
-Mevcut polling ile ölçülen change-point'in zamanı “motorun değişik değeri ilk gördüğü
-an”dır; FRED'in tarihsel resmî yayın anı olduğu iddia edilmez. Strict vintage PIT için
-ayrı resmî vintage toplama zorunludur. Uygulanmış `0001` migration'ı
-değiştirilmeyecek; yeni numaralı migration ve transaction/idempotency testleri
-kullanılacaktır.
+#### Zorunlu araştırma ve geçmiş-veri backtest kapısı
+
+Herhangi bir migration/dedup öncesinde şu sıra tamamlanacaktır:
+
+1. Sekiz serinin her biri için frekans, yayın takvimi, gerçek revision/vintage
+   davranışı ve FRED parametreleri belgelenecek. Dört TRT turunun döndürdüğü provider
+   real-time tarihleri kaydedilecek; aynı `realtime_start` içi upsert'ler ile değişen
+   `realtime_start` kaynaklı yeni satırlar ayrı ölçülecek.
+2. Mevcut DB'de `series_id + observation_date + value`, `realtime_start`,
+   `realtime_end`, `fetched_at` ve `system.job_runs` birlikte analiz edilecek.
+   `received/inserted/unchanged/revised/skipped`, satır/indeks büyümesi,
+   WAL/dead-tuple ve job süresi için ölçülebilir baseline oluşturulacak.
+3. En az şu adaylar karşılaştırılacak:
+   - mevcut `(series_id, observation_date, realtime_start)` yapısı,
+   - yalnız current değer saklayan `(series_id, observation_date)` yapısı,
+   - current + sıralı append-only change-point/revision yapısı,
+   - FRED/ALFRED resmî vintage tarihleriyle beslenen PIT yapısı,
+   - seri bazında farklı revision riskine izin veren hibrit yapı.
+4. Geçmiş veri replay/backtest'inde aynı `as_of` tarihleri için latest değer, macro
+   score/quality, regime, ETH/BTC ve URA/USD karar çıktıları karşılaştırılacak. Revision
+   günleri, hafta sonu/tatil, yeni observation, eksik `.` değer, A→B→A geçişi ve geç
+   gelen düzeltmeler özellikle test edilecek. Look-ahead bias oluşmaması ve replay'in
+   deterministik kalması zorunludur.
+5. Aynı backtest her aday için mantıksal satır sayısı, günlük write/upsert hacmi,
+   tahmini 10 yıllık kapasite, API/job süresi ve rollback maliyetini de raporlayacak.
+   Sinyal sonucu kadar uzun vadeli işletim maliyeti de karar ölçütüdür.
+6. Son karar yalnız bu rapordan sonra verilecektir. Dört günlük çekimin tek bir
+   değişmeyen observation üretmesi idempotent olmalı; gerçek revision kaybolmamalı;
+   latest ve PIT okuyucularının hangi katmanı kullandığı açık olmalı; mevcut veriye
+   uygulanacak işlem önce dry-run ve geri alınabilir backfill ile doğrulanmalıdır.
+
+Pure watermark/yalnız son observation tarihinden devam etmek de önceden doğru kabul
+edilmez; eski tarihli revision'ları kaçırabilir. Resmî `vintagedates`/`output_type=3`,
+değişen-response hash'i, kayan backfill penceresi ve current + event seçenekleri bu
+sebeple ölçülecek adaylardır. `unique(series_id, observation_date, value)` de tek
+başına yeterli değildir; A→B→A sırasındaki son A olayını ilk A ile çakıştırabilir.
+
+Mevcut polling ile görülen bir değişimin zamanı yalnız “motorun farklı değeri ilk
+gördüğü an”dır; resmî yayın/vintage zamanı olduğu iddia edilmez. Uygulanmış `0001`
+migration'ı değiştirilmeyecek; araştırma bir çözüm seçerse yeni numaralı migration,
+transaction/idempotency testleri ve kontrollü backfill/dedup kullanılacaktır.
 
 ## 11. Quasar kilometre taşları
 
