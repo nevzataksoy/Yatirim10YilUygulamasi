@@ -43,8 +43,22 @@ Düzeltilen ana noktalar:
     yapılmasının yön hesabını değil yalnız persistent state süresini değiştireceği
     açıklaştırıldı. URA günlük history uzunluğunun provider yanıtına bağlı kalması
     sonraki observability/reproducibility hardening için `OPEN` bırakıldı.
+16. Görev 7 sonrasında Python veri yaşam döngüsü/retention revizyonu yapılması
+    `APPROVED` hedef olarak kaydedildi. Portföy ledger'ı, karar/sinyal bağı,
+    fiyat/PIT, performance ve validation kanıtı korunacak; retention süreleri ve
+    özet şemaları ölçüm sonrasında kesinleştirilecektir.
+17. FRED'in aynı tarih/değeri farklı günlük `realtime_start` değerleriyle
+    çoğaltabilme riski kaydedildi. Hedef aynı değeri idempotent yazmak, current
+    observation'ı tekil okumak ve yalnız gerçek revision/change-point'leri
+    provenance ile korumaktır; kesin migration tasarımı `OPEN`dır.
+18. Quasar kod incelemesi Auth/connection lifecycle'ın Signal→Conversion'dan önce
+    gelmesini doğruladı. Bağlantı health-check'i, client/listener re-init/dispose,
+    bütün auth event'leri, e-posta doğrulama/password recovery dönüşleri ve
+    offline/expired-session/RLS hata matrisi sıradaki geliştirme kapsamıdır.
 
-Bu tur yalnız dokümantasyon düzeltmesidir. Python model/app kodu, Quasar uygulama kodu, migration, threshold veya factor weight değiştirilmedi. Bu dokümantasyon turu için yeni build/test çalıştırıldığı iddia edilmez.
+Bu tur yalnız dokümantasyon ve mevcut kod incelemesidir. Python model/app kodu,
+Quasar uygulama kodu, migration, threshold veya factor weight değiştirilmedi. Bu
+dokümantasyon turu için yeni runtime/build testi çalıştırıldığı iddia edilmez.
 
 ## 3. Python Engine — güncel doğrulanmış operasyon durumu
 
@@ -135,6 +149,16 @@ Bunlar kullanıcı kararı, yeni model version, test ve yeni Shadow Epoch olmada
 
 Scheduler, Shadow dağılımları, realtime, historical replay, walk-forward, monthly realized ve URA history birlikte manuel review edilir. READY otomatik LIVE değildir. Model semantiği değişirse yeni version ve yeni Shadow Epoch gerekir.
 
+### Görev 7 sonrası veri hardening
+
+- FRED current/revision tekilleştirme ve mevcut kopyaların kontrollü dedup'ı.
+- Tablo bazlı korunacak/özetlenecek/silinecek veri matrisi.
+- Dry-run kapasite ve etkilenecek satır raporu.
+- Portföy, decision, PIT/replay ve Shadow kanıtını koruyan idempotency/bütünlük
+  testleri.
+
+Bu iş K1/K2 reseti değildir ve yeni 30 günlük veri toplama beklemesi başlatmaz.
+
 ## 8. Quasar — güncel ürün durumu
 
 - Tek Auth kullanıcısı altında çoklu portföy hesabı.
@@ -157,9 +181,16 @@ Scheduler, Shadow dağılımları, realtime, historical replay, walk-forward, mo
 2. İlk bakiye/hesap sapmasında zinciri durdurup ekran görüntüsü paylaş.
 3. Sonunda Dashboard, Portföy, İşlem Geçmişi ve Raporlar toplamlarını beklenen matematikle karşılaştır.
 4. Draft PR test tamamlanmadan merge edilmez.
-5. Sonraki production-readiness işi Auth/connection lifecycle'dır.
-6. Auth/connection işi sonrasında Signal→Conversion tek yönlü bağını uygula; yalnız `ACTION + action_event=true + action_size>0` kararlarını öneri adayı olarak ayır, seçim ve oran değişikliği kullanıcıda kalsın.
-7. Python reset/reversal/action-size davranışını mevcut Shadow görev takvimi bitmeden değiştirme.
+5. Sonraki production-readiness işi Auth/connection lifecycle'dır: gerçek bağlantı
+   testi, client değişiminde listener dispose/re-init, refresh/recovery/sign-out
+   olayları, SPA/Capacitor callback'leri ve hata/retry matrisi.
+6. Bu katmanı gerçek Supabase üzerinde doğruladıktan sonra çoklu hesap, append-only
+   revision/cancellation ve reset RPC akışını test et; 100.000 TRY finans
+   regression'ını production kapısı olarak tamamla.
+7. Auth/connection işi sonrasında Signal→Conversion tek yönlü bağını uygula; yalnız
+   `ACTION + action_event=true + action_size>0` kararlarını öneri adayı olarak ayır,
+   seçim ve oran değişikliği kullanıcıda kalsın.
+8. Python reset/reversal/action-size davranışını mevcut Shadow görev takvimi bitmeden değiştirme.
 
 ## 10. Yeni oturumun ilk eylemi
 

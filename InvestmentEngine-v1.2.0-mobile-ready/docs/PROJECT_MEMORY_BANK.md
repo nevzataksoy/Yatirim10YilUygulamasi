@@ -283,6 +283,33 @@ Birlikte değerlendirilir:
 
 `READY` görülse bile otomatik LIVE yoktur. Kanıt zayıfsa Shadow devam eder. Factor, weight, threshold, K1/K2, reversal, cooldown veya action-size otoritesi değişecekse yeni model version ve yeni Shadow Epoch gerekir; mevcut 30 günlük kanıt otomatik devredilmez.
 
+### Görev takvimi sonrası: veri yaşam döngüsü ve FRED tekilleştirme
+
+Bu geliştirme yönü `APPROVED`, somut migration/retention süreleri ise tasarım ve
+ölçüm beklediği için `OPEN`dır. Mevcut v1.2.0 Supabase tablolarında yaşa göre çalışan
+otomatik retention/cleanup yoktur; görev takvimi sırasında veri toplama davranışı
+değiştirilmeyecektir.
+
+Görev 7 sonrasında Python tarafında iki bağlı çalışma ele alınacaktır:
+
+1. Sinyal penceresinden çıkan ham ve operasyonel veriler için tablo bazlı yaşam
+   döngüsü oluşturulacak. Portföy ledger'ı, karar/sinyal bağı, fiyat geçmişi,
+   validation/performance ve gerekli PIT/revision kanıtı kalıcı korunacak; yalnız
+   tekrar eden veya özetlendikten sonra ham ayrıntısı atıl hale gelen derivatives,
+   execution-test ve scheduler/job verileri temizlik adayı olacaktır.
+2. FRED yazma sözleşmesi tekilleştirilecek. Aynı `series_id`, `observation_date` ve
+   `value` birleşimi tekrar geldiğinde yeni kayıt üretmemeli; güncel değer tekil
+   kalırken gerçek değer değişiklikleri/revision-vintage provenance kaybolmamalıdır.
+   Yalnız `unique(series_id, observation_date)` uygulayıp revision geçmişini silmek
+   kabul edilmez.
+
+Bugünkü `(series_id, observation_date, realtime_start)` anahtarı, FRED isteğinin
+varsayılan real-time tarihinin sorgu gününe göre değişmesi halinde aynı tarih/değerin
+günlük kopyalarını biriktirebilir. Tekil current katmanı ile yalnız gerçek değişimleri
+saklayan revision/change-point katmanının kesin tablo biçimi, veri örnekleri ve
+kapasite ölçümü sonrasında kararlaştırılacaktır. Uygulanmış `0001` migration'ı
+değiştirilmeyecek; gerekirse yeni numaralı migration yazılacaktır.
+
 ## 11. Quasar kilometre taşları
 
 1. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki manuel finans regression'ını tamamla.
@@ -291,6 +318,32 @@ Birlikte değerlendirilir:
 4. Çoklu hesap, append-only revision/cancellation ve reset RPC davranışını gerçek Supabase üzerinde doğrula.
 5. Auth/connection yaşam döngüsünden sonra Signal→Conversion bağını tek yönlü kur: dönüşüm formunda global karar `AppPopupSelect` ile seçilsin, `decision_id` otomatik kaydedilsin, sinyalin `action_size` değeri başlangıç oranı olarak getirilebilsin ve kullanıcı bu oranı serbestçe değiştirebilsin.
 6. Capacitor aşamasında session/refresh secret'ı native secure storage'a taşı.
+
+### Sıradaki Quasar revizyonunun kapsamı
+
+Kod incelemesi, Signal→Conversion'dan önce bağlantı testi ve Auth yaşam döngüsünün
+tamamlanması gerektiğini doğrulamıştır. Bir sonraki geliştirme turu şu sırayı izler:
+
+1. Project URL/publishable key yalnız biçimsel değil, gerçek ağ/Auth erişimiyle test
+   edilir; giriş sonrasında authenticated RLS okuması ayrıca doğrulanır.
+2. Supabase client bağlantı imzası değiştiğinde eski auth subscription kapatılır;
+   store `ready/session/listener` durumu yeni client için yeniden kurulur ve sayfa
+   yenileme zorunluluğu kaldırılır.
+3. `INITIAL_SESSION`, `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED`,
+   `PASSWORD_RECOVERY` ve `SIGNED_OUT` olayları tek yaşam döngüsünde ele alınır;
+   çıkış veya proje değişiminde account-scoped cache/state temizlenir.
+4. E-posta doğrulama ve şifre sıfırlama dönüşleri hash SPA ile Capacitor deep-link
+   hedeflerinde ayrı test edilir; recovery formu ve süresi dolmuş bağlantı hataları
+   tamamlanır.
+5. Geçersiz URL/key, çevrimdışı ağ, timeout, süresi dolmuş refresh token, RLS reddi,
+   çıkış ve uygulama yeniden açılışı için anlaşılır hata/retry davranışı test edilir.
+6. Bu katman gerçek Supabase üzerinde geçtikten sonra çoklu hesap/reset RPC ve
+   100.000 TRY finans regression kanıtı tamamlanır; ardından Signal→Conversion
+   frontend bağına geçilir.
+
+Mevcut kod bu hedefin yalnız başlangıç temelidir: session persistence ve auto-refresh
+açıktır; ancak bağlantı kaydı ağ health-check'i yapmaz, client değişiminde listener
+dispose/re-init sözleşmesi yoktur ve password-recovery callback ekranı bulunmaz.
 
 ### Signal→Conversion için kesin ürün sınırı
 

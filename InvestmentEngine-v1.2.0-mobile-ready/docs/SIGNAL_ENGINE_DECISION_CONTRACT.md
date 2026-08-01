@@ -678,6 +678,44 @@ Migration 0007 bu kriterleri `model.parameters`a seed eder. Fakat v1.2.0 `classi
 
 Quasar `public` snapshot'ları gösterir; private factor/model tablolarını değiştirmez.
 
+### 19.1 Veri yaşam döngüsü ve FRED tekilleştirme sözleşmesi
+
+#### Bugünkü durum — `RELEASED`
+
+- Supabase motor tablolarında yaşa göre çalışan otomatik retention/cleanup görevi
+  yoktur.
+- K1/K2 reseti veri temizliği değildir; yalnız `model.signal_state` alanlarını
+  sıfırlar.
+- `macro.observations` benzersizlik anahtarı bugün `series_id`, `observation_date`
+  ve `realtime_start` alanlarının birleşimidir. FRED isteğinde real-time period
+  açıkça sabitlenmediği için aynı observation tarihi ve değeri farklı sorgu
+  günlerinde yeni `realtime_start` ile tekrar yazılabilir.
+- Mevcut latest/replay okumaları bu günlük kopyaları versioned revision kaynağı
+  olarak deterministik biçimde seçen tam bir vintage-PIT sözleşmesi sağlamaz.
+
+#### Görev takvimi sonrası hedef — `APPROVED`
+
+1. Aynı `series_id`, `observation_date` ve `value` birleşiminin tekrarları idempotent
+   olacak ve yeni mantıksal observation üretmeyecektir.
+2. Her seri/tarih için güncel değer tekil okunacaktır; gerçek değer değişiklikleri
+   yalnız revision/change-point olarak, yayın/provenance bilgisiyle korunacaktır.
+3. Yalnız `unique(series_id, observation_date)` ile bütün revision geçmişini ezmek
+   yasaktır; strict vintage PIT hedefi korunur.
+4. Sinyal penceresinden çıkmış olsa da portföy ledger'ı, `model.decisions`, bağlı
+   `public.decision_history`, performance/validation, fiyat geçmişi ve gerekli
+   macro/URA PIT kanıtı otomatik silinmez.
+5. Tekrar eden ya da kalıcı günlük/aylık özeti üretildikten sonra ham ayrıntısı
+   gereksizleşen derivatives, execution-test ve `system.job_runs` kayıtları tablo
+   bazlı retention/aggregation adayıdır.
+6. Cleanup işlemi Shadow gününü, K1/K2 state'ini, karar–işlem `decision_id` bağını,
+   maliyet/KZ replay'ini veya kullanıcı portföyünü sıfırlamayacaktır.
+
+Kesin current/revision tablo tasarımı, retention süreleri, günlük/aylık özet şeması,
+batch boyutu, dry-run/ölçüm raporu ve rollback yaklaşımı `OPEN`dır. Görev 7 öncesinde
+runtime yazma/silme davranışı değiştirilmez. Uygulama yeni numaralı migration,
+repository idempotency testleri, mevcut kopyalar için kontrollü backfill/dedup ve
+kapasite karşılaştırmasıyla yapılacaktır.
+
 ## 20. Shadow görevlerinden sonraki değişiklik kapısı
 
 ### Görev 1–3
@@ -702,6 +740,13 @@ Bunlar davranışı değiştirmeden yapılırsa v1.2.x olabilir.
 - strict FRED-vintage PIT
 - production/replay gap report
 - URA factor quality decomposition
+
+### Görev 7 sonrası veri hardening
+
+- FRED current/revision tekilleştirme ve kontrollü mevcut-veri dedup
+- tablo bazlı retention/aggregation matrisi
+- dry-run ile silinecek/korunacak satır ve kapasite raporu
+- portföy/decision/PIT audit bütünlüğü ve idempotency testleri
 
 ### Model davranışı değişirse
 
