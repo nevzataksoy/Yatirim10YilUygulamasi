@@ -47,18 +47,22 @@ Düzeltilen ana noktalar:
     `APPROVED` hedef olarak kaydedildi. Portföy ledger'ı, karar/sinyal bağı,
     fiyat/PIT, performance ve validation kanıtı korunacak; retention süreleri ve
     özet şemaları ölçüm sonrasında kesinleştirilecektir.
-17. FRED'in aynı tarih/değeri farklı günlük `realtime_start` değerleriyle
-    çoğaltabilme riski kaydedildi. Hedef aynı değeri idempotent yazmak, current
-    observation'ı tekil okumak ve yalnız gerçek revision/change-point'leri
-    provenance ile korumaktır; kesin migration tasarımı `OPEN`dır.
-18. Quasar kod incelemesi Auth/connection lifecycle'ın Signal→Conversion'dan önce
-    gelmesini doğruladı. Bağlantı health-check'i, client/listener re-init/dispose,
-    bütün auth event'leri, e-posta doğrulama/password recovery dönüşleri ve
-    offline/expired-session/RLS hata matrisi sıradaki geliştirme kapsamıdır.
+17. FRED çoğalmasının kökü koddan doğrulandı: günde dört `macro_job`, sekiz seri ×
+    `1500` observation, sabitlenmemiş real-time period ve
+    `(series_id, observation_date, realtime_start)` conflict anahtarı. İki günlük
+    `14.513` satır örneğinde `4.343` aynı-değer kopyası, `0` gerçek değişim bulundu.
+18. FRED önerisi current + sıralı append-only change-point + ayrı resmî vintage
+    backfill olarak güncellendi. `unique(series,date,value)` A→B→A olayını
+    kaybedebileceği için reddedildi; migration/uygulama Görev 7 sonrası `OPEN`dır.
+19. Quasar Auth/connection kodu tamamlandı: gerçek Auth health testi, authenticated
+    user/RLS probe, client/listener/refresh/realtime dispose-re-init, bütün Auth
+    event'leri, PKCE confirmation/recovery callback'i ve hata sınıflandırması eklendi.
+20. Otomatik service testleri, Prettier/ESLint ve SPA build geçti. Gerçek Supabase
+    health/login/RLS/e-posta recovery zinciri ile Capacitor cihaz deep-link testi
+    dış ortam gerektirdiği için runtime kanıtı `OPEN` kaldı.
 
-Bu tur yalnız dokümantasyon ve mevcut kod incelemesidir. Python model/app kodu,
-Quasar uygulama kodu, migration, threshold veya factor weight değiştirilmedi. Bu
-dokümantasyon turu için yeni runtime/build testi çalıştırıldığı iddia edilmez.
+Python model/app kodu, migration, threshold veya factor weight değiştirilmedi.
+Quasar uygulama kodu ve Auth dokümantasyonu değişti.
 
 ## 3. Python Engine — güncel doğrulanmış operasyon durumu
 
@@ -181,10 +185,10 @@ Bu iş K1/K2 reseti değildir ve yeni 30 günlük veri toplama beklemesi başlat
 2. İlk bakiye/hesap sapmasında zinciri durdurup ekran görüntüsü paylaş.
 3. Sonunda Dashboard, Portföy, İşlem Geçmişi ve Raporlar toplamlarını beklenen matematikle karşılaştır.
 4. Draft PR test tamamlanmadan merge edilmez.
-5. Sonraki production-readiness işi Auth/connection lifecycle'dır: gerçek bağlantı
-   testi, client değişiminde listener dispose/re-init, refresh/recovery/sign-out
-   olayları, SPA/Capacitor callback'leri ve hata/retry matrisi.
-6. Bu katmanı gerçek Supabase üzerinde doğruladıktan sonra çoklu hesap, append-only
+5. Auth/connection kodunu gerçek Supabase üzerinde health, login, authenticated RLS,
+   token refresh, sign-out, confirmation ve password-recovery e-postasıyla doğrula;
+   Capacitor üretildiğinde cold/warm deep-link cihaz testini tamamla.
+6. Bu runtime kanıtından sonra çoklu hesap, append-only
    revision/cancellation ve reset RPC akışını test et; 100.000 TRY finans
    regression'ını production kapısı olarak tamamla.
 7. Auth/connection işi sonrasında Signal→Conversion tek yönlü bağını uygula; yalnız

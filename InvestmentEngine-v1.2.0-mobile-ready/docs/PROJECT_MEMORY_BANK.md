@@ -297,53 +297,70 @@ Görev 7 sonrasında Python tarafında iki bağlı çalışma ele alınacaktır:
    validation/performance ve gerekli PIT/revision kanıtı kalıcı korunacak; yalnız
    tekrar eden veya özetlendikten sonra ham ayrıntısı atıl hale gelen derivatives,
    execution-test ve scheduler/job verileri temizlik adayı olacaktır.
-2. FRED yazma sözleşmesi tekilleştirilecek. Aynı `series_id`, `observation_date` ve
-   `value` birleşimi tekrar geldiğinde yeni kayıt üretmemeli; güncel değer tekil
-   kalırken gerçek değer değişiklikleri/revision-vintage provenance kaybolmamalıdır.
-   Yalnız `unique(series_id, observation_date)` uygulayıp revision geçmişini silmek
-   kabul edilmez.
+2. FRED ingest sözleşmesi current ve revision/change-point olarak ayrılacak. Aynı
+   `series_id` ve `observation_date` için değer değişmediyse yalnız `last_seen_at`
+   benzeri gözlem metadata'sı ilerleyecek; yeni revision satırı oluşmayacaktır.
+   Değer değiştiğinde önceki/yeni değer ve ilk görülme zamanı append-only değişim
+   olayı olarak saklanacaktır. `value` alanını unique anahtarına eklemek tek başına
+   yeterli değildir; A→B→A sıralı revizyonunu tek kayda düşürebilir.
 
-Bugünkü `(series_id, observation_date, realtime_start)` anahtarı, FRED isteğinin
-varsayılan real-time tarihinin sorgu gününe göre değişmesi halinde aynı tarih/değerin
-günlük kopyalarını biriktirebilir. Tekil current katmanı ile yalnız gerçek değişimleri
-saklayan revision/change-point katmanının kesin tablo biçimi, veri örnekleri ve
-kapasite ölçümü sonrasında kararlaştırılacaktır. Uygulanmış `0001` migration'ı
-değiştirilmeyecek; gerekirse yeni numaralı migration yazılacaktır.
+Kök neden kod ve gerçek veriyle doğrulandı: `macro_job` günde dört kez sekiz serinin
+son `1500` gözlemini çeker; collector FRED real-time dönemini açıkça sabitlemez ve
+repository `(series_id, observation_date, realtime_start)` çatışma anahtarını kullanır.
+29–30.07.2026 örneğinde `14.513` satırın `4.343`ü aynı seri/tarih/değerin yalnız yeni
+`realtime_start` altında tekrarıdır; ortak kayıtlar içinde gerçek değer değişimi `0`dır.
+Bu nedenle varsayılan günlük `realtime_start`, tek başına gerçek revision kanıtı
+sayılmayacaktır.
+
+Görev 7 sonrasındaki tasarım hedefi:
+
+- `(series_id, observation_date)` başına tek deterministik current kayıt,
+- yalnız değer geçişinde sıralı append-only revision/change-point olayı,
+- aynı değer tekrarında idempotent `last_seen_at/fetched_at` güncellemesi,
+- latest okuyucuların current katmanını, PIT okuyucuların revision katmanını seçmesi,
+- mevcut kopyaların `lag(value)` benzeri geçiş analiziyle dry-run/backfill edilmesi,
+- resmî geçmiş vintage gerekiyorsa günlük current polling'den ayrı ALFRED/FRED
+  vintage endpoint'iyle backfill yapılması,
+- her `macro_job` için seri bazında `received/inserted/unchanged/revised/skipped`
+  sayıları ve beklenen sekiz seriden eksik olanların job audit'inde görünmesi.
+
+Mevcut polling ile ölçülen change-point'in zamanı “motorun değişik değeri ilk gördüğü
+an”dır; FRED'in tarihsel resmî yayın anı olduğu iddia edilmez. Strict vintage PIT için
+ayrı resmî vintage toplama zorunludur. Uygulanmış `0001` migration'ı
+değiştirilmeyecek; yeni numaralı migration ve transaction/idempotency testleri
+kullanılacaktır.
 
 ## 11. Quasar kilometre taşları
 
 1. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki manuel finans regression'ını tamamla.
 2. Dashboard/Portföy/İşlemler/Raporlar toplamlarını ekran görüntüsü ve beklenen matematikle doğrula.
-3. Gerçek Supabase bağlantı sağlık testi, anlaşılır hata teşhisi, e-posta doğrulama, şifremi unuttum ve SPA/Capacitor reset dönüşünü production-ready yap.
+3. Gerçek Supabase bağlantı sağlık testi, Auth/RLS yaşam döngüsü ve web callback kodu tamamlandı; gerçek proje ve native Capacitor deep-link testiyle doğrula.
 4. Çoklu hesap, append-only revision/cancellation ve reset RPC davranışını gerçek Supabase üzerinde doğrula.
 5. Auth/connection yaşam döngüsünden sonra Signal→Conversion bağını tek yönlü kur: dönüşüm formunda global karar `AppPopupSelect` ile seçilsin, `decision_id` otomatik kaydedilsin, sinyalin `action_size` değeri başlangıç oranı olarak getirilebilsin ve kullanıcı bu oranı serbestçe değiştirebilsin.
 6. Capacitor aşamasında session/refresh secret'ı native secure storage'a taşı.
 
-### Sıradaki Quasar revizyonunun kapsamı
+### Quasar Auth/connection revizyonu — kod tamamlandı, runtime kanıtı `OPEN`
 
-Kod incelemesi, Signal→Conversion'dan önce bağlantı testi ve Auth yaşam döngüsünün
-tamamlanması gerektiğini doğrulamıştır. Bir sonraki geliştirme turu şu sırayı izler:
+- Project URL/publishable key gerçek `/auth/v1/health` isteğiyle test edilir;
+  `service_role/sb_secret_` istemciye kaydedilmez.
+- Aktif oturum `getUser()` ile sunucudan doğrulanır; `profiles`,
+  `investment_accounts` ve `market_snapshot` authenticated RLS okumaları sınanır.
+- Bağlantı imzası değiştiğinde eski auth subscription, auto-refresh ve realtime
+  kanalları dispose edilir; eski oturum/account cache temizlenip yeni proje için
+  yeniden giriş istenir.
+- `INITIAL_SESSION`, `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED`,
+  `PASSWORD_RECOVERY` ve `SIGNED_OUT` tek store yaşam döngüsünde ele alınır.
+- PKCE, e-posta doğrulama ve şifre kurtarma için `/auth/callback` recovery ekranı;
+  hash SPA yönlendirmesi ve Capacitor `appUrlOpen`/cold-launch adaptörü eklendi.
+- Network, timeout, invalid key/credentials, email-not-confirmed, expired session ve
+  RLS reddi kullanıcıya ayrıştırılmış hata olarak gösterilir.
 
-1. Project URL/publishable key yalnız biçimsel değil, gerçek ağ/Auth erişimiyle test
-   edilir; giriş sonrasında authenticated RLS okuması ayrıca doğrulanır.
-2. Supabase client bağlantı imzası değiştiğinde eski auth subscription kapatılır;
-   store `ready/session/listener` durumu yeni client için yeniden kurulur ve sayfa
-   yenileme zorunluluğu kaldırılır.
-3. `INITIAL_SESSION`, `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED`,
-   `PASSWORD_RECOVERY` ve `SIGNED_OUT` olayları tek yaşam döngüsünde ele alınır;
-   çıkış veya proje değişiminde account-scoped cache/state temizlenir.
-4. E-posta doğrulama ve şifre sıfırlama dönüşleri hash SPA ile Capacitor deep-link
-   hedeflerinde ayrı test edilir; recovery formu ve süresi dolmuş bağlantı hataları
-   tamamlanır.
-5. Geçersiz URL/key, çevrimdışı ağ, timeout, süresi dolmuş refresh token, RLS reddi,
-   çıkış ve uygulama yeniden açılışı için anlaşılır hata/retry davranışı test edilir.
-6. Bu katman gerçek Supabase üzerinde geçtikten sonra çoklu hesap/reset RPC ve
-   100.000 TRY finans regression kanıtı tamamlanır; ardından Signal→Conversion
-   frontend bağına geçilir.
-
-Mevcut kod bu hedefin yalnız başlangıç temelidir: session persistence ve auto-refresh
-açıktır; ancak bağlantı kaydı ağ health-check'i yapmaz, client değişiminde listener
-dispose/re-init sözleşmesi yoktur ve password-recovery callback ekranı bulunmaz.
+Otomatik service testleri, Prettier/ESLint ve SPA build geçmiştir. Gerçek Supabase
+URL/key/Auth e-postası bu çalışma ortamında bulunmadığından gerçek proje üzerinde
+health + login + RLS + recovery e-posta zinciri henüz `OPEN` runtime doğrulamasıdır.
+Capacitor native mode/plugin/custom-scheme üretildiğinde cold/warm deep-link ayrıca
+cihazda test edilmelidir. Bu kanıttan sonra çoklu hesap/reset RPC ve `100.000 TRY`
+regression tamamlanır; ardından Signal→Conversion frontend bağına geçilir.
 
 ### Signal→Conversion için kesin ürün sınırı
 

@@ -686,35 +686,51 @@ Quasar `public` snapshot'ları gösterir; private factor/model tablolarını de�
   yoktur.
 - K1/K2 reseti veri temizliği değildir; yalnız `model.signal_state` alanlarını
   sıfırlar.
-- `macro.observations` benzersizlik anahtarı bugün `series_id`, `observation_date`
-  ve `realtime_start` alanlarının birleşimidir. FRED isteğinde real-time period
-  açıkça sabitlenmediği için aynı observation tarihi ve değeri farklı sorgu
-  günlerinde yeni `realtime_start` ile tekrar yazılabilir.
+- `macro_job` günde dört kez çalışır; sekiz serinin her biri için collector son
+  `1500` observation'ı yeniden ister. Çağrı real-time period'i açıkça sabitlemez.
+- `macro.observations` benzersizlik anahtarı `series_id`, `observation_date` ve
+  `realtime_start` birleşimidir. FRED'in varsayılan `realtime_start` değeri sorgu
+  günüyle ilerlediğinde aynı ekonomik değer ertesi gün yeni satır olur.
+- 29–30.07.2026 gerçek örneğinde `14.513` satırın `4.343`ü aynı
+  seri/tarih/değer tekrarıdır; karşılaştırılabilen ortak satırlarda gerçek değer
+  değişikliği yoktur. Günlük `realtime_start` bu veri akışında revision kanıtı
+  değildir.
 - Mevcut latest/replay okumaları bu günlük kopyaları versioned revision kaynağı
   olarak deterministik biçimde seçen tam bir vintage-PIT sözleşmesi sağlamaz.
 
 #### Görev takvimi sonrası hedef — `APPROVED`
 
-1. Aynı `series_id`, `observation_date` ve `value` birleşiminin tekrarları idempotent
-   olacak ve yeni mantıksal observation üretmeyecektir.
-2. Her seri/tarih için güncel değer tekil okunacaktır; gerçek değer değişiklikleri
-   yalnız revision/change-point olarak, yayın/provenance bilgisiyle korunacaktır.
-3. Yalnız `unique(series_id, observation_date)` ile bütün revision geçmişini ezmek
-   yasaktır; strict vintage PIT hedefi korunur.
-4. Sinyal penceresinden çıkmış olsa da portföy ledger'ı, `model.decisions`, bağlı
+1. Current katmanda `(series_id, observation_date)` başına tek değer bulunur. Aynı
+   değer yeniden geldiyse yalnız son görülme/fetch metadata'sı ilerler.
+2. Değer değiştiğinde önceki/yeni değer, sıralı revision numarası ve motorun değişimi
+   ilk gördüğü zaman append-only change-point olarak yazılır. Current güncellemesi ve
+   revision insert'i tek transaction içinde idempotent olmalıdır.
+3. `unique(series_id, observation_date, value)` nihai çözüm değildir; A→B→A geçişinde
+   son A olayını ilk A ile çakıştırır. Yalnız `unique(series_id, observation_date)`
+   kullanıp geçmişi ezmek de yasaktır.
+4. Latest/factor okuyucuları current katmanını deterministik okur. Historical PIT
+   okuyucuları revision/vintage katmanını `known_at <= as_of` kuralıyla okur.
+5. Günlük polling change-point'i resmî FRED vintage yayın zamanı sayılmaz. Strict
+   vintage PIT için ayrı ALFRED/FRED vintage endpoint backfill'i ve provenance
+   gerekir.
+6. Her `macro_job`, seri bazında `received/inserted/unchanged/revised/skipped`
+   sayılarını ve beklenen sekiz serideki eksikleri audit'e yazar. Bir serinin boş
+   dönmesi diğer serilerin başarılı upsert'i içinde görünmez hale gelmez.
+7. Sinyal penceresinden çıkmış olsa da portföy ledger'ı, `model.decisions`, bağlı
    `public.decision_history`, performance/validation, fiyat geçmişi ve gerekli
    macro/URA PIT kanıtı otomatik silinmez.
-5. Tekrar eden ya da kalıcı günlük/aylık özeti üretildikten sonra ham ayrıntısı
+8. Tekrar eden ya da kalıcı günlük/aylık özeti üretildikten sonra ham ayrıntısı
    gereksizleşen derivatives, execution-test ve `system.job_runs` kayıtları tablo
    bazlı retention/aggregation adayıdır.
-6. Cleanup işlemi Shadow gününü, K1/K2 state'ini, karar–işlem `decision_id` bağını,
+9. Cleanup işlemi Shadow gününü, K1/K2 state'ini, karar–işlem `decision_id` bağını,
    maliyet/KZ replay'ini veya kullanıcı portföyünü sıfırlamayacaktır.
 
 Kesin current/revision tablo tasarımı, retention süreleri, günlük/aylık özet şeması,
 batch boyutu, dry-run/ölçüm raporu ve rollback yaklaşımı `OPEN`dır. Görev 7 öncesinde
 runtime yazma/silme davranışı değiştirilmez. Uygulama yeni numaralı migration,
-repository idempotency testleri, mevcut kopyalar için kontrollü backfill/dedup ve
-kapasite karşılaştırmasıyla yapılacaktır.
+repository transaction/idempotency testleri, mevcut kopyalarda
+`lag(value)`/sıralı-geçiş dry-run'ı, kontrollü backfill/dedup ve kapasite
+karşılaştırmasıyla yapılacaktır.
 
 ## 20. Shadow görevlerinden sonraki değişiklik kapısı
 
