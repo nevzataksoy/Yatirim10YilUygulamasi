@@ -215,7 +215,7 @@ Ayrıntılı formüller ve tablo sözleşmesi `SIGNAL_ENGINE_DECISION_CONTRACT.m
 - Mode: `SHADOW`.
 - Realtime Execution: `OFF`.
 - Crypto history: Coinbase, 2500 ortak gün, `OK`.
-- Validation: 1381 replay observation; core `OK`; configured edge 70'te sinyal yok.
+- Validation: 1383 replay observation; core `OK`; configured edge 70'te sinyal yok.
 - Calibration: düşük eşiklerde bile sınırlı signal count; exploratory; hiçbir ayar uygulanmadı.
 - URA full replay: `NOT_READY`.
 
@@ -236,13 +236,14 @@ xx:35                         SEC event
 
 - Görev 1 — ilk otomatik günlük döngü: `PASS`.
 - Görev 2 — TCMB/FX: `PASS`.
-- Görev 3 — 01.08.2026 09:30 TRT weekly + monthly audit: `PENDING`; kullanıcı çıktısı paylaşılmadan PASS sayılmaz.
+- Görev 3 — 01.08.2026 09:30 TRT weekly + monthly audit: `PASS`; iki job planlanan
+  saatte `OK` tamamlandı, audit threshold/weight değiştirmedi.
 - Görev 4 — 07.08.2026: 7 günlük güvenilirlik.
 - Görev 5 — 14.08.2026: 14 günlük stabilite.
 - Görev 6 — 20.08.2026: URA quality/history değerlendirmesi.
 - Görev 7 — 29.08.2026: 30 günlük Shadow Graduation Review.
 
-Görev 1 sonucu, motorun gece boyunca veri topladığını, Deribit timeout'ta atomik OKX fallback kullandığını, ETH/BTC için `WAIT`, URA için q70.4 nedeniyle `NO_ACTION_DATA` ürettiğini ve çökmeyip scheduler'a devam ettiğini kanıtladı. Görev 2 TCMB data date/rate, market snapshot, health ve job audit uyumunu doğruladı.
+Görev 1 sonucu, motorun gece boyunca veri topladığını, Deribit timeout'ta atomik OKX fallback kullandığını, ETH/BTC için `WAIT`, URA için q70.4 nedeniyle `NO_ACTION_DATA` ürettiğini ve çökmeyip scheduler'a devam ettiğini kanıtladı. Görev 2 TCMB data date/rate, market snapshot, health ve job audit uyumunu doğruladı. Görev 3 weekly/monthly scheduler zamanlamasını, `1383` gözlemli core replay'i ve aylık audit'in threshold/weight değiştirmeyen güvenli davranışını doğruladı.
 
 ## 10. Görevlerden sonraki kilometre taşları
 
@@ -378,11 +379,21 @@ transaction/idempotency testleri ve kontrollü backfill/dedup kullanılacaktır.
 
 ## 11. Quasar kilometre taşları
 
-1. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki manuel finans regression'ını tamamla.
-2. Dashboard/Portföy/İşlemler/Raporlar toplamlarını ekran görüntüsü ve beklenen matematikle doğrula.
-3. Gerçek Supabase bağlantı sağlık testi, Auth/RLS yaşam döngüsü ve web callback kodu tamamlandı; gerçek proje ve native Capacitor deep-link testiyle doğrula.
-4. Çoklu hesap, append-only revision/cancellation ve reset RPC davranışını gerçek Supabase üzerinde doğrula.
-5. Auth/connection yaşam döngüsünden sonra Signal→Conversion bağını tek yönlü kur: dönüşüm formunda global karar `AppPopupSelect` ile seçilsin, `decision_id` otomatik kaydedilsin, sinyalin `action_size` değeri başlangıç oranı olarak getirilebilsin ve kullanıcı bu oranı serbestçe değiştirebilsin.
+1. Otomatik `100.000 TRY` finans regression'ı; ara/final bakiyeler, maliyet/KZ,
+   kronolojik replay, hesap izolasyonu, revizyon/iptal ve idempotent retry ile birlikte
+   `PASS` durumundadır.
+2. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki aynı senaryoyu gerçek Supabase test
+   hesabında ekranlardan uygula; Dashboard/Portföy/İşlemler/Raporlar toplamlarını
+   ekran görüntüsü ve beklenen matematikle doğrula.
+3. Gerçek Supabase bağlantı sağlık testi, Auth/RLS yaşam döngüsü ve web callback kodu
+   tamamlandı; `yarn test:acceptance` ile gerçek proje health/login/RLS/refresh/sign-out
+   zincirini, manuel olarak e-posta ve native Capacitor deep-link akışını doğrula.
+4. Çoklu hesap, append-only revision/cancellation ve reset RPC davranışını gerçek
+   Supabase üzerinde doğrula.
+5. Gerçek ortam kabulünden sonra Signal→Conversion bağını tek yönlü kur: dönüşüm
+   formunda global karar `AppPopupSelect` ile seçilsin, `decision_id` otomatik
+   kaydedilsin, sinyalin `action_size` değeri başlangıç oranı olarak getirilebilsin ve
+   kullanıcı bu oranı serbestçe değiştirebilsin.
 6. Capacitor aşamasında session/refresh secret'ı native secure storage'a taşı.
 
 ### Quasar Auth/connection revizyonu — kod tamamlandı, runtime kanıtı `OPEN`
@@ -407,6 +418,14 @@ health + login + RLS + recovery e-posta zinciri henüz `OPEN` runtime doğrulama
 Capacitor native mode/plugin/custom-scheme üretildiğinde cold/warm deep-link ayrıca
 cihazda test edilmelidir. Bu kanıttan sonra çoklu hesap/reset RPC ve `100.000 TRY`
 regression tamamlanır; ardından Signal→Conversion frontend bağına geçilir.
+
+Portföy çekirdeğinde istemci UUID'si transaction primary key olarak korunur; aynı
+isteğin belirsiz ağ sonucu sonrasında tekrar gönderilmesi çift kayıt üretmez, aynı
+kimliğin farklı içerikle kullanımı reddedilir. Store her yeni aday zinciri
+kronolojik bakiye replay'iyle doğrular. Başlangıç portföyünün çoklu OPENING satırları
+tek bulk insert ile atomik kaydedilir; dönüşüm zaten tek ledger satırında iki bacağı
+birlikte taşır. Bu davranışlar otomatik regression'da `PASS`, gerçek Supabase/RLS
+runtime kabulü ise `OPEN`dır.
 
 ### Signal→Conversion için kesin ürün sınırı
 
@@ -454,6 +473,6 @@ Python: v1.2.0, global ETH/BTC + URA/USD karar desteği, SHADOW, Realtime OFF, o
 Quasar: seçili hesapta gerçek işlem ledger'ı ve raporlama.
 Signal→Conversion: gelecekte tek yönlü ve isteğe bağlı decision_id bağı; öneri oranı düzenlenebilir, bağlayıcı limit yok.
 Validation: historical as-of directional core; strict vintage PIT/production K1-K2 parity değil.
-Görevler: 1 ve 2 PASS; Görev 3 kullanıcı kanıtı bekliyor.
+Görevler: 1, 2 ve 3 PASS; sıradaki checkpoint Görev 4 (07.08.2026).
 Kural: test sonucu threshold/weight/mode/LIVE'ı otomatik değiştirmez.
 ```

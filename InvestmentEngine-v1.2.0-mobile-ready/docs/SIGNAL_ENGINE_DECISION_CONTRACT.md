@@ -551,7 +551,7 @@ PIT_CORE_REPLAY / ETH/BTC
 
 - DB backfill varsayılan olarak `2500` takvim günlük BTC/ETH geçmişi ister.
 - Replay ilk noktayı en az `1120` ortak günlük session prefix'i biriktikten sonra
-  üretir; doğrulanmış son çalışmada bu yapı `1381` replay observation vermiştir.
+  üretir; Görev 3 monthly audit çalışmasında bu yapı `1383` replay observation vermiştir.
 - Her tarih için BTC/ETH fiyat prefix'i yalnız o tarihe kadar kesilir.
 - Makroda `observation_date <= as_of` olan son satır seçilir.
 - Historical derivatives/event factor q0 ile dışarıda bırakılır.

@@ -68,6 +68,21 @@ Düzeltilen ana noktalar:
     aynı geçmiş veri üzerinde karşılaştırılmadan migration/dedup yapılmayacaktır.
     Dört TRT turu yerel gün varsayımıyla değil, response'taki gerçek
     `realtime_start/realtime_end` değerleriyle sınıflandırılacaktır.
+22. Görev 3 kullanıcı logları ve sorgu sonuçlarıyla `PASS` oldu. Weekly/monthly
+    scheduler zamanlaması doğru, iki job `OK`, core replay `1383` gözlem ve audit
+    threshold/weight değiştirmedi. Readiness'in `NOT_READY` kalması beklenen sonuçtur.
+23. Quasar portföy çekirdeği regression paketi eklendi. `100.000 TRY` senaryosunun
+    12 ara/final bakiyesi, maliyet/KZ/komisyon, kronolojik replay, çoklu hesap
+    izolasyonu, append-only revision/cancellation ve idempotent retry otomatik testte
+    `PASS` durumundadır.
+24. Finansal kayıtlar store seviyesinde kronolojik bakiye doğrulaması görür. Formlar
+    sabit istemci transaction UUID'si taşır; aynı retry çift kayıt üretmez, farklı
+    içerikle UUID tekrar kullanımı reddedilir. OPENING satırları tek atomik bulk insert
+    olarak kaydedilir.
+25. Secret saklamayan `yarn test:acceptance` gerçek Supabase health/login/RLS/token
+    refresh/local sign-out kontrolü eklendi. Bu çalışma alanında URL/key/test hesabı
+    bulunmadığından gerçek runtime sonucu `OPEN` kaldı; e-posta ve Capacitor deep-link
+    ayrıca manuel testtir.
 
 Python model/app kodu, migration, threshold veya factor weight değiştirilmedi.
 Quasar uygulama kodu ve Auth dokümantasyonu değişti.
@@ -80,7 +95,7 @@ Quasar uygulama kodu ve Auth dokümantasyonu değişti.
 - Mode: `SHADOW`.
 - Realtime Execution: `OFF`.
 - Crypto history: Coinbase, 2500 ortak gün, `OK`.
-- Validation: 1381 historical as-of directional-core observation, core `OK`.
+- Validation: 1383 historical as-of directional-core observation, core `OK`.
 - Configured edge `70` için replay signal sayısı `0`; düşük aday eşiklerde signal count sınırlı.
 - Calibration exploratory; hiçbir threshold/weight uygulanmadı.
 - URA full replay yeterli PIT history olmadığı için `NOT_READY`.
@@ -102,15 +117,13 @@ Quasar uygulama kodu ve Auth dokümantasyonu değişti.
 - Data date `31.07.2026`, USD/TRY `47.4305`.
 - FX health/job/snapshot zinciri tutarlı.
 
-### Görev 3 — `PENDING`
+### Görev 3 — `PASS`
 
-**01.08.2026 09:30 TRT weekly + monthly audit** çıktısı henüz bu oturumda paylaşılmadı. İstenen kanıt:
-
-1. `weekly_job` ve `monthly_audit_job` son kayıtları.
-2. `public.model_validation_snapshot`.
-3. Son `model.validation_runs` kayıtları.
-
-Sonuç görülmeden PASS yazılmaz. `SHADOW_READINESS=NOT_READY` bu aşamada normaldir.
+- `weekly_job` 08:00 TRT ve `monthly_audit_job` 09:00 TRT'de başlayıp `OK` tamamlandı.
+- Core replay `1383` gözlem, configured edge `70` sinyali `0`.
+- Calibration `LIMITED_SIGNAL_COUNT`; weight/threshold değişmedi.
+- `SHADOW_READINESS=NOT_READY`; yalnız üç Shadow günü bulunduğu için beklenen sonuç.
+- Recent job success `%97,115`; Görev 4'te üç eski başarısız kayıt ayrıştırılacak.
 
 ## 5. Released motor gerçeği
 
@@ -196,20 +209,27 @@ Bu iş K1/K2 reseti değildir ve yeni 30 günlük veri toplama beklemesi başlat
 - Supabase migration `0008` ve `0009` uygulanmış olarak belgelenmiştir; yeni migration `0010+` olmalıdır.
 - Signal→Conversion için DB'de isteğe bağlı `portfolio_transactions.decision_id` hazırdır; frontend seçimi henüz uygulanmamıştır.
 - Onaylanan UX: sinyal ID'si elle yazılmaz, `AppPopupSelect` kullanılır; seçilen sinyal önerisi forma ön doldurulabilir ama kullanıcı değiştirebilir. Yüzde butonları ve ayar oranları hard limit değildir.
+- Otomatik finans testleri `10/10` geçer: 100.000 TRY, ara/final bakiye, maliyet/KZ,
+  kronolojik sıra, overdraft, hesap izolasyonu, revision/cancellation ve idempotency.
+- Başlangıç portföyü çoklu satırı tek bulk insert; her işlem sabit istemci UUID'siyle
+  idempotent retry; store seviyesinde kronolojik bakiye doğrulaması aktiftir.
+- `scripts/supabase-acceptance.mjs` gerçek health/login/RLS/refresh/sign-out kontrolünü
+  ortam değişkenleriyle çalıştırır ve secret basmaz.
 
 ## 9. Quasar'da kullanıcı doğrulaması bekleyen işler
 
-1. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki 12 işlemi sırayla uygula.
-2. İlk bakiye/hesap sapmasında zinciri durdurup ekran görüntüsü paylaş.
-3. Sonunda Dashboard, Portföy, İşlem Geçmişi ve Raporlar toplamlarını beklenen matematikle karşılaştır.
-4. Draft PR test tamamlanmadan merge edilmez.
-5. Auth/connection kodunu gerçek Supabase üzerinde health, login, authenticated RLS,
-   token refresh, sign-out, confirmation ve password-recovery e-postasıyla doğrula;
-   Capacitor üretildiğinde cold/warm deep-link cihaz testini tamamla.
-6. Bu runtime kanıtından sonra çoklu hesap, append-only
-   revision/cancellation ve reset RPC akışını test et; 100.000 TRY finans
-   regression'ını production kapısı olarak tamamla.
-7. Auth/connection işi sonrasında Signal→Conversion tek yönlü bağını uygula; yalnız
+1. Gerçek Supabase test hesabında `yarn test:acceptance` çalıştır; health, login,
+   authenticated RLS, refresh ve local sign-out sonucunu doğrula.
+2. Confirmation ve password-recovery e-postalarını; Capacitor üretildiğinde cold/warm
+   deep-link cihaz akışını manuel doğrula.
+3. Çoklu hesap, append-only revision/cancellation ve reset RPC akışını gerçek
+   Supabase üzerinde test et.
+4. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki 12 işlemi ekranlardan sırayla uygula;
+   ilk sapmada durup ekran görüntüsü paylaş.
+5. Dashboard, Portföy, İşlem Geçmişi ve Raporlar toplamlarını otomatik testteki
+   beklenen matematikle karşılaştır.
+6. Draft PR gerçek ortam test döngüsü tamamlanmadan merge edilmez.
+7. Gerçek ortam kabulü sonrasında Signal→Conversion tek yönlü bağını uygula; yalnız
    `ACTION + action_event=true + action_size>0` kararlarını öneri adayı olarak ayır,
    seçim ve oran değişikliği kullanıcıda kalsın.
 8. Python reset/reversal/action-size davranışını mevcut Shadow görev takvimi bitmeden değiştirme.

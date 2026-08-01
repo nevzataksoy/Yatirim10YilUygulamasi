@@ -89,20 +89,37 @@ Süre: yaklaşık 2.48 saniye
 
 ## Görev 3 — 01.08.2026 09:30 TRT
 
-**Durum: PENDING — kullanıcı çıktısı bekleniyor**
+**Sonuç: PASS**
 
-Beklenen işler:
+### Scheduler
 
-- Cumartesi 08:00 `weekly_job`.
-- Ayın 1'i 09:00 `monthly_audit_job`.
+- `weekly_job` 08:00 TRT'de başladı, 08:01:15 civarında `OK` tamamlandı.
+- `monthly_audit_job` 09:00 TRT'de başladı, 09:01:16 civarında `OK` tamamlandı.
+- PostgreSQL UTC kayıtları sırasıyla `05:00` ve `06:00` olup TRT loglarıyla uyumludur.
+- Servis görevlerden önce ve sonra `RUNNING`; exit code `0`dır.
+- İlgili loglarda `ERROR`, `WARNING`, traceback veya scheduler misfire görülmedi.
 
-İstenecek kanıt:
+### Weekly sonucu
 
-1. `system.job_runs` içinde weekly/monthly kayıtları.
-2. `public.model_validation_snapshot`.
-3. `model.validation_runs` son kayıtları.
+- Holdings tarihi `2026-07-31`, holdings sayısı `58`.
+- Breadth quality `%19,195`. Bu scheduler hatası değildir; yalnız üç breadth günü
+  bulunduğu için 20/50/200 günlük bileşenler henüz oluşmamıştır.
 
-`SHADOW_READINESS=NOT_READY` normaldir. Sonuç paylaşılmadan `PASS` yazılmaz.
+### Monthly audit ve readiness
+
+- ETH/BTC historical as-of directional-core replay `OK`.
+- Observation sayısı `1383`; dönem `2022-10-18 – 2026-07-31`.
+- Configured edge `70` sinyali `0`; calibration `LIMITED_SIGNAL_COUNT`,
+  `best_candidate=null`.
+- Mature `ACTION/WATCH` olmadığı için performance değerlendirmesi `0`; bu normaldir.
+- Weight veya threshold değişmedi.
+- Readiness `NOT_READY`: Shadow `3/30`, ETH/BTC karar günü `3/25`, URA/USD `2/20`,
+  URA breadth `3/20`, URA median quality `%70,4`, recent job success `%97,115`.
+- ETH/BTC median quality `%90,45`, realtime test yaşı `1,49` gün ve holdings günü
+  kriterleri geçmiştir.
+
+Recent job success hedefinin altında kalan üç eski kayıt Görev 3 weekly/monthly
+işleri değildir. Görev 4'te son yedi günlük başarısız iş sorgusuyla kökleri ayrılır.
 
 ## Sonraki checkpoint'ler
 

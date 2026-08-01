@@ -88,10 +88,12 @@ Mode                    SHADOW
 Realtime Execution     OFF
 Görev 1                PASS
 Görev 2                PASS
-Sıradaki checkpoint    Görev 3 — 01.08.2026 09:30 TRT; sonuç henüz paylaşılmadı
+Görev 3                PASS
+Sıradaki checkpoint    Görev 4 — 07.08.2026 10:30 TRT
 
 Quasar                 çoklu portföy + account-scoped ledger + append-only revision
-Manuel finans testi    100.000 TRY senaryosu hâlâ kullanıcı doğrulaması bekliyor
+Otomatik finans testi  100.000 TRY + izolasyon/revizyon/idempotency PASS
+Manuel gerçek ortam    Auth/RLS/e-posta/deep-link ve 100.000 TRY ekran testi OPEN
 Draft PR'lar           test döngüsü tamamlanmadan merge edilmez
 ```
 
