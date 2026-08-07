@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from app.models import AppSettings
+from app.run_context import current_job_context
 
 
 class DatabaseError(RuntimeError):
@@ -51,4 +52,13 @@ class DatabaseService:
             self.open()
         assert self.pool is not None
         with self.pool.connection() as conn:
+            root_job_name, run_kind = current_job_context()
+            # Local GUCs are consumed by migration 0010's job-run provenance trigger.
+            # They are observability metadata only; model/decision semantics are untouched.
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select set_config('rosa.root_job_name', %s, true), "
+                    "set_config('rosa.run_kind', %s, true)",
+                    (root_job_name, run_kind),
+                )
             yield conn

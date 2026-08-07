@@ -1,6 +1,6 @@
 # Investment Engine — Shadow Checkpoint Sonuç Günlüğü
 
-Son güncelleme: 01 Ağustos 2026  
+Son güncelleme: 07 Ağustos 2026  
 Model ailesi: `1.2.x`  
 Deployed model: `1.2.0`  
 Mode: `SHADOW`  
@@ -102,28 +102,104 @@ Süre: yaklaşık 2.48 saniye
 ### Weekly sonucu
 
 - Holdings tarihi `2026-07-31`, holdings sayısı `58`.
-- Breadth quality `%19,195`. Bu scheduler hatası değildir; yalnız üç breadth günü
-  bulunduğu için 20/50/200 günlük bileşenler henüz oluşmamıştır.
+- Breadth quality `%19,195`. Bu scheduler hatası değildir; yalnız üç breadth günü bulunduğu için 20/50/200 günlük bileşenler henüz oluşmamıştır.
 
 ### Monthly audit ve readiness
 
 - ETH/BTC historical as-of directional-core replay `OK`.
 - Observation sayısı `1383`; dönem `2022-10-18 – 2026-07-31`.
-- Configured edge `70` sinyali `0`; calibration `LIMITED_SIGNAL_COUNT`,
-  `best_candidate=null`.
+- Configured edge `70` sinyali `0`; calibration `LIMITED_SIGNAL_COUNT`, `best_candidate=null`.
 - Mature `ACTION/WATCH` olmadığı için performance değerlendirmesi `0`; bu normaldir.
 - Weight veya threshold değişmedi.
-- Readiness `NOT_READY`: Shadow `3/30`, ETH/BTC karar günü `3/25`, URA/USD `2/20`,
-  URA breadth `3/20`, URA median quality `%70,4`, recent job success `%97,115`.
-- ETH/BTC median quality `%90,45`, realtime test yaşı `1,49` gün ve holdings günü
-  kriterleri geçmiştir.
+- Readiness `NOT_READY`: Shadow `3/30`, ETH/BTC karar günü `3/25`, URA/USD `2/20`, URA breadth `3/20`, URA median quality `%70,4`, recent job success `%97,115`.
+- ETH/BTC median quality `%90,45`, realtime test yaşı `1,49` gün ve holdings günü kriterleri geçmiştir.
 
-Recent job success hedefinin altında kalan üç eski kayıt Görev 3 weekly/monthly
-işleri değildir. Görev 4'te son yedi günlük başarısız iş sorgusuyla kökleri ayrılır.
+Recent job success hedefinin altında kalan üç eski kayıt Görev 3 weekly/monthly işleri değildir. Görev 4'te son yedi günlük başarısız iş sorgusuyla kökleri ayrılır.
+
+## Görev 4 — 07.08.2026, 7 günlük ilk Shadow kontrolü
+
+**Sonuç: PASS**
+
+### Servis ve realtime
+
+- `RosaInvestmentEngine` `RUNNING`; Windows ve service exit code `0`.
+- Coinbase realtime smoke test `OK`.
+- Test run: `36185c91-7358-43f7-97f0-e2bc5720211e`.
+- 8 snapshot, 2 ürün (`BTC-USD`, `ETH-USD`), `max_trade_gap=0`.
+- Realtime Execution açılmadı ve test ACTION üretmedi.
+
+### Validation ve readiness
+
+- Model validation `OK`.
+- ETH/BTC core replay `OK`, `1389` observation.
+- `SHADOW_READINESS=NOT_READY`.
+- `blockers=[]`; yani quality/job/realtime kaynaklı graduation blocker yoktur.
+- Waiting yalnız history birikimidir:
+  - Shadow `9/30` gün,
+  - ETH/BTC `9/25` karar günü,
+  - URA/USD `6/20` karar günü,
+  - URA breadth `6/20` gün.
+
+### Karar kalitesi
+
+```text
+ETH/BTC: 9 decision days, median 90.83, min 90.08, max 91.20
+URA/USD: 6 decision days, median 87.48, min 70.40, max 87.85
+```
+
+URA median quality artık 80 üstündedir; tek düşük ilk gün kaydı medianı graduation blocker seviyesine çekmemektedir. Threshold/weight değiştirilmedi.
+
+### Holdings
+
+- 6 ayrı holdings tarihi oluştu.
+- Son snapshot'larda 58 constituent vardır.
+- Weight coverage yaklaşık `0.9942–0.9991`; holdings zinciri sağlıklıdır.
+
+### 7 günlük scheduler sonucu
+
+Raw job özeti:
+
+```text
+daily_crypto_job      OK          7
+daily_fx_job          OK          5
+daily_ura_job         OK          7
+hourly_job            ERROR       3
+hourly_job            OK        165
+macro_job             OK         29
+model_validation_job  OK          1
+monthly_audit_job     OK          1
+realtime_test         OK          1
+sec_event_job         DEGRADED   169
+weekly_job             OK          1
+```
+
+Kritik teşhis:
+
+- `hourly_job = 165 OK + 3 ERROR = 168`. Bu tam `7 x 24` planlı scheduler run'ıdır. Üç hata gerçek scheduled connection-pool hatasıdır; development artığı diye silinmez veya yeniden etiketlenmez.
+- `macro_job=29` iken scheduler contract 28 root run bekler. Ek kayıt `weekly_job` içindeki maintenance çağrısıdır.
+- `sec_event_job=169` iken scheduler contract 168 root run bekler. Ek kayıt yine `weekly_job` içindeki maintenance çağrısıdır.
+- `model_validation_job` ve `realtime_test` manuel/test işidir; scheduler reliability paydasına root scheduled run gibi girmemelidir.
+- SEC `DEGRADED`, job crash'i değildir. Doğrudan eşleşebilen beş SEC ticker'ı URA'nın yaklaşık `%20–21` fund weight'ini kapsadığı için released quality semantiğiyle degraded kalmaktadır.
+
+Görev 4 penceresi için gerçek scheduler contract root beklentisi:
+
+```text
+hourly 168 + macro 28 + SEC 168 + crypto 7 + URA 7 + FX 5 + weekly 1 + monthly 1 = 385
+```
+
+Bu bulgu readiness sonucunu yapay biçimde PASS yapmak için değil, expected/actual ve scheduled/manual/dependency/maintenance ayrımını denetlenebilir hale getirmek için kullanılacaktır.
+
+### Görev 4 sonrası hardening durumu
+
+- **RELEASED:** v1.2.0 threshold, factor weight, K1/K2, reversal, reset, action-size ve mode semantiği aynıdır.
+- **APPROVED:** davranış değiştirmeyen Shadow observability hardening.
+- **PROPOSED:** model davranışı önerilerinin hiçbiri bu checkpoint ile onaylanmadı.
+- **OPEN:** migration `0010`, yeni run-kind/Shadow Epoch provenance ve `--shadow-observability` komutunun gerçek Windows/Supabase ortamında deploy + runtime doğrulaması.
+
+Detaylı tasarım ve rollout: `docs/SHADOW_TASK4_HARDENING.md`.
 
 ## Sonraki checkpoint'ler
 
-- 07.08.2026 10:30 — Görev 4, 7 günlük güvenilirlik.
 - 14.08.2026 10:30 — Görev 5, 14 günlük stabilite.
 - 20.08.2026 10:30 — Görev 6, URA quality değerlendirmesi.
 - 29.08.2026 10:30 — Görev 7, Shadow Graduation Review.

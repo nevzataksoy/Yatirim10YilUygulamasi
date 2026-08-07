@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 import sys
@@ -9,7 +10,9 @@ from datetime import datetime, timezone
 
 from app.engine import InvestmentEngine
 from app.logging_config import configure_logging
+from app.observability import build_shadow_observability
 from app.paths import BUNDLE_DIR, LOG_DIR
+from app.run_context import job_run_context
 from app.scheduler import build_scheduler
 from app.security.settings_store import SettingsStore
 from app.ui.configure import configure_settings
@@ -26,6 +29,7 @@ _CLI_FLAGS = {
     "--test-realtime",
     "--validate-model",
     "--backfill-crypto",
+    "--shadow-observability",
 }
 _CLI_ATTACHED = False
 
@@ -108,7 +112,8 @@ def _run_foreground(once: str | None = None) -> int:
             }
             job, job_name = jobs[once]
             _emit_cli(f"{job_name} çalıştırılıyor...")
-            job()
+            with job_run_context(job_name, "manual"):
+                job()
             row = engine.repo.get_latest_job_run(job_name)
             if not row:
                 _emit_cli(f"{job_name}: job kaydı oluşmadı.")
@@ -138,7 +143,8 @@ def _run_realtime_smoke(duration: int) -> int:
         return 2
     try:
         _emit_cli(f"Coinbase realtime smoke test başlatılıyor ({duration} sn)...")
-        details = engine.realtime_smoke_test(duration)
+        with job_run_context("realtime_test", "test"):
+            details = engine.realtime_smoke_test(duration)
         _emit_cli(
             "realtime_test: OK — "
             f"run={details['test_run_id']} snapshots={details['snapshots']} products={','.join(details['products'])}"
@@ -151,14 +157,14 @@ def _run_realtime_smoke(duration: int) -> int:
         engine.stop()
 
 
-
 def _run_model_validation() -> int:
     engine = _load_engine()
     if engine is None:
         return 2
     try:
         _emit_cli("Model validation başlatılıyor...")
-        result = engine.model_validation_job()
+        with job_run_context("model_validation_job", "manual"):
+            result = engine.model_validation_job()
         shadow = result.get("shadow_readiness") or {}
         core = result.get("ethbtc_core") or {}
         calibration = result.get("calibration") or {}
@@ -181,14 +187,14 @@ def _run_model_validation() -> int:
         engine.stop()
 
 
-
 def _run_crypto_backfill(days: int) -> int:
     engine = _load_engine()
     if engine is None:
         return 2
     try:
         _emit_cli(f"Crypto history backfill başlatılıyor ({days} gün)...")
-        details = engine.backfill_crypto_history(days)
+        with job_run_context("crypto_history_backfill", "backfill"):
+            details = engine.backfill_crypto_history(days)
         _emit_cli(
             "crypto_history_backfill: OK — "
             f"provider={details['provider']} common_days={details['common_days']}"
@@ -196,6 +202,66 @@ def _run_crypto_backfill(days: int) -> int:
         return 0
     except Exception as exc:
         _emit_cli(f"crypto_history_backfill: ERROR — {exc}")
+        return 1
+    finally:
+        engine.stop()
+
+
+def _run_shadow_observability() -> int:
+    engine = _load_engine()
+    if engine is None:
+        return 2
+    started = datetime.now(timezone.utc)
+    try:
+        _emit_cli("Shadow observability raporu hazırlanıyor...")
+        with job_run_context("shadow_observability", "manual"):
+            result = build_shadow_observability(engine)
+            status = str(result.get("status") or "UNKNOWN")
+            readiness = result.get("readiness") or {}
+            stats = readiness.get("stats") or {}
+            engine.repo.insert_validation_run(
+                validation_type="SHADOW_OBSERVABILITY",
+                system="ALL",
+                status=status,
+                started_at=started,
+                start_date=None,
+                end_date=None,
+                observations=None,
+                signals=None,
+                metrics=result,
+                details={"behavior_change": False, "source": "task4-hardening"},
+            )
+            engine.repo.publish_validation_snapshot(
+                validation_type="SHADOW_OBSERVABILITY",
+                system="ALL",
+                status=status,
+                start_date=None,
+                end_date=None,
+                metrics=result,
+                details={"behavior_change": False, "source": "task4-hardening"},
+            )
+            engine.repo.log_job(
+                "shadow_observability",
+                "OK",
+                started,
+                details={
+                    "status": status,
+                    "shadow_epoch_key": stats.get("shadow_epoch_key"),
+                    "job_completed_rate": stats.get("job_completed_rate"),
+                    "job_ok_rate": stats.get("job_ok_rate"),
+                },
+            )
+        _emit_cli(
+            "shadow_observability: "
+            f"{status} — epoch={stats.get('shadow_epoch_key')} "
+            f"scheduled={stats.get('job_actual_count')}/{stats.get('job_expected_count')} "
+            f"completed={float(stats.get('job_completed_rate') or 0):.3%} "
+            f"ok={float(stats.get('job_ok_rate') or 0):.3%}"
+        )
+        _emit_cli(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+    except Exception as exc:
+        _emit_cli(f"shadow_observability: ERROR — {exc}")
         return 1
     finally:
         engine.stop()
@@ -217,6 +283,7 @@ def main() -> int:
     parser.add_argument("--test-realtime", action="store_true")
     parser.add_argument("--validate-model", action="store_true")
     parser.add_argument("--backfill-crypto", action="store_true")
+    parser.add_argument("--shadow-observability", action="store_true")
     parser.add_argument("--history-days", type=int, default=2500)
     parser.add_argument("--realtime-seconds", type=int, default=20)
     parser.add_argument(
@@ -276,6 +343,9 @@ def main() -> int:
 
     if args.backfill_crypto:
         return _run_crypto_backfill(args.history_days)
+
+    if args.shadow_observability:
+        return _run_shadow_observability()
 
     if args.once or args.run_foreground:
         return _run_foreground(args.once)
