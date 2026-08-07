@@ -30,7 +30,7 @@ Manuel `--once` komutları yalnızca bir scheduler işi gerçekten başarısız 
 
 ---
 
-# Görev 1 — 31.07.2026 Cuma, 07:00 TRT
+# Görev 1 — 31.07.2026 Cuma, 07:00 TRT - PASS
 ## İlk otomatik günlük döngünün kontrolü
 
 Bu saate kadar servis kendi scheduler'ı ile URA, hourly/macro ve crypto işlerinin en az bir bölümünü çalıştırmış olmalı.
@@ -107,7 +107,7 @@ order by component;
 
 ---
 
-# Görev 2 — 31.07.2026 Cuma, 17:15 TRT
+# Görev 2 — 31.07.2026 Cuma, 17:15 TRT - PASS
 ## TCMB/FX otomatik iş kontrolü
 
 Cuma 16:30 planlanan FX işinden sonra:
@@ -144,7 +144,7 @@ Bu üç sorgunun sonuçlarını gönder. Hata yoksa başka işlem yapma.
 
 ---
 
-# Görev 3 — 01.08.2026 Cumartesi, 09:30 TRT
+# Görev 3 — 01.08.2026 Cumartesi, 09:30 TRT - PASS
 ## Weekly + Monthly Audit scheduler testi
 
 Cumartesi 08:00 `weekly_job`, ayın 1'i 09:00 `monthly_audit_job` çalışmış olmalı.
@@ -152,52 +152,19 @@ Cumartesi 08:00 `weekly_job`, ayın 1'i 09:00 `monthly_audit_job` çalışmış 
 ### 3.1 Job kontrolü
 
 ```sql
-select
-    job_name,
-    started_at,
-    finished_at,
-    status,
-    message,
-    details
-from system.job_runs
-where job_name in ('weekly_job', 'monthly_audit_job')
-order by started_at desc
-limit 10;
+select job_name, started_at, finished_at, status, message, details from system.job_runs
+where job_name in ('weekly_job', 'monthly_audit_job') order by started_at desc limit 10;
 ```
 
 ### 3.2 Validation snapshot
 
 ```sql
-select
-    validation_type,
-    system,
-    model_version,
-    status,
-    start_date,
-    end_date,
-    metrics,
-    details,
-    generated_at
-from public.model_validation_snapshot
-order by validation_type, system;
+select validation_type, system, model_version, status, start_date, end_date, metrics, details, generated_at from public.model_validation_snapshot order by validation_type, system;
 ```
 
 ### 3.3 Validation run geçmişi
-
 ```sql
-select
-    id,
-    validation_type,
-    system,
-    model_version,
-    status,
-    started_at,
-    finished_at,
-    observations,
-    signals
-from model.validation_runs
-order by id desc
-limit 20;
+select id, validation_type, system, model_version, status, started_at, finished_at, observations, signals from model.validation_runs order by id desc limit 20;
 ```
 
 ### Bana gönder
