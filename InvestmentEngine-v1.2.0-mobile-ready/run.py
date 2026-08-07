@@ -80,7 +80,14 @@ def _emit_cli(message: str) -> None:
         pass
 
 
-def _load_engine() -> InvestmentEngine | None:
+def _load_engine(*, publish_engine_health: bool) -> InvestmentEngine | None:
+    """Open an engine process without letting one-shot CLI tools impersonate the service.
+
+    Only long-lived scheduler owners (Windows service / --run-foreground) may
+    publish the shared ENGINE lifecycle row. Diagnostic and maintenance CLI
+    commands still need the DB pool, but must not overwrite a running service's
+    ENGINE=OK state when their short-lived process exits.
+    """
     store = SettingsStore()
     if not store.is_configured:
         if not configure_settings(force_unlock=False):
@@ -90,12 +97,23 @@ def _load_engine() -> InvestmentEngine | None:
         return None
     configure_logging()
     engine = InvestmentEngine(settings, BUNDLE_DIR)
-    engine.start()
+    if publish_engine_health:
+        engine.start()
+    else:
+        engine.db.open()
     return engine
 
 
+def _close_engine(engine: InvestmentEngine, *, publish_engine_health: bool) -> None:
+    if publish_engine_health:
+        engine.stop()
+    else:
+        engine.db.close()
+
+
 def _run_foreground(once: str | None = None) -> int:
-    engine = _load_engine()
+    owns_engine_health = once is None
+    engine = _load_engine(publish_engine_health=owns_engine_health)
     if engine is None:
         return 2
     try:
@@ -134,11 +152,11 @@ def _run_foreground(once: str | None = None) -> int:
         scheduler.shutdown(wait=False)
         return 0
     finally:
-        engine.stop()
+        _close_engine(engine, publish_engine_health=owns_engine_health)
 
 
 def _run_realtime_smoke(duration: int) -> int:
-    engine = _load_engine()
+    engine = _load_engine(publish_engine_health=False)
     if engine is None:
         return 2
     try:
@@ -154,11 +172,11 @@ def _run_realtime_smoke(duration: int) -> int:
         _emit_cli(f"realtime_test: ERROR — {exc}")
         return 1
     finally:
-        engine.stop()
+        _close_engine(engine, publish_engine_health=False)
 
 
 def _run_model_validation() -> int:
-    engine = _load_engine()
+    engine = _load_engine(publish_engine_health=False)
     if engine is None:
         return 2
     try:
@@ -184,11 +202,11 @@ def _run_model_validation() -> int:
         _emit_cli(f"model_validation: ERROR — {exc}")
         return 1
     finally:
-        engine.stop()
+        _close_engine(engine, publish_engine_health=False)
 
 
 def _run_crypto_backfill(days: int) -> int:
-    engine = _load_engine()
+    engine = _load_engine(publish_engine_health=False)
     if engine is None:
         return 2
     try:
@@ -204,11 +222,11 @@ def _run_crypto_backfill(days: int) -> int:
         _emit_cli(f"crypto_history_backfill: ERROR — {exc}")
         return 1
     finally:
-        engine.stop()
+        _close_engine(engine, publish_engine_health=False)
 
 
 def _run_shadow_observability() -> int:
-    engine = _load_engine()
+    engine = _load_engine(publish_engine_health=False)
     if engine is None:
         return 2
     started = datetime.now(timezone.utc)
@@ -264,7 +282,7 @@ def _run_shadow_observability() -> int:
         _emit_cli(f"shadow_observability: ERROR — {exc}")
         return 1
     finally:
-        engine.stop()
+        _close_engine(engine, publish_engine_health=False)
 
 
 def main() -> int:
