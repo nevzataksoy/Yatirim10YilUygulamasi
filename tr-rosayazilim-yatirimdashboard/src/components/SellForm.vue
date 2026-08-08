@@ -22,11 +22,7 @@
 
       <q-form class="row q-col-gutter-md" @submit.prevent="openSummary">
         <div class="col-12 col-sm-6">
-          <AppPopupSelect
-            v-model="form.source_asset"
-            :options="sourceOptions"
-            label="Satılan Varlık"
-          />
+          <AppPopupSelect v-model="form.source_asset" :options="sourceOptions" label="Satılan Varlık" />
         </div>
         <div class="col-12 col-sm-6">
           <AppPopupSelect
@@ -82,9 +78,9 @@
             :label="`Birim Satış Fiyatı (${form.target_asset}/${form.source_asset})`"
           >
             <template #append>
-              <q-btn flat dense round icon="auto_fix_high" @click="fillMarketPrice"
-                ><q-tooltip>Güncel piyasa fiyatını doldur</q-tooltip></q-btn
-              >
+              <q-btn flat dense round icon="auto_fix_high" @click="fillMarketPrice">
+                <q-tooltip>Güncel piyasa fiyatını doldur</q-tooltip>
+              </q-btn>
             </template>
           </q-input>
         </div>
@@ -121,8 +117,9 @@
                 round
                 icon="restart_alt"
                 @click="restoreCalculatedNet"
-                ><q-tooltip>Hesaplanan net tutara dön</q-tooltip></q-btn
               >
+                <q-tooltip>Hesaplanan net tutara dön</q-tooltip>
+              </q-btn>
             </template>
           </q-input>
         </div>
@@ -146,7 +143,7 @@
           />
         </div>
         <div class="col-12 col-sm-6">
-          <q-input v-model.trim="form.platform" outlined label="Borsa / Platform" />
+          <FinancialInstitutionSelect v-model="form.platform" label="Borsa / Aracı Kurum" />
         </div>
 
         <div class="col-12">
@@ -218,43 +215,40 @@
         />
       </q-card-section>
       <q-list separator>
-        <q-item
-          ><q-item-section>Satılan</q-item-section
-          ><q-item-section side class="amount-negative"
-            >{{ formatQuantity(form.source_quantity, form.source_asset) }}
-            {{ form.source_asset }}</q-item-section
-          ></q-item
-        >
-        <q-item
-          ><q-item-section>Birim Fiyat</q-item-section
-          ><q-item-section side
-            >{{ formatTarget(form.unit_price) }} / {{ form.source_asset }}</q-item-section
-          ></q-item
-        >
-        <q-item
-          ><q-item-section>Brüt Tutar</q-item-section
-          ><q-item-section side class="amount-primary">{{
-            formatTarget(grossProceedsTarget)
-          }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>Komisyon</q-item-section
-          ><q-item-section side>{{ formatTarget(form.fee_target) }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>Net Nakit Artışı</q-item-section
-          ><q-item-section side class="amount-positive">{{
-            formatTarget(netProceedsTarget)
-          }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>USD/TRY</q-item-section
-          ><q-item-section side>{{ Number(form.usd_try || 0).toFixed(4) }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>Tarih / Saat</q-item-section
-          ><q-item-section side>{{ formatDate(form.transaction_at) }}</q-item-section></q-item
-        >
+        <q-item>
+          <q-item-section>Satılan</q-item-section>
+          <q-item-section side class="amount-negative">
+            {{ formatQuantity(form.source_quantity, form.source_asset) }} {{ form.source_asset }}
+          </q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Birim Fiyat</q-item-section>
+          <q-item-section side>{{ formatTarget(form.unit_price) }} / {{ form.source_asset }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Brüt Tutar</q-item-section>
+          <q-item-section side class="amount-primary">{{ formatTarget(grossProceedsTarget) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Komisyon</q-item-section>
+          <q-item-section side>{{ formatTarget(form.fee_target) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Net Nakit Artışı</q-item-section>
+          <q-item-section side class="amount-positive">{{ formatTarget(netProceedsTarget) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Kurum</q-item-section>
+          <q-item-section side>{{ form.platform || '—' }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>USD/TRY</q-item-section>
+          <q-item-section side>{{ Number(form.usd_try || 0).toFixed(4) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Tarih / Saat</q-item-section>
+          <q-item-section side>{{ formatDate(form.transaction_at) }}</q-item-section>
+        </q-item>
       </q-list>
       <q-card-actions align="right" class="popup-action-footer q-pa-md">
         <q-btn
@@ -285,6 +279,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
+import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
@@ -319,7 +314,9 @@ const form = reactive({
 })
 
 const sourceOptions = computed(() =>
-  ['BTC', 'ETH', 'URA'].filter((asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001),
+  ['BTC', 'ETH', 'URA'].filter(
+    (asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001,
+  ),
 )
 const availableSource = computed(() => Number(portfolio.quantities[form.source_asset] || 0))
 const grossProceedsTarget = computed(
@@ -393,6 +390,7 @@ function fillMarketPrice() {
 function onNetEdited() {
   netManuallyEdited.value = true
 }
+
 function restoreCalculatedNet() {
   netManuallyEdited.value = false
   form.net_proceeds = calculatedNetProceeds.value || null
@@ -403,11 +401,13 @@ function validate() {
   if (Number(form.source_quantity || 0) <= 0) return 'Satılan miktar sıfırdan büyük olmalı.'
   if (Number(form.unit_price || 0) <= 0) return 'Birim satış fiyatı sıfırdan büyük olmalı.'
   if (Number(form.fee_target || 0) < 0) return 'Komisyon negatif olamaz.'
-  if (Number(form.net_proceeds || 0) <= 0)
+  if (Number(form.net_proceeds || 0) <= 0) {
     return 'Gerçekleşen net satış tutarı sıfırdan büyük olmalı.'
+  }
   if (Number(form.usd_try || 0) <= 0) return 'USD/TRY kuru zorunlu.'
-  if (Number(form.source_quantity) > availableSource.value + 1e-10)
+  if (Number(form.source_quantity) > availableSource.value + 1e-10) {
     return `${form.source_asset} bakiyesi yetersiz.`
+  }
   return ''
 }
 

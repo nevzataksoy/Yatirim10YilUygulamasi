@@ -20,6 +20,12 @@ node_modules
 /src-capacitor/www
 /src-capacitor/node_modules
 
+# Firebase environment files. google-services.json is environment-specific;
+# server-side service-account JSON/private keys must never enter this repository.
+/src-capacitor/android/app/google-services.json
+*firebase-service-account*.json
+*service-account*.json
+
 # Log files
 npm-debug.log*
 yarn-debug.log*

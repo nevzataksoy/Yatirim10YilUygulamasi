@@ -106,7 +106,7 @@
         </div>
 
         <div class="col-12 col-sm-6">
-          <q-input v-model.trim="form.platform" outlined label="Borsa / Platform" />
+          <FinancialInstitutionSelect v-model="form.platform" label="Borsa / Aracı Kurum" />
         </div>
 
         <div class="col-12">
@@ -180,43 +180,40 @@
         />
       </q-card-section>
       <q-list separator>
-        <q-item
-          ><q-item-section>Alım Miktarı</q-item-section
-          ><q-item-section side class="amount-positive"
-            >{{ formatQuantity(form.target_quantity, form.target_asset) }}
-            {{ form.target_asset }}</q-item-section
-          ></q-item
-        >
-        <q-item
-          ><q-item-section>Birim Fiyat</q-item-section
-          ><q-item-section side
-            >{{ formatSource(form.unit_price) }} / {{ form.target_asset }}</q-item-section
-          ></q-item
-        >
-        <q-item
-          ><q-item-section>İşlem Tutarı</q-item-section
-          ><q-item-section side class="amount-primary">{{
-            formatSource(tradeCostSource)
-          }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>Komisyon</q-item-section
-          ><q-item-section side>{{ formatSource(form.fee_source) }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>Toplam Kaynak Düşüşü</q-item-section
-          ><q-item-section side class="amount-negative">{{
-            formatSource(sourceDebit)
-          }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>USD/TRY</q-item-section
-          ><q-item-section side>{{ Number(form.usd_try || 0).toFixed(4) }}</q-item-section></q-item
-        >
-        <q-item
-          ><q-item-section>Tarih / Saat</q-item-section
-          ><q-item-section side>{{ formatDate(form.transaction_at) }}</q-item-section></q-item
-        >
+        <q-item>
+          <q-item-section>Alım Miktarı</q-item-section>
+          <q-item-section side class="amount-positive">
+            {{ formatQuantity(form.target_quantity, form.target_asset) }} {{ form.target_asset }}
+          </q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Birim Fiyat</q-item-section>
+          <q-item-section side>{{ formatSource(form.unit_price) }} / {{ form.target_asset }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>İşlem Tutarı</q-item-section>
+          <q-item-section side class="amount-primary">{{ formatSource(tradeCostSource) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Komisyon</q-item-section>
+          <q-item-section side>{{ formatSource(form.fee_source) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Toplam Kaynak Düşüşü</q-item-section>
+          <q-item-section side class="amount-negative">{{ formatSource(sourceDebit) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Kurum</q-item-section>
+          <q-item-section side>{{ form.platform || '—' }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>USD/TRY</q-item-section>
+          <q-item-section side>{{ Number(form.usd_try || 0).toFixed(4) }}</q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>Tarih / Saat</q-item-section>
+          <q-item-section side>{{ formatDate(form.transaction_at) }}</q-item-section>
+        </q-item>
       </q-list>
       <q-card-actions align="right" class="popup-action-footer q-pa-md">
         <q-btn
@@ -247,6 +244,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
+import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
@@ -332,8 +330,9 @@ function validate() {
   if (Number(form.unit_price || 0) <= 0) return 'Birim fiyat sıfırdan büyük olmalı.'
   if (Number(form.fee_source || 0) < 0) return 'Komisyon negatif olamaz.'
   if (Number(form.usd_try || 0) <= 0) return 'USD/TRY kuru zorunlu.'
-  if (sourceDebit.value > availableSource.value + 1e-10)
+  if (sourceDebit.value > availableSource.value + 1e-10) {
     return `${form.source_asset} bakiyesi yetersiz. Toplam gerekli ${formatSource(sourceDebit.value)}, kullanılabilir ${formatSource(availableSource.value)}.`
+  }
   return ''
 }
 
