@@ -80,7 +80,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationsStore } from '@/stores/notifications'
 
-const props = defineProps({ modelValue: { type: Boolean, default: false } })
+defineProps({ modelValue: { type: Boolean, default: false } })
 const emit = defineEmits(['update:modelValue'])
 const auth = useAuthStore()
 const notifications = useNotificationsStore()

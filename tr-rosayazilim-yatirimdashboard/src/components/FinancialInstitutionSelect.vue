@@ -66,7 +66,7 @@ import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import { INSTITUTION_TYPES, useInstitutionsStore } from '@/stores/institutions'
 import { usePortfolioStore } from '@/stores/portfolio'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: String, default: '' },
   label: { type: String, default: 'Banka / Borsa / Aracı Kurum' },
   dialogTitle: { type: String, default: 'Kurum Seç' },

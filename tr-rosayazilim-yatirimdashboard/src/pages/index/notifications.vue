@@ -162,8 +162,8 @@ inline
 <div class="col-12"><q-input v-model.trim="draft.body_template" outlined type="textarea" autogrow label="Bildirim Metni" /></div>
 <div class="col-12">
 <q-banner rounded class="surface-soft text-caption">
-Günlük portföy: <code>{{ '{{portfolio_value}}' }}</code>, <code>{{ '{{display_currency}}' }}</code>, <code>{{ '{{account_name}}' }}</code> ·
-Sinyal: <code>{{ '{{system}}' }}</code>, <code>{{ '{{direction}}' }}</code>, <code>{{ '{{edge}}' }}</code>, <code>{{ '{{confidence}}' }}</code>, <code>{{ '{{data_quality}}' }}</code>.
+Günlük portföy: <code v-pre>{{portfolio_value}}</code>, <code v-pre>{{display_currency}}</code>, <code v-pre>{{account_name}}</code> ·
+Sinyal: <code v-pre>{{system}}</code>, <code v-pre>{{direction}}</code>, <code v-pre>{{edge}}</code>, <code v-pre>{{confidence}}</code>, <code v-pre>{{data_quality}}</code>.
 </q-banner>
 </div>
 <div class="col-12"><q-toggle v-model="draft.enabled" color="primary" label="Şablon aktif" /></div>
