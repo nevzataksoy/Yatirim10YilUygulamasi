@@ -41,8 +41,8 @@ Firebase Console'a gir:
 
 Not etmen gereken secret olmayan değerler:
 
-- **Project ID** → Quasar `Bildirim Yönetimi > Firebase > Firebase Project ID`
-- **Project number / Sender ID** → Quasar `Sender ID / Project Number`
+- **Project ID** → Quasar `Bildirim Yönetimi > Firebase > Firebase Project ID` tr-rosayazilim-yatirimdash
+- **Project number / Sender ID** → Quasar `Sender ID / Project Number` 730014337064
 
 ## 3. Android uygulamasını Firebase'e ekleme
 
