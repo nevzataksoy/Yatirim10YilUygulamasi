@@ -79,6 +79,7 @@ echo PyInstaller one-file EXE olusturuluyor...
     --collect-submodules psycopg_pool ^
     --collect-submodules apscheduler ^
     --collect-all tzdata ^
+    --collect-all firebase_admin ^
     --hidden-import win32timezone ^
     --hidden-import win32service ^
     --hidden-import win32serviceutil ^

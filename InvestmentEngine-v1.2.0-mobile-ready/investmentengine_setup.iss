@@ -52,6 +52,9 @@ Name: "{app}\logs"
 Name: "{app}\runtime"
 Name: "{app}\migrations"
 Name: "{app}\docs"
+; Firebase service-account JSON installer'a dahil edilmez. Yalnız sunucuya özel
+; credential dizini oluşturulur ve uninstall/upgrade sırasında korunur.
+Name: "{commonappdata}\Rosa\InvestmentEngine\secrets"; Permissions: admins-full system-full; Flags: uninsneveruninstall
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
