@@ -42,7 +42,7 @@
                   </div>
                 </div>
                 <SemanticPill
-                  class="q-mt-xs"
+                  class="q-mt-sm"
                   :label="statusLabel(decision.status)"
                   :code="decision.status"
                   :tone="statusTone(decision.status)"
