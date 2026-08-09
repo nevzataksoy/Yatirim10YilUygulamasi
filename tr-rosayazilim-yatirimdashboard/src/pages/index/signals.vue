@@ -31,7 +31,7 @@
         <div v-for="decision in engine.decisions" :key="decision.system" class="col-12 col-lg-6">
           <q-card flat class="section-card full-height">
             <q-card-section>
-              <div class="row items-start no-wrap q-col-gutter-md">
+              <div class="row items-center no-wrap q-col-gutter-md">
                 <div class="col min-width-0">
                   <div class="text-caption text-grey-6">{{ decision.system }}</div>
                   <div class="text-h5 text-weight-bold q-mt-xs">{{ decision.direction || 'Yön Yok' }}</div>
@@ -41,12 +41,13 @@
                     <span class="text-caption text-grey-6">· {{ decision.model_version }}</span>
                   </div>
                 </div>
-                <SemanticPill
-                  class="q-mt-sm"
-                  :label="statusLabel(decision.status)"
-                  :code="decision.status"
-                  :tone="statusTone(decision.status)"
-                />
+                <div class="col-auto self-center">
+                  <SemanticPill
+                    :label="statusLabel(decision.status)"
+                    :code="decision.status"
+                    :tone="statusTone(decision.status)"
+                  />
+                </div>
               </div>
             </q-card-section>
             <q-separator />
