@@ -1,28 +1,51 @@
-InvestmentEngine/
-InvestmentEngine-v1.0.0/
-InvestmentEngine-v1.1.1-mobile-ready/
-InvestmentEngine-v1.1.2-mobile-ready/
-InvestmentEngine-v1.1.3-mobile-ready/
-InvestmentEngine-v1.1.4-mobile-ready/
-YEDEK/
-InvestmentEngine-v1.1.4-mobile-ready.zip
-Notlar.md
-TemizKurulumTerminalLogları.txt
-yatirimdashboard-quasar-v0.1.0.zip
-tr.rosayazilim.yatirimdashboard
-InvestmentEngine-v1.2.0-mobile-ready/__pycache__/
-InvestmentEngine-v1.2.0-mobile-ready/*.py[cod]
-InvestmentEngine-v1.2.0-mobile-ready/.pytest_cache/
-InvestmentEngine-v1.2.0-mobile-ready/.venv/
+/InvestmentEngine/
+/InvestmentEngine-v1.0.0/
+/InvestmentEngine-v1.1.1-mobile-ready/
+/InvestmentEngine-v1.1.2-mobile-ready/
+/InvestmentEngine-v1.1.3-mobile-ready/
+/InvestmentEngine-v1.1.4-mobile-ready/
+/YEDEK/
+/InvestmentEngine-v1.1.4-mobile-ready.zip
+/Notlar.md
+/TemizKurulumTerminalLogları.txt
+/InvestmentEngine-v1.2.0-mobile-ready/__pycache__/
+/InvestmentEngine-v1.2.0-mobile-ready/*.py[cod]
+/InvestmentEngine-v1.2.0-mobile-ready/.pytest_cache/
+/InvestmentEngine-v1.2.0-mobile-ready/.venv/
 
-InvestmentEngine-v1.2.0-mobile-ready/.env
-InvestmentEngine-v1.2.0-mobile-ready/settings
-InvestmentEngine-v1.2.0-mobile-ready/rosalock
-InvestmentEngine-v1.2.0-mobile-ready/*.tmp
+/InvestmentEngine-v1.2.0-mobile-ready/.env
+/InvestmentEngine-v1.2.0-mobile-ready/settings
+/InvestmentEngine-v1.2.0-mobile-ready/rosalock
+/InvestmentEngine-v1.2.0-mobile-ready/*.tmp
 
-InvestmentEngine-v1.2.0-mobile-ready/tests/
-InvestmentEngine-v1.2.0-mobile-ready/Output/
-InvestmentEngine-v1.2.0-mobile-ready/dist/
-InvestmentEngine-v1.2.0-mobile-ready/build/
-InvestmentEngine-v1.2.0-mobile-ready/app/__pycache__/
-InvestmentEngine-v1.2.0-mobile-ready/secrets/firebase-service-account.json
+/InvestmentEngine-v1.2.0-mobile-ready/tests/
+/InvestmentEngine-v1.2.0-mobile-ready/Output/
+/InvestmentEngine-v1.2.0-mobile-ready/dist/
+/InvestmentEngine-v1.2.0-mobile-ready/build/
+/InvestmentEngine-v1.2.0-mobile-ready/app/__pycache__/
+/InvestmentEngine-v1.2.0-mobile-ready/secrets/firebase-service-account.json
+
+/tr-rosayazilim-yatirimdashboard/.DS_Store
+/tr-rosayazilim-yatirimdashboard/.thumbs.db
+/tr-rosayazilim-yatirimdashboard/node_modules
+
+# .env files
+/tr-rosayazilim-yatirimdashboard/.env*
+
+# Quasar core related directories
+/tr-rosayazilim-yatirimdashboard/.quasar
+/tr-rosayazilim-yatirimdashboard/dist
+/tr-rosayazilim-yatirimdashboard/quasar.config.*.temporary.compiled*
+
+# Cordova related directories and files
+/tr-rosayazilim-yatirimdashboard/src-cordova/node_modules
+/tr-rosayazilim-yatirimdashboard/src-cordova/platforms
+/tr-rosayazilim-yatirimdashboard/src-cordova/plugins
+/tr-rosayazilim-yatirimdashboard/src-cordova/www
+
+# Capacitor related directories and files
+/tr-rosayazilim-yatirimdashboard/src-capacitor/www
+/tr-rosayazilim-yatirimdashboard/src-capacitor/node_modules
+/tr-rosayazilim-yatirimdashboard/src-capacitor/android/app/build/
+/tr-rosayazilim-yatirimdashboard/src-capacitor/android/app/release/
+/tr-rosayazilim-yatirimdashboard/androidkeypath/
