@@ -21,6 +21,7 @@ node_modules
 /src-capacitor/node_modules
 /src-capacitor/android/app/build
 /src-capacitor/android/app/release
+/src-capacitor/android/keystore.properties
 
 # Firebase environment files. google-services.json is environment-specific;
 # server-side service-account JSON/private keys must never enter this repository.

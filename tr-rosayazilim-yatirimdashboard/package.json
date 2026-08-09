@@ -1,7 +1,7 @@
 {
   "name": "tr-rosayazilim-yatirimdashboard",
-  "versionCode": 2,
-  "version": "1.0.2",
+  "versionCode": 3,
+  "version": "1.0.3",
   "description": "10 Yıllık sabit birikim ve dönüşüm odaklı modern portföy ve yatırım karar destek uygulaması",
   "productName": "Yatırım 10Yıl",
   "author": "nevzataksoy <nevzataksoy@windowslive.com>",
@@ -18,6 +18,9 @@
     "dev:android": "quasar dev -m capacitor -T android",
     "build:android": "quasar build -m capacitor -T android --ide",
     "build:newapk": "quasar build -m capacitor -T android --ide && \"C:\\Program Files\\Android\\Android Studio\\bin\\studio64.exe\" \"D:\\wamp64\\www\\Yatirim10YilUygulamasi\\tr-rosayazilim-yatirimdashboard\\src-capacitor\\android\"",
+    "build:android:ide": "quasar build -m capacitor -T android --ide",
+    "build:android:apk": "quasar build -m capacitor -T android --skip-pkg && cd src-capacitor/android && gradlew.bat assembleRelease",
+    "build:android:aab": "quasar build -m capacitor -T android --skip-pkg && cd src-capacitor/android && gradlew.bat bundleRelease",
     "add:pwa": "quasar mode add pwa",
     "dev:pwa": "quasar dev -m pwa",
     "build:pwa": "quasar dev -m pwa"

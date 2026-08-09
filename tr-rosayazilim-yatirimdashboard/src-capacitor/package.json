@@ -1,7 +1,7 @@
 {
   "name": "quasar-capacitor-app",
-  "versionCode": 2,
-  "version": "1.0.2",
+  "versionCode": 3,
+  "version": "1.0.3",
   "description": "Quasar Capacitor Folder",
   "private": true,
   "dependencies": {

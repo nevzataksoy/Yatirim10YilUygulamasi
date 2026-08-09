@@ -308,6 +308,98 @@ Sonuçlara göre:
 
 ---
 
+## Görev 4 sonucu: PASS
+## Görev 4 Sonuç Çıktısı:
+```txt
+Paylaştığın gerçek Görev 4 çıktılarında servis RUNNING, realtime smoke test OK, validation core OK, ETH/BTC median quality 90.83, URA median quality 87.48 ve readiness blockers=[]. NOT_READY olmasının nedeni şu anda hata değil, yalnızca Shadow/history süresinin dolmamış olması: Shadow 9/30, ETH/BTC 9/25, URA 6/20, breadth 6/20.
+
+En önemli teşhis önceki tahminimizi düzeltti: üç hourly_job ERROR kaydı development artığı değil. Çünkü:
+
+165 OK + 3 ERROR = 168
+168 = 7 gün × 24 saat
+
+Yani üçü de gerçek scheduler çalışması sırasında oluşmuş bağlantı havuzu hataları. Bunları readiness hesabından gizlemek yanlış olur.
+
+Buna karşılık iki gerçek muhasebe problemi bulduk:
+
+macro_job     raw = 29    scheduler root beklentisi = 28
+sec_event_job raw = 169   scheduler root beklentisi = 168
+
+Her ikisindeki +1, weekly_job içinden çağrılan child maintenance çalışması. Dolayısıyla mevcut system.job_runs tablosu scheduler root çalışmalarıyla nested/manual işleri birbirine karıştırıyordu. SEC tarafındaki DEGRADED kayıtları da crash değil; yaklaşık %20–21 URA ağırlığının doğrudan SEC ticker'larıyla kapsanabilmesinden kaynaklanan veri-kapsama kalitesi. Bu ayrımları yeni hardening dokümanında açıkça kaydettim.
+
+Uyguladığım revizyon
+
+Python tarafında model davranışına dokunmadan Görev 4 observability hardening geliştirmesini yaptım. Yeni yapı explicit Shadow Epoch, run-kind provenance, scheduler expected/actual karşılaştırması ve edge/confidence/quality/status diagnostiklerini getiriyor. Görev 4 için ortak scheduler sözleşmesi tam olarak şu 385 root çalışmayı hesaplıyor:
+
+hourly_job          168
+macro_job            28
+sec_event_job       168
+daily_crypto_job      7
+daily_ura_job         7
+daily_fx_job          5
+weekly_job            1
+monthly_audit_job     1
+------------------------
+TOTAL                385
+
+Eklenen/değiştirilen ana parçalar tek bir çalışma kapsamında şunlar oldu:
+
+app/run_context.py
+app/schedule_contract.py
+app/observability.py
+app/database/db.py
+app/scheduler.py
+run.py
+migrations/0010_shadow_observability.sql
+supabase-migrations/0010_shadow_observability.sql
+tests/test_shadow_observability.py
+docs/SHADOW_TASK4_HARDENING.md
+docs/SHADOW_CHECKPOINT_LOG.md
+docs/SESSION_HANDOFF.md
+
+Yeni CLI komutu:
+
+InvestmentEngineCLI.cmd --shadow-observability
+
+Ancak önemli güvenlik kararı olarak bu komut şimdilik sonucu ayrı SHADOW_OBSERVABILITY validation type'ına yazıyor. Mevcut released SHADOW_READINESS mekanizmasını sessizce değiştirmedim. Gerçek Windows/Supabase deployment testi tamamlanmadan yeni ölçümü resmi readiness gerçeği yapmayacağız. Bu sınır da dokümana işlendi.
+
+RELEASED / APPROVED / PROPOSED / OPEN
+
+RELEASED tarafında hiçbir model davranışı değişmedi: threshold'lar, factor weight'ler, K1/K2, reversal, 5 zayıf değerlendirme reseti, action-size, SHADOW modu ve Realtime Execution OFF aynen duruyor.
+
+APPROVED kapsamda yalnız davranış değiştirmeyen Shadow observability hardening uygulandı.
+
+PROPOSED konular — 5 seanslık kademe aralığı, iki kapanışlı reversal, reset sonrası K1 davranışının değiştirilmesi, yeni sizing gibi başlıklar — hâlâ öneri durumunda. Hiçbirini uygulamadım.
+
+OPEN olan kısım ise yeni 0010 migration + build + gerçek Windows Service/Supabase runtime testi. Bu yapılmadan source kodundaki yeni hardening'i deployed gerçeklik olarak kabul etmiyoruz. Bu statü ayrımı repoya da işlendi.
+
+GitHub durumu
+
+Python aktif branch artık:
+
+agent/portfolio-audit-reset
+6e2ff610d9f908af96d67c87ebf8776492bd7b99
+Shadow Task 4 observability hardening
+
+Branch gerçekten bu committe ve bir önceki d37c6a4... commitinin doğrudan fast-forward çocuğu.
+
+Python Draft PR #1 de yeni HEAD'i görüyor ve açıklamasını revizyona göre düzelttim. Önceden artık yanlış hale gelen “Python engine source değişmedi” ifadesini kaldırdım; model semantiğinin değişmediğini fakat observability source kodunun değiştiğini açıkça ayırdım. PR hâlâ draft.
+
+Quasar aktif branch:
+
+feature/initial-investment-dashboard
+55e67acdd666ecfc4be3a551e174867269e8a414
+Sync Shadow Task 4 handoff context
+
+Burada uygulama koduna dokunmadım; yalnız SESSION_HANDOFF, SHADOW_CHECKPOINT_LOG ve yeni Task 4 hardening belgesini iki repo arasında senkronladım. Quasar PR açıklamasını da bu doküman senkronunu yansıtacak şekilde güncelledim; PR draft kalıyor.
+
+Bir teknik sınırlamayı açık bırakıyorum: bu çalışma ortamından doğrudan git clone/pull sırasında github.com DNS çözümlemesi başarısız olduğu için gerçek bir yerel git worktree oluşturup git status ile “clean” doğrulaması yapamadım. Bunun yerine her iki remote branch HEAD'ini bağlı GitHub üzerinden işlem öncesinde tekrar kontrol ettim ve değişiklikleri yalnız doğruladığım HEAD'lerin üzerine force kullanmadan fast-forward olarak yazdım. Dolayısıyla remote branch durumu doğrulanmış durumda; yerel worktree için temiz olduğunu iddia etmiyorum.
+
+Ayrıca saf Python schedule/run-context testleri geçti ve Task 4'ün 385 root-run hesabını doğruladı. GitHub tarafında bu commit için CI workflow bulunmuyor; tam Windows build, migration'ın gerçek Supabase'e uygulanması ve servis runtime testi OPEN durumda.
+
+Bir sonraki mantıklı adım artık model threshold'larıyla oynamak değil; bu observability hardening'i test sunucu/gerçek Shadow ortamına kontrollü deploy edip --shadow-observability çıktısını almak. Bu çıktı geldiğinde üç hourly ERROR'ın scheduled kaldığını, weekly child macro/SEC'nin maintenance'a ayrıldığını ve manual/test kayıtlarının readiness scheduler paydasından çıktığını birlikte doğrularız. Ondan sonra Görev 5'e temiz bir ölçüm temeliyle devam ederiz.
+```
+
 # Görev 5 — 14.08.2026 Cuma, 10:30 TRT
 ## 14 günlük stabilite kontrolü
 
