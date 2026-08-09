@@ -52,9 +52,44 @@
     color: #f8fafc !important;
   }
 
+  .app-header .display-currency-btn {
+    min-width: 76px;
+    min-height: 40px;
+    padding: 0 8px 0 10px;
+    border: 1px solid rgba(226, 232, 240, 0.2);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .app-header .display-currency-btn .q-btn__content {
+    gap: 6px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .display-currency-menu-list {
+    overflow: hidden;
+    border-color: rgba(15, 118, 110, 0.2) !important;
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  }
+
+  .display-currency-menu-list .q-item {
+    min-height: 58px;
+    padding-left: 14px;
+    padding-right: 14px;
+    transition:
+      background-color 0.16s ease,
+      color 0.16s ease;
+  }
+
+  .display-currency-menu-list .q-item:not(.q-item--active):active {
+    background: #f0fdfa;
+  }
+
   .app-bottom-nav {
     background: linear-gradient(180deg, #10243a 0%, #0b1324 100%) !important;
-    color: rgba(226, 232, 240, 0.72) !important;
+    color: rgba(241, 245, 249, 0.82) !important;
     border-top: 1px solid rgba(94, 234, 212, 0.16);
     box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.18);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -78,13 +113,26 @@
     min-width: 0;
     min-height: 58px;
     padding-inline: 2px;
-    color: rgba(226, 232, 240, 0.68) !important;
+    color: rgba(241, 245, 249, 0.82) !important;
     background: transparent;
+  }
+
+  .app-bottom-nav .q-tab__icon {
+    color: rgba(248, 250, 252, 0.94) !important;
+  }
+
+  .app-bottom-nav .q-tab__label {
+    color: rgba(226, 232, 240, 0.74) !important;
   }
 
   .app-bottom-nav .q-tab.q-tab--active {
     color: #5eead4 !important;
     background: rgba(20, 184, 166, 0.12);
+  }
+
+  .app-bottom-nav .q-tab.q-tab--active .q-tab__icon,
+  .app-bottom-nav .q-tab.q-tab--active .q-tab__label {
+    color: #5eead4 !important;
   }
 
   .app-bottom-nav .q-tab__content {
@@ -131,6 +179,12 @@
 
   .popup-action-footer {
     gap: 8px;
+  }
+
+  .app-header .display-currency-btn {
+    min-width: 72px;
+    min-height: 38px;
+    border-radius: 11px;
   }
 }
 
