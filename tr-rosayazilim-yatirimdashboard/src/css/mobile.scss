@@ -38,9 +38,57 @@
     overflow-x: auto;
   }
 
+  .app-header {
+    background: linear-gradient(135deg, #0b1324 0%, #123044 58%, #0f766e 140%) !important;
+    color: #f8fafc !important;
+    border-bottom: 1px solid rgba(94, 234, 212, 0.18);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  }
+
+  .app-header .q-btn,
+  .app-header .q-btn-dropdown,
+  .app-header .q-icon,
+  .app-header .q-btn__content {
+    color: #f8fafc !important;
+  }
+
+  .app-bottom-nav {
+    background: linear-gradient(180deg, #10243a 0%, #0b1324 100%) !important;
+    color: rgba(226, 232, 240, 0.72) !important;
+    border-top: 1px solid rgba(94, 234, 212, 0.16);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.18);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .app-bottom-nav .q-tabs,
+  .app-bottom-nav .q-tabs__content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .app-bottom-nav .q-tabs__content {
+    display: flex;
+    justify-content: stretch;
+  }
+
   .app-bottom-nav .q-tab {
+    flex: 1 1 20%;
+    width: 20%;
+    max-width: none;
     min-width: 0;
+    min-height: 58px;
     padding-inline: 2px;
+    color: rgba(226, 232, 240, 0.68) !important;
+    background: transparent;
+  }
+
+  .app-bottom-nav .q-tab.q-tab--active {
+    color: #5eead4 !important;
+    background: rgba(20, 184, 166, 0.12);
+  }
+
+  .app-bottom-nav .q-tab__content {
+    width: 100%;
   }
 
   .app-bottom-nav .q-tab__label {
