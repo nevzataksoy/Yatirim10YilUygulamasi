@@ -1,13 +1,29 @@
 <template>
   <q-page>
     <div class="page-wrap">
-      <div class="q-mb-lg">
-        <div class="row items-center q-gutter-sm">
-          <div class="page-title">Yatırım Motoru</div>
-          <q-badge outline color="primary">INVESTMENT_ENGINE</q-badge>
+      <div class="row items-start q-col-gutter-sm q-mb-lg">
+        <div class="col min-width-0">
+          <div class="row items-center q-gutter-sm">
+            <div class="page-title">Yatırım Motoru</div>
+            <q-badge outline color="primary">INVESTMENT_ENGINE</q-badge>
+            <q-badge
+              :color="engine.realtimeConnected ? 'positive' : 'grey-6'"
+              :outline="!engine.realtimeConnected"
+            >
+              {{ engine.realtimeConnected ? 'CANLI' : realtimeLabel(engine.realtimeStatus) }}
+            </q-badge>
+          </div>
+          <div class="page-subtitle q-mt-xs">
+            Model kararları, veri kalitesi, sağlık durumu ve gölge hazırlık görünümü.
+          </div>
+          <div v-if="engine.lastSyncAt" class="text-caption text-grey-6 q-mt-xs">
+            Son senkronizasyon: {{ formatDate(engine.lastSyncAt) }}
+          </div>
         </div>
-        <div class="page-subtitle q-mt-xs">
-          Model kararları, veri kalitesi, sağlık durumu ve gölge hazırlık görünümü.
+        <div class="col-auto">
+          <q-btn flat round icon="refresh" :loading="engine.loading" @click="refresh">
+            <q-tooltip>Tüm motor verilerini yenile</q-tooltip>
+          </q-btn>
         </div>
       </div>
 
@@ -18,16 +34,10 @@
               <div class="row items-start no-wrap q-col-gutter-md">
                 <div class="col min-width-0">
                   <div class="text-caption text-grey-6">{{ decision.system }}</div>
-                  <div class="text-h5 text-weight-bold q-mt-xs">
-                    {{ decision.direction || 'Yön Yok' }}
-                  </div>
+                  <div class="text-h5 text-weight-bold q-mt-xs">{{ decision.direction || 'Yön Yok' }}</div>
                   <div class="row items-center q-gutter-xs q-mt-xs">
-                    <span class="text-caption text-grey-6">{{
-                      regimeLabel(decision.regime_code)
-                    }}</span>
-                    <q-badge v-if="decision.regime_code" outline color="grey-7">{{
-                      decision.regime_code
-                    }}</q-badge>
+                    <span class="text-caption text-grey-6">{{ regimeLabel(decision.regime_code) }}</span>
+                    <q-badge v-if="decision.regime_code" outline color="grey-7">{{ decision.regime_code }}</q-badge>
                     <span class="text-caption text-grey-6">· {{ decision.model_version }}</span>
                   </div>
                 </div>
@@ -43,35 +53,19 @@
             <q-card-section>
               <div class="row q-col-gutter-md">
                 <div class="col-4 text-center">
-                  <div class="text-caption text-grey-6">
-                    Avantaj <q-badge outline color="grey-6">EDGE</q-badge>
-                  </div>
-                  <div class="text-h6 decision-score" :class="scoreClass(decision.edge_score)">
-                    {{ metric(decision.edge_score) }}
-                  </div>
+                  <div class="text-caption text-grey-6">Avantaj <q-badge outline color="grey-6">EDGE</q-badge></div>
+                  <div class="text-h6 decision-score" :class="scoreClass(decision.edge_score)">{{ metric(decision.edge_score) }}</div>
                   <q-linear-progress rounded :value="ratio(decision.edge_score)" color="primary" />
                 </div>
                 <div class="col-4 text-center">
-                  <div class="text-caption text-grey-6">
-                    Güven <q-badge outline color="grey-6">CONFIDENCE</q-badge>
-                  </div>
-                  <div class="text-h6 decision-score" :class="scoreClass(decision.confidence)">
-                    {{ metric(decision.confidence) }}
-                  </div>
+                  <div class="text-caption text-grey-6">Güven <q-badge outline color="grey-6">CONFIDENCE</q-badge></div>
+                  <div class="text-h6 decision-score" :class="scoreClass(decision.confidence)">{{ metric(decision.confidence) }}</div>
                   <q-linear-progress rounded :value="ratio(decision.confidence)" color="info" />
                 </div>
                 <div class="col-4 text-center">
-                  <div class="text-caption text-grey-6">
-                    Veri Kalitesi <q-badge outline color="grey-6">QUALITY</q-badge>
-                  </div>
-                  <div class="text-h6 decision-score" :class="scoreClass(decision.data_quality)">
-                    {{ metric(decision.data_quality) }}
-                  </div>
-                  <q-linear-progress
-                    rounded
-                    :value="ratio(decision.data_quality)"
-                    color="positive"
-                  />
+                  <div class="text-caption text-grey-6">Veri Kalitesi <q-badge outline color="grey-6">QUALITY</q-badge></div>
+                  <div class="text-h6 decision-score" :class="scoreClass(decision.data_quality)">{{ metric(decision.data_quality) }}</div>
+                  <q-linear-progress rounded :value="ratio(decision.data_quality)" color="positive" />
                 </div>
               </div>
               <q-banner rounded class="surface-soft q-mt-lg">
@@ -82,10 +76,7 @@
                     :code="decision.status"
                     :tone="statusTone(decision.status)"
                   />
-                  <span
-                    >Minimum avantaj 70, güven 70 ve veri kalitesi 80 eşikleri değiştirilmeden
-                    izleniyor.</span
-                  >
+                  <span>Minimum avantaj 70, güven 70 ve veri kalitesi 80 eşikleri değiştirilmeden izleniyor.</span>
                 </div>
               </q-banner>
             </q-card-section>
@@ -96,9 +87,16 @@
       <div class="row q-col-gutter-lg">
         <div class="col-12 col-lg-7">
           <q-card flat class="section-card">
-            <q-card-section>
-              <div class="text-h6 text-weight-bold">Motor Sağlık Durumu</div>
-              <div class="text-caption text-grey-7">Veri kaynakları ve motor bileşenleri</div>
+            <q-card-section class="row items-center">
+              <div class="col min-width-0">
+                <div class="text-h6 text-weight-bold">Motor Sağlık Durumu</div>
+                <div class="text-caption text-grey-7">Veri kaynakları ve motor bileşenleri</div>
+              </div>
+              <div class="col-auto">
+                <q-btn flat round icon="refresh" :loading="engine.loading" @click="refresh">
+                  <q-tooltip>Sağlık verilerini yenile</q-tooltip>
+                </q-btn>
+              </div>
             </q-card-section>
             <q-separator />
             <q-list separator>
@@ -106,17 +104,11 @@
                 <q-item-section avatar>
                   <q-avatar
                     :color="healthAvatarColor(item.status)"
-                    :text-color="
-                      statusTone(item.status) === 'positive'
-                        ? 'positive'
-                        : statusTone(item.status) === 'negative'
-                          ? 'negative'
-                          : 'warning'
-                    "
+                    :text-color="statusTone(item.status) === 'positive' ? 'positive' : statusTone(item.status) === 'negative' ? 'negative' : 'warning'"
                     :icon="healthIcon(item.status)"
                   />
                 </q-item-section>
-                <q-item-section>
+                <q-item-section class="min-width-0">
                   <q-item-label class="row items-center q-gutter-xs">
                     <span class="text-weight-bold">{{ componentLabel(item.component) }}</span>
                     <q-badge outline color="grey-7">{{ item.component }}</q-badge>
@@ -124,11 +116,7 @@
                   <q-item-label caption class="q-mt-xs">{{ item.message }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <SemanticPill
-                    :label="statusLabel(item.status)"
-                    :code="item.status"
-                    :tone="statusTone(item.status)"
-                  />
+                  <SemanticPill :label="statusLabel(item.status)" :code="item.status" :tone="statusTone(item.status)" />
                 </q-item-section>
               </q-item>
             </q-list>
@@ -138,27 +126,22 @@
         <div class="col-12 col-lg-5">
           <q-card flat class="section-card">
             <q-card-section class="row items-center">
-              <div>
+              <div class="col min-width-0">
                 <div class="text-h6 text-weight-bold">Model Doğrulama</div>
                 <div class="text-caption text-grey-7">Hazırlık ve tarihsel doğrulama özeti</div>
               </div>
-              <q-space />
-              <q-btn flat round icon="refresh" :loading="engine.loading" @click="refresh"
-                ><q-tooltip>Yenile</q-tooltip></q-btn
-              >
+              <div class="col-auto">
+                <q-btn flat round icon="refresh" :loading="engine.loading" @click="refresh">
+                  <q-tooltip>Yenile</q-tooltip>
+                </q-btn>
+              </div>
             </q-card-section>
             <q-separator />
             <q-list separator>
-              <q-item
-                v-for="item in engine.validation"
-                :key="`${item.validation_type}-${item.system}`"
-                class="q-py-md"
-              >
-                <q-item-section>
+              <q-item v-for="item in engine.validation" :key="`${item.validation_type}-${item.system}`" class="q-py-md">
+                <q-item-section class="min-width-0">
                   <q-item-label class="row items-center q-gutter-xs">
-                    <span class="text-weight-bold">{{
-                      validationTypeLabel(item.validation_type)
-                    }}</span>
+                    <span class="text-weight-bold">{{ validationTypeLabel(item.validation_type) }}</span>
                     <q-badge outline color="grey-7">{{ item.validation_type }}</q-badge>
                   </q-item-label>
                   <q-item-label caption class="row items-center q-gutter-xs q-mt-xs">
@@ -168,11 +151,7 @@
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <SemanticPill
-                    :label="statusLabel(item.status)"
-                    :code="item.status"
-                    :tone="statusTone(item.status)"
-                  />
+                  <SemanticPill :label="statusLabel(item.status)" :code="item.status" :tone="statusTone(item.status)" />
                 </q-item-section>
               </q-item>
             </q-list>
@@ -202,18 +181,15 @@ const engine = useEngineStore()
 function metric(value) {
   return Number(value || 0).toFixed(1)
 }
-
 function ratio(value) {
   return Math.max(0, Math.min(1, Number(value || 0) / 100))
 }
-
 function scoreClass(value) {
   const score = Number(value || 0)
   if (score >= 70) return 'decision-score--high'
   if (score >= 50) return 'decision-score--mid'
   return 'decision-score--low'
 }
-
 function healthAvatarColor(status) {
   const tone = statusTone(status)
   if (tone === 'positive') return 'green-1'
@@ -221,7 +197,6 @@ function healthAvatarColor(status) {
   if (tone === 'info') return 'blue-1'
   return 'orange-1'
 }
-
 function healthIcon(status) {
   const tone = statusTone(status)
   if (tone === 'positive') return 'check_circle'
@@ -229,16 +204,22 @@ function healthIcon(status) {
   if (tone === 'info') return 'info'
   return 'warning'
 }
-
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString('tr-TR') : '—'
+}
+function realtimeLabel(status) {
+  const value = String(status || '').toUpperCase()
+  if (value === 'CHANNEL_ERROR') return 'CANLI HATA'
+  if (value === 'TIMED_OUT') return 'CANLI ZAMAN AŞIMI'
+  if (value === 'DEMO') return 'DEMO'
+  return 'CANLI BEKLEMEDE'
+}
 async function refresh() {
   try {
     await engine.sync()
     $q.notify({ type: 'positive', message: 'Yatırım motoru verileri yenilendi.' })
   } catch (error) {
-    $q.notify({
-      type: 'negative',
-      message: error instanceof Error ? error.message : 'Veri alınamadı.',
-    })
+    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Veri alınamadı.' })
   }
 }
 </script>

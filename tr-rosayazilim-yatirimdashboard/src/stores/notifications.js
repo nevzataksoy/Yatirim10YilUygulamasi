@@ -1,7 +1,13 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getSupabaseClient } from '@/services/supabase'
-import { registerNativePush } from '@/services/pushNotifications'
+import {
+  attachNativePushListeners,
+  getNativeDeviceContext,
+  isNativePushSupported,
+  registerNativePush,
+  unregisterNativePush,
+} from '@/services/pushNotifications'
 import { useAuthStore } from './auth'
 import { usePortfolioStore } from './portfolio'
 import { useUiStore } from './ui'
@@ -20,12 +26,37 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const loading = ref(false)
   const registering = ref(false)
   const lastError = ref('')
+  const currentInstallationId = ref(null)
+  const currentDeviceContext = ref(null)
   const auth = useAuthStore()
   const portfolio = usePortfolioStore()
   const ui = useUiStore()
 
   const unreadCount = computed(() => messages.value.filter((item) => !item.read_at).length)
   const enabledTemplates = computed(() => templates.value.filter((item) => item.enabled))
+  const currentDevice = computed(
+    () => devices.value.find((item) => item.installation_id === currentInstallationId.value) || null,
+  )
+  const currentDeviceRegistered = computed(() => Boolean(currentDevice.value?.push_target))
+  const nativePushSupported = computed(() => isNativePushSupported())
+
+  async function syncCurrentDeviceIdentity() {
+    if (!isNativePushSupported()) {
+      currentInstallationId.value = null
+      currentDeviceContext.value = null
+      return null
+    }
+    try {
+      const context = await getNativeDeviceContext()
+      currentInstallationId.value = context.installationId || null
+      currentDeviceContext.value = context
+      return context
+    } catch {
+      currentInstallationId.value = null
+      currentDeviceContext.value = null
+      return null
+    }
+  }
 
   async function sync() {
     if (!auth.authenticated || auth.isDemo) return
@@ -34,6 +65,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     loading.value = true
     lastError.value = ''
     try {
+      await syncCurrentDeviceIdentity()
       const userId = auth.user.id
       const [settingsResult, devicesResult, templatesResult, messagesResult, logsResult] = await Promise.all([
         client.from('push_provider_settings').select('*').eq('user_id', userId).maybeSingle(),
@@ -53,7 +85,9 @@ export const useNotificationsStore = defineStore('notifications', () => {
     } catch (error) {
       lastError.value = error instanceof Error ? error.message : 'Bildirim verileri alınamadı.'
       throw error
-    } finally { loading.value = false }
+    } finally {
+      loading.value = false
+    }
   }
 
   async function saveProviderSettings(input) {
@@ -79,34 +113,52 @@ export const useNotificationsStore = defineStore('notifications', () => {
     return data
   }
 
+  async function bindNativeListeners() {
+    if (!isNativePushSupported()) return false
+    return attachNativePushListeners({
+      onReceived: async () => {
+        await sync().catch(() => null)
+      },
+      onAction: async (action) => {
+        await sync().catch(() => null)
+        const messageId = action?.notification?.data?.message_id
+        if (messageId) await markRead(messageId).catch(() => null)
+      },
+    })
+  }
+
   async function registerCurrentDevice() {
     if (auth.isDemo) throw new Error('Demo modunda cihaz kaydı yapılamaz.')
     const client = getSupabaseClient()
     if (!client || !auth.user?.id) throw new Error('Supabase bağlantısı veya oturum yok.')
+
+    await syncCurrentDeviceIdentity()
+    if (currentDeviceRegistered.value) return currentDevice.value
+
     registering.value = true
     try {
-      const registration = await registerNativePush({
-        onReceived: async () => { await sync() },
-        onAction: async (action) => {
-          await sync()
-          const messageId = action?.notification?.data?.message_id
-          if (messageId) await markRead(messageId)
-        },
-      })
+      const registration = await registerNativePush()
       if (!registration.supported) throw new Error('Push bildirim kaydı yalnız Capacitor mobil uygulamada kullanılabilir.')
+      if (registration.permissionStatus !== 'GRANTED') {
+        throw new Error('Bildirim izni verilmeden cihaz kaydedilemez.')
+      }
+      if (!registration.pushTarget) throw new Error('FCM kayıt anahtarı alınamadı.')
+
+      currentInstallationId.value = registration.installationId || currentInstallationId.value
+      currentDeviceContext.value = registration
 
       const payload = {
         user_id: auth.user.id,
-        installation_id: registration.installationId || `permission-${Date.now()}`,
+        installation_id: registration.installationId,
         device_name: registration.deviceName || null,
         platform: registration.platform || 'unknown',
         operating_system: registration.operatingSystem || null,
         os_version: registration.osVersion || null,
         app_version: registration.appVersion || null,
         target_kind: registration.targetKind || 'TOKEN',
-        push_target: registration.pushTarget || null,
+        push_target: registration.pushTarget,
         permission_status: registration.permissionStatus,
-        is_active: registration.permissionStatus === 'GRANTED',
+        is_active: true,
         last_seen_at: new Date().toISOString(),
         metadata: registration.metadata || {},
       }
@@ -117,17 +169,40 @@ export const useNotificationsStore = defineStore('notifications', () => {
         .single()
       if (error) throw error
       devices.value = [data, ...devices.value.filter((item) => item.id !== data.id)]
+      await bindNativeListeners().catch(() => null)
       return data
-    } finally { registering.value = false }
+    } finally {
+      registering.value = false
+    }
   }
 
   async function setDeviceActive(id, active) {
     const client = getSupabaseClient()
-    if (!client) throw new Error('Supabase bağlantısı yok.')
-    const { data, error } = await client.from('notification_devices').update({ is_active: Boolean(active) }).eq('id', id).select().single()
+    if (!client || !auth.user?.id) throw new Error('Supabase bağlantısı yok.')
+    const { data, error } = await client
+      .from('notification_devices')
+      .update({ is_active: Boolean(active) })
+      .eq('id', id)
+      .eq('user_id', auth.user.id)
+      .select()
+      .single()
     if (error) throw error
     devices.value = devices.value.map((item) => (item.id === id ? data : item))
     return data
+  }
+
+  async function deleteDevice(id) {
+    const client = getSupabaseClient()
+    if (!client || !auth.user?.id) throw new Error('Supabase bağlantısı yok.')
+    const deletingCurrentDevice = currentDevice.value?.id === id
+    const { error } = await client
+      .from('notification_devices')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', auth.user.id)
+    if (error) throw error
+    devices.value = devices.value.filter((item) => item.id !== id)
+    if (deletingCurrentDevice) await unregisterNativePush().catch(() => null)
   }
 
   async function saveTemplate(input) {
@@ -142,7 +217,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
       enabled: input.enabled !== false,
       timezone: input.timezone || 'Europe/Istanbul',
       schedule_time: eventType === 'PORTFOLIO_DAILY' ? input.schedule_time || '09:00' : null,
-      days_of_week: input.days_of_week?.length ? input.days_of_week : [1,2,3,4,5,6,7],
+      days_of_week: input.days_of_week?.length ? input.days_of_week : [1, 2, 3, 4, 5, 6, 7],
       display_currency: input.display_currency || ui.displayAsset || 'USD',
       title_template: input.title_template || (eventType === 'PORTFOLIO_DAILY' ? 'Günlük Portföy Özeti' : 'Yeni yatırım sinyali'),
       body_template: input.body_template || (eventType === 'PORTFOLIO_DAILY'
@@ -204,11 +279,38 @@ export const useNotificationsStore = defineStore('notifications', () => {
     messages.value = []
     logs.value = []
     lastError.value = ''
+    currentInstallationId.value = null
+    currentDeviceContext.value = null
   }
 
   return {
-    providerSettings, devices, templates, messages, logs, loading, registering, lastError,
-    unreadCount, enabledTemplates, sync, saveProviderSettings, registerCurrentDevice,
-    setDeviceActive, saveTemplate, setTemplateEnabled, deleteTemplate, markRead, markAllRead, reset,
+    providerSettings,
+    devices,
+    templates,
+    messages,
+    logs,
+    loading,
+    registering,
+    lastError,
+    currentInstallationId,
+    currentDeviceContext,
+    unreadCount,
+    enabledTemplates,
+    currentDevice,
+    currentDeviceRegistered,
+    nativePushSupported,
+    syncCurrentDeviceIdentity,
+    sync,
+    saveProviderSettings,
+    bindNativeListeners,
+    registerCurrentDevice,
+    setDeviceActive,
+    deleteDevice,
+    saveTemplate,
+    setTemplateEnabled,
+    deleteTemplate,
+    markRead,
+    markAllRead,
+    reset,
   }
 })

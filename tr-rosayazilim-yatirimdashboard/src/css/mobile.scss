@@ -1,0 +1,97 @@
+@media (max-width: 767px) {
+  html,
+  body,
+  #q-app {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .page-wrap {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .page-wrap .row > [class*='col-'],
+  .q-item__section,
+  .q-card__section {
+    min-width: 0;
+  }
+
+  .q-item__label,
+  .q-banner,
+  .page-subtitle {
+    overflow-wrap: anywhere;
+  }
+
+  .q-dialog__inner--minimized {
+    padding: 12px;
+  }
+
+  .q-dialog__inner--minimized > .q-card {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .q-table__container,
+  .q-table__middle {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .app-bottom-nav .q-tab {
+    min-width: 0;
+    padding-inline: 2px;
+  }
+
+  .app-bottom-nav .q-tab__label {
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .app-bottom-nav .q-tab__icon {
+    font-size: 21px;
+  }
+
+  .q-drawer--right {
+    max-width: 100vw;
+  }
+}
+
+@media (max-width: 599px) {
+  .page-title {
+    line-height: 1.15;
+  }
+
+  .section-card > .q-card__section,
+  .glass-card > .q-card__section,
+  .metric-card > .q-card__section {
+    padding: 14px;
+  }
+
+  .q-item {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .q-item__section--side {
+    padding-left: 8px;
+  }
+
+  .q-dialog__inner--bottom {
+    padding: 0;
+  }
+
+  .popup-action-footer {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-bottom-nav .q-tab__label {
+    font-size: 9px;
+  }
+
+  .app-bottom-nav .q-tab__icon {
+    font-size: 20px;
+  }
+}

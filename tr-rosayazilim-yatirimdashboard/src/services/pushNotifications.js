@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core'
 import { Device } from '@capacitor/device'
 import { PushNotifications } from '@capacitor/push-notifications'
 
-let listenerHandles = []
+let persistentListenerHandles = []
 
 function normalizePermission(value) {
   const normalized = String(value || '').toLowerCase()
@@ -17,25 +17,24 @@ export function isNativePushSupported() {
   return Capacitor.isNativePlatform()
 }
 
-export async function clearPushListeners() {
-  for (const handle of listenerHandles) {
-    try { await handle.remove() } catch { /* no-op */ }
-  }
-  listenerHandles = []
-}
-
-export async function registerNativePush({ onReceived, onAction } = {}) {
+export async function getNativeDeviceContext() {
   if (!isNativePushSupported()) {
-    return { supported: false, permissionStatus: 'UNKNOWN', pushTarget: null }
+    return {
+      supported: false,
+      installationId: null,
+      deviceName: null,
+      platform: Capacitor.getPlatform(),
+    }
   }
 
-  await clearPushListeners()
   const [deviceId, deviceInfo, appInfo] = await Promise.all([
     Device.getId(),
     Device.getInfo(),
     App.getInfo().catch(() => null),
   ])
-  const deviceContext = {
+
+  return {
+    supported: true,
     installationId: deviceId.identifier,
     deviceName: deviceInfo.name || deviceInfo.model || 'Mobil Cihaz',
     platform: Capacitor.getPlatform(),
@@ -48,56 +47,94 @@ export async function registerNativePush({ onReceived, onAction } = {}) {
       isVirtual: Boolean(deviceInfo.isVirtual),
     },
   }
+}
 
-  let permission = await PushNotifications.checkPermissions()
-  if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions()
-  const permissionStatus = normalizePermission(permission.receive)
-  if (permissionStatus !== 'GRANTED') {
-    return { supported: true, permissionStatus, pushTarget: null, targetKind: 'TOKEN', ...deviceContext }
+export async function clearPushListeners() {
+  for (const handle of persistentListenerHandles) {
+    try {
+      await handle.remove()
+    } catch {
+      // no-op
+    }
   }
+  persistentListenerHandles = []
+}
 
-  let resolveToken
-  let rejectToken
-  const tokenPromise = new Promise((resolve, reject) => {
-    resolveToken = resolve
-    rejectToken = reject
-  })
-  const timeout = setTimeout(
-    () => rejectToken(new Error('FCM kayıt anahtarı alınamadı.')),
-    15000,
-  )
-  listenerHandles.push(
-    await PushNotifications.addListener('registration', (token) => {
-      clearTimeout(timeout)
-      resolveToken(token.value)
-    }),
-  )
-  listenerHandles.push(
-    await PushNotifications.addListener('registrationError', (error) => {
-      clearTimeout(timeout)
-      rejectToken(new Error(error?.error || 'Push registration başarısız.'))
-    }),
-  )
+export async function attachNativePushListeners({ onReceived, onAction } = {}) {
+  if (!isNativePushSupported()) return false
+  await clearPushListeners()
 
   if (onReceived) {
-    listenerHandles.push(
+    persistentListenerHandles.push(
       await PushNotifications.addListener('pushNotificationReceived', onReceived),
     )
   }
   if (onAction) {
-    listenerHandles.push(
+    persistentListenerHandles.push(
       await PushNotifications.addListener('pushNotificationActionPerformed', onAction),
     )
   }
+  return true
+}
 
-  await PushNotifications.register()
-  const pushTarget = await tokenPromise
+export async function unregisterNativePush() {
+  if (!isNativePushSupported()) return
+  await PushNotifications.unregister()
+}
 
-  return {
-    supported: true,
-    permissionStatus,
-    pushTarget,
-    targetKind: 'TOKEN',
-    ...deviceContext,
+export async function registerNativePush() {
+  if (!isNativePushSupported()) {
+    return { supported: false, permissionStatus: 'UNKNOWN', pushTarget: null }
+  }
+
+  const deviceContext = await getNativeDeviceContext()
+  let permission = await PushNotifications.checkPermissions()
+  if (permission.receive === 'prompt') permission = await PushNotifications.requestPermissions()
+  const permissionStatus = normalizePermission(permission.receive)
+
+  if (permissionStatus !== 'GRANTED') {
+    return {
+      supported: true,
+      permissionStatus,
+      pushTarget: null,
+      targetKind: 'TOKEN',
+      ...deviceContext,
+    }
+  }
+
+  let registrationHandle
+  let registrationErrorHandle
+  let timeout
+
+  try {
+    const tokenPromise = new Promise((resolve, reject) => {
+      timeout = setTimeout(() => reject(new Error('FCM kayıt anahtarı 20 saniye içinde alınamadı.')), 20000)
+
+      Promise.all([
+        PushNotifications.addListener('registration', (token) => resolve(token.value)),
+        PushNotifications.addListener('registrationError', (error) =>
+          reject(new Error(error?.error || 'Push registration başarısız.')),
+        ),
+      ])
+        .then(([successHandle, errorHandle]) => {
+          registrationHandle = successHandle
+          registrationErrorHandle = errorHandle
+          return PushNotifications.register()
+        })
+        .catch(reject)
+    })
+
+    const pushTarget = await tokenPromise
+    return {
+      supported: true,
+      permissionStatus,
+      pushTarget,
+      targetKind: 'TOKEN',
+      ...deviceContext,
+    }
+  } finally {
+    if (timeout) clearTimeout(timeout)
+    await registrationHandle?.remove?.().catch(() => null)
+    await registrationErrorHandle?.remove?.().catch(() => null)
   }
 }

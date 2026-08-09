@@ -12,11 +12,13 @@ export const useEngineStore = defineStore('engine', () => {
   const loading = ref(false)
   const lastSyncAt = ref(null)
   const lastError = ref('')
+  const realtimeStatus = ref('CLOSED')
   const auth = useAuthStore()
 
   const readiness = computed(
     () => validation.value.find((item) => item.validation_type === 'SHADOW_READINESS') || null,
   )
+  const realtimeConnected = computed(() => realtimeStatus.value === 'SUBSCRIBED')
 
   function loadDemo() {
     market.value = demoMarket.map((item) => ({ ...item }))
@@ -24,6 +26,7 @@ export const useEngineStore = defineStore('engine', () => {
     health.value = demoHealth.map((item) => ({ ...item }))
     validation.value = demoValidation.map((item) => ({ ...item }))
     lastSyncAt.value = new Date().toISOString()
+    realtimeStatus.value = 'DEMO'
   }
 
   function reset() {
@@ -33,6 +36,11 @@ export const useEngineStore = defineStore('engine', () => {
     validation.value = []
     lastSyncAt.value = null
     lastError.value = ''
+    realtimeStatus.value = 'CLOSED'
+  }
+
+  function setRealtimeStatus(status) {
+    realtimeStatus.value = String(status || 'CLOSED').toUpperCase()
   }
 
   async function sync() {
@@ -89,10 +97,13 @@ export const useEngineStore = defineStore('engine', () => {
     loading,
     lastSyncAt,
     lastError,
+    realtimeStatus,
+    realtimeConnected,
     readiness,
     sync,
     loadDemo,
     reset,
+    setRealtimeStatus,
     price,
   }
 })

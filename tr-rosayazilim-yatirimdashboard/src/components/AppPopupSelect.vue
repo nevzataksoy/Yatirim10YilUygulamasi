@@ -24,12 +24,7 @@
       </template>
     </q-input>
 
-    <q-dialog
-      v-model="dialogOpen"
-      :position="dialogPosition"
-      :maximized="false"
-      @hide="onDialogHide"
-    >
+    <q-dialog v-model="dialogOpen" :position="dialogPosition" :maximized="false" @hide="onDialogHide">
       <q-card class="popup-select-card">
         <q-card-section class="popup-select-card__header">
           <div class="row items-start no-wrap">
@@ -95,23 +90,19 @@
                   :color="isCandidate(opt.value) ? 'primary' : 'grey-5'"
                 />
               </q-item-section>
-
               <q-item-section v-if="opt.icon" avatar>
                 <q-icon :name="opt.icon" color="primary" />
               </q-item-section>
-
               <q-item-section>
                 <slot name="option" :option="opt" :selected="isCandidate(opt.value)">
                   <q-item-label class="text-weight-medium">{{ opt.label }}</q-item-label>
                   <q-item-label v-if="opt.caption" caption>{{ opt.caption }}</q-item-label>
                 </slot>
               </q-item-section>
-
               <q-item-section v-if="opt.badge" side>
                 <q-badge outline color="primary">{{ opt.badge }}</q-badge>
               </q-item-section>
             </q-item>
-
             <q-item v-if="!filteredOptions.length">
               <q-item-section class="text-center text-grey-6 q-py-xl">
                 <q-icon name="search_off" size="32px" class="q-mb-sm" />
@@ -131,9 +122,10 @@
             icon="backspace"
             :label="clearLabel"
             no-caps
+            class="popup-select-card__action popup-select-card__action--clear"
             @click="clearCandidate"
           />
-          <q-space />
+          <q-space class="popup-select-card__action-spacer" />
           <q-btn
             push
             color="grey-3"
@@ -141,6 +133,7 @@
             icon="close"
             :label="cancelLabel"
             no-caps
+            class="popup-select-card__action popup-select-card__action--cancel"
             v-close-popup
           />
           <q-btn
@@ -149,6 +142,7 @@
             icon="check"
             :label="applyLabel"
             no-caps
+            class="popup-select-card__action popup-select-card__action--apply"
             @click="applySelection"
           />
         </q-card-actions>
@@ -255,9 +249,7 @@ const selectedOptions = computed(() => {
     )
   }
   const found = normalizedOptions.value.find(
-    (opt) =>
-      valuesEqual(props.modelValue, opt.value) ||
-      (!props.emitValue && opt.raw === props.modelValue),
+    (opt) => valuesEqual(props.modelValue, opt.value) || (!props.emitValue && opt.raw === props.modelValue),
   )
   return found ? [found] : []
 })
@@ -267,18 +259,13 @@ const displayValue = computed(() => {
   if (!props.multiple) return selectedOptions.value[0].label
   if (selectedOptions.value.length <= props.displayLimit)
     return selectedOptions.value.map((opt) => opt.label).join(', ')
-  return `${selectedOptions.value
-    .slice(0, props.displayLimit)
-    .map((opt) => opt.label)
-    .join(', ')} +${selectedOptions.value.length - props.displayLimit}`
+  return `${selectedOptions.value.slice(0, props.displayLimit).map((opt) => opt.label).join(', ')} +${selectedOptions.value.length - props.displayLimit}`
 })
 
 const hasValue = computed(() =>
   props.multiple
     ? Array.isArray(props.modelValue) && props.modelValue.length > 0
-    : props.modelValue !== null &&
-      props.modelValue !== undefined &&
-      String(props.modelValue) !== '',
+    : props.modelValue !== null && props.modelValue !== undefined && String(props.modelValue) !== '',
 )
 
 function normalizeSearchText(value) {
@@ -291,13 +278,10 @@ function normalizeSearchText(value) {
 
 const filteredOptions = computed(() => {
   const needle = normalizeSearchText(query.value)
-  if (props.filterFn)
-    return normalizedOptions.value.filter((opt) => props.filterFn(opt.raw, needle))
+  if (props.filterFn) return normalizedOptions.value.filter((opt) => props.filterFn(opt.raw, needle))
   if (!needle) return normalizedOptions.value
   return normalizedOptions.value.filter((opt) =>
-    [opt.label, opt.value, opt.caption, opt.badge].some((value) =>
-      normalizeSearchText(value).includes(needle),
-    ),
+    [opt.label, opt.value, opt.caption, opt.badge].some((value) => normalizeSearchText(value).includes(needle)),
   )
 })
 
@@ -314,17 +298,14 @@ const dialogPosition = computed(() => ($q.screen.lt.md ? 'bottom' : undefined))
 function optionKey(opt) {
   return `${String(opt.value)}-${opt.label}`
 }
-
 function isCandidate(value) {
   if (props.multiple) return candidateArray.value.some((candidate) => valuesEqual(candidate, value))
   return valuesEqual(candidateValue.value, value)
 }
-
 function selectionIcon(value) {
   if (props.multiple) return isCandidate(value) ? 'check_box' : 'check_box_outline_blank'
   return isCandidate(value) ? 'radio_button_checked' : 'radio_button_unchecked'
 }
-
 function openDialog() {
   if (props.disabled) return
   candidateValue.value = normalizeModelValue(props.modelValue)
@@ -335,7 +316,6 @@ function openDialog() {
     if (props.searchable) searchInput.value?.focus?.()
   })
 }
-
 function selectCandidate(opt) {
   if (opt.disable) return
   if (props.multiple) {
@@ -349,7 +329,6 @@ function selectCandidate(opt) {
   candidateValue.value = opt.value
   if (props.immediateSingle) applySelection()
 }
-
 function emitValueFor(candidate) {
   if (props.emitValue) return candidate
   if (props.multiple) {
@@ -360,18 +339,15 @@ function emitValueFor(candidate) {
   }
   return normalizedOptions.value.find((opt) => valuesEqual(opt.value, candidate))?.raw ?? null
 }
-
 function applySelection() {
   const value = emitValueFor(normalizeModelValue(candidateValue.value))
   emit('update:modelValue', value)
   emit('change', value)
   dialogOpen.value = false
 }
-
 function clearCandidate() {
   candidateValue.value = props.multiple ? [] : null
 }
-
 function clearSelection() {
   if (props.disabled) return
   const value = props.multiple ? [] : null
@@ -380,7 +356,6 @@ function clearSelection() {
   emit('change', value)
   dialogOpen.value = false
 }
-
 function onDialogHide() {
   query.value = ''
   emit('close')
@@ -403,12 +378,10 @@ defineExpose({ openDialog, applySelection, clearSelection })
   border-color: rgba(15, 118, 110, 0.46);
   border-width: 1.5px;
 }
-
 .app-popup-select :deep(.q-field--outlined.q-field--focused .q-field__control::after) {
   border-color: var(--q-primary);
   border-width: 2px;
 }
-
 .popup-select-card {
   width: min(760px, calc(100vw - 96px));
   max-width: 760px;
@@ -416,7 +389,6 @@ defineExpose({ openDialog, applySelection, clearSelection })
   border-radius: 20px;
   overflow: hidden;
 }
-
 .popup-select-card__header {
   padding-bottom: 12px;
 }
@@ -442,11 +414,36 @@ defineExpose({ openDialog, applySelection, clearSelection })
   .popup-select-card {
     width: 100vw;
     max-width: 100vw;
-    max-height: 82vh;
+    max-height: 86vh;
     border-radius: 22px 22px 0 0;
   }
   .popup-select-card__scroll {
-    height: min(52vh, 460px);
+    height: min(50vh, 430px);
+  }
+}
+
+@media (max-width: 599px) {
+  .popup-select-card__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px !important;
+  }
+  .popup-select-card__action-spacer {
+    display: none;
+  }
+  .popup-select-card__action {
+    width: 100%;
+    min-width: 0;
+    margin: 0 !important;
+  }
+  .popup-select-card__action--clear {
+    grid-column: 1 / -1;
+  }
+  .popup-select-card__action :deep(.q-btn__content) {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    font-size: 0.78rem;
   }
 }
 </style>
