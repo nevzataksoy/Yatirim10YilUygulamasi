@@ -27,26 +27,58 @@ class="q-mr-xs"
 </q-chip>
 <q-btn-dropdown
 flat
-dense
+:dense="!$q.screen.lt.sm"
 no-caps
 :icon="$q.screen.lt.sm ? undefined : 'currency_exchange'"
 :label="ui.displayAsset"
 class="display-currency-btn"
+menu-anchor="bottom right"
+menu-self="top right"
+:menu-offset="[0, 8]"
 >
-<q-list dense style="min-width: 170px">
-<q-item-label header>Görüntüleme Birimi</q-item-label>
+<q-list
+separator
+bordered
+class="display-currency-menu-list bg-white"
+:style="$q.screen.lt.sm ? { minWidth: '230px', maxWidth: '82vw' } : { minWidth: '190px' }"
+>
+<q-item-label header class="text-weight-bold text-grey-8 q-py-sm">
+<div class="row items-center no-wrap q-gutter-sm">
+<q-icon name="currency_exchange" color="primary" size="20px" />
+<span>Görüntüleme Birimi</span>
+</div>
+</q-item-label>
+<q-separator />
 <q-item
 v-for="asset in displayAssets"
 :key="asset"
 clickable
+v-ripple
 v-close-popup
 :active="ui.displayAsset === asset"
-active-class="text-primary"
+active-class="bg-teal-1 text-primary"
+class="q-py-sm"
 @click="ui.setDisplayAsset(asset)"
 >
-<q-item-section>{{ asset }}</q-item-section>
-<q-item-section v-if="ui.displayAsset === asset" side>
-<q-icon name="check" color="primary" />
+<q-item-section avatar>
+<q-avatar
+size="34px"
+:color="ui.displayAsset === asset ? 'teal-1' : 'grey-2'"
+:text-color="ui.displayAsset === asset ? 'primary' : 'grey-8'"
+class="text-caption text-weight-bold"
+>
+{{ asset }}
+</q-avatar>
+</q-item-section>
+<q-item-section>
+<q-item-label class="text-weight-bold">{{ asset }}</q-item-label>
+<q-item-label caption>{{ displayAssetDescription(asset) }}</q-item-label>
+</q-item-section>
+<q-item-section side>
+<q-icon
+:name="ui.displayAsset === asset ? 'check_circle' : 'chevron_right'"
+:color="ui.displayAsset === asset ? 'primary' : 'grey-5'"
+/>
 </q-item-section>
 </q-item>
 </q-list>
@@ -270,6 +302,15 @@ const selectedAccountModel = computed({
 get: () => portfolio.selectedAccountId,
 set: (value) => portfolio.selectAccount(value),
 })
+function displayAssetDescription(asset) {
+const labels = {
+USD: 'ABD Doları',
+TRY: 'Türk Lirası',
+BTC: 'Bitcoin',
+ETH: 'Ethereum',
+}
+return labels[asset] || asset
+}
 function isActive(path) {
 if (path === '/') return route.path === '/'
 return route.path.startsWith(path)
