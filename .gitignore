@@ -49,3 +49,8 @@
 /tr-rosayazilim-yatirimdashboard/src-capacitor/android/app/build/
 /tr-rosayazilim-yatirimdashboard/src-capacitor/android/app/release/
 /tr-rosayazilim-yatirimdashboard/androidkeypath/
+# Firebase environment files. google-services.json is environment-specific;
+# server-side service-account JSON/private keys must never enter this repository.
+/tr-rosayazilim-yatirimdashboard/src-capacitor/android/app/google-services.json
+*firebase-service-account*.json
+*service-account*.json
