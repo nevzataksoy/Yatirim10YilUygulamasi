@@ -574,8 +574,149 @@ Tüm sonuçları gönder.
 
 ---
 # Görev 5 Sonuç Çıktısı
---Bu kısmıda Codex Sonuç çıktılarına bakarak görevin sonucunu işleyecek. 
 
+## Görev 5 sonucu: PASS — stabilite ve veri kalitesi kabul edilebilir
+
+Görev 5 kapsamında 14 günlük Shadow/stabilite kontrolü 19.08.2026 tarihinde tamamlandı.
+
+### Servis
+
+`RosaInvestmentEngine` servisi çalışır durumda:
+
+- STATE: `4 RUNNING`
+- WIN32_EXIT_CODE: `0`
+- SERVICE_EXIT_CODE: `0`
+
+### Realtime
+
+Coinbase realtime smoke test:
+
+- Sonuç: `OK`
+- Test süresi: 20 saniye
+- Snapshot: `8`
+- Product: `BTC-USD`, `ETH-USD`
+- `max_trade_gap`: `0`
+
+Realtime tarafında test sırasında trade gap problemi görülmedi.
+
+### Validation
+
+Model validation sonucu:
+
+- Core: `OK`
+- Observations: `1401`
+- Shadow: `NOT_READY`
+
+`NOT_READY` mevcut durumda bir blocker değildir. Shadow/history süre kriterleri henüz tamamlanmadığı için beklenen durumdur.
+
+### Scheduler
+
+Son 7 günlük job özeti:
+
+- `daily_crypto_job`: 7 OK
+- `daily_fx_job`: 5 OK
+- `daily_ura_job`: 7 OK
+- `hourly_job`: 166 OK / 2 ERROR
+- `macro_job`: 29 OK
+- `model_validation_job`: 1 OK
+- `realtime_test`: 1 OK
+- `sec_event_job`: 169 DEGRADED
+- `weekly_job`: 1 OK
+
+İki `hourly_job` ERROR gerçek scheduler hatasıdır:
+
+```text
+couldn't get a connection after 10.00 sec
+```
+Bu kayıtlar development/manual artığı olarak değerlendirilmemelidir. 7 günlük saatlik scheduler beklentisi 168 çalışmadır ve sonuç 166 OK + 2 ERROR = 168 şeklindedir.
+
+sec_event_job DEGRADED kayıtları ise servis crash'i değildir. Son ölçümde SEC doğrudan ticker eşleşmesi yaklaşık %20.29 URA ağırlığını kapsamaktadır. Bu nedenle mevcut veri-kapsama semantiği altında DEGRADED beklenen bir kalite sonucudur.
+
+Shadow Readiness
+
+Güncel readiness:
+
+Status: NOT_READY
+Shadow calendar: 21/30
+ETH/BTC decision days: 21/25
+URA/USD decision days: 14/20
+URA breadth dates: 13/20
+URA holdings dates: 13
+ETH/BTC median quality: 90.95
+URA/USD median quality: 87.71
+Job success rate: %99.48
+Realtime test age: yaklaşık 0 gün
+Blockers: []
+
+Dolayısıyla mevcut sonuçlar Shadow'ın başarısız olduğunu göstermiyor. Bekleyen kriterler esas olarak gözlem/history süresidir.
+
+Karar dağılımı
+
+ETH/BTC:
+
+WAIT: 21
+
+URA/USD:
+
+WAIT: 18
+NO_ACTION_DATA: 2
+
+Bu checkpoint'te ACTION üretimi görülmemiştir. Mevcut decision dağılımı motorun veri/karar kapılarının beklenen şekilde çalıştığına işaret etmektedir.
+
+Kalite değerlendirmesi
+
+ETH/BTC:
+
+Median: 90.95
+Min: 90.08
+Max: 91.20
+
+URA/USD:
+
+Median: 87.71
+Min: 70.40
+Max: 88.07
+
+URA median quality 80 eşiğinin üzerindedir. Bu nedenle Görev 6 karar ağacındaki URA median quality >= 80 dalı geçerlidir.
+
+Görev 5 kararı
+
+PASS
+
+Görev 5 sonucunda:
+
+Servis çalışıyor.
+Realtime smoke test başarılı.
+trade_gap_count = 0.
+Core validation başarılı.
+ETH/BTC quality güçlü.
+URA quality kabul edilebilir seviyede.
+Readiness blocker bulunmuyor.
+Shadow süresi henüz tamamlanmadığı için NOT_READY beklenen durum.
+2 gerçek hourly_job connection-pool hatası OPEN izleme konusu olarak korunmalı.
+SEC DEGRADED durumu veri-kapsama problemi olarak izlenmeli.
+Python revizyon borcu
+
+Görev takvimi tamamlanana kadar model/runtime davranışını değiştirecek Python revizyonları uygulanmayacaktır.
+
+Özellikle threshold, factor weight, K1/K2, reversal, reset, action-size veya Shadow/Realtime çalışma mantığını değiştiren revizyonlar PROPOSED/OPEN borç olarak tutulacaktır.
+
+Davranış değiştirmeyen observability, diagnostic, test ve raporlama geliştirmeleri ise kontrollü şekilde devam edebilir.
+
+Görev 6 için mevcut karar ağacına göre:
+
+URA median quality = 87.71 >= 80
+
+olduğu için Shadow gözlemi değiştirilmeden devam edilmelidir.
+
+RELEASED: Mevcut model davranışı, threshold'lar, factor weight'ler, K1/K2, reversal, reset, action-size, SHADOW modu ve Realtime Execution OFF korunuyor.
+
+APPROVED: Davranış değiştirmeyen observability/hardening çalışmaları.
+
+PROPOSED: Model davranışına ilişkin gelecekteki iyileştirmeler uygulanmadı.
+
+OPEN: 2 hourly connection-pool hatasının kök neden analizi ve Shadow history/readiness kriterlerinin tamamlanması.
+Bu içeriği doğruladım; mevcut Görev 5 ölçümleriyle tutarlı. Mevcut dosyada placeholder'ın hemen ardından Görev 6 başlıyor. 
 
 # Görev 6 — 20.08.2026 Perşembe, 10:30 TRT
 ## URA için kritik 20 günlük ara değerlendirme
