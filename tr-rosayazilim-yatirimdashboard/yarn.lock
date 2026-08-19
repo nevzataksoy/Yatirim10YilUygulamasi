@@ -301,6 +301,11 @@
     "@eslint/core" "^1.2.1"
     levn "^0.4.1"
 
+"@fontsource/titillium-web@^5.3.0":
+  version "5.3.0"
+  resolved "https://registry.yarnpkg.com/@fontsource/titillium-web/-/titillium-web-5.3.0.tgz#99d6bd2b357a9c5a5a24b4325e8b7a1f2c15c461"
+  integrity sha512-+nO3ACtHoBgBgq5rzKYImyJqcbRR5cG7D5O73Iu9qMEVlpQ4KVpdDs+XJexZ6Tgcek4xSlkCI82Xd3yLNF++6w==
+
 "@humanfs/core@^0.19.2":
   version "0.19.2"
   resolved "https://registry.yarnpkg.com/@humanfs/core/-/core-0.19.2.tgz#a8272ca03b2acf492670222b2320b6c421bfde60"

@@ -1,3 +1,7 @@
+@import '@fontsource/titillium-web/400.css';
+@import '@fontsource/titillium-web/600.css';
+@import '@fontsource/titillium-web/700.css';
+
 :root {
   --rosa-bg: #f4f7f9;
   --rosa-surface: #ffffff;
@@ -12,6 +16,7 @@
 body {
   background: var(--rosa-bg);
   color: var(--rosa-text);
+  font-family: 'Titillium Web', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .q-page {
