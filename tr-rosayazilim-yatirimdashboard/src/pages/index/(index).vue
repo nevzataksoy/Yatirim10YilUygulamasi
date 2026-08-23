@@ -285,12 +285,12 @@ import { usePortfolioStore } from '@/stores/portfolio'
 const portfolio = usePortfolioStore()
 const engine = useEngineStore()
 const { formatNumber, formatDate } = useFormatters()
-const { displayAsset, formatDisplay } = useDisplayCurrency()
+const { displayAsset, formatDisplay, priceUsd } = useDisplayCurrency()
 
 const assetRows = computed(() => {
   const rows = Object.values(portfolio.ledger.assets)
     .map((item) => {
-      const value = item.quantity * engine.price(item.asset)
+      const value = item.quantity * priceUsd(item.asset)
       return { ...item, value, pnl: value - item.costBasisUsd }
     })
     .filter((item) => item.quantity > 0.0000000001)

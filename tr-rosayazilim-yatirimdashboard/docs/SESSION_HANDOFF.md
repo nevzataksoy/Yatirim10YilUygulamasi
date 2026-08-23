@@ -7,9 +7,9 @@ Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGI
 
 ## 1. Aktif repo/branch'ler
 
-| Repo | Aktif geliştirme branch'i | Durum |
-| --- | --- | --- |
-| `nevzataksoy/Yatirim10YilUygulamasi` | `agent/portfolio-audit-reset` | Draft PR #1 açık |
+| Repo                                          | Aktif geliştirme branch'i              | Durum            |
+| --------------------------------------------- | -------------------------------------- | ---------------- |
+| `nevzataksoy/Yatirim10YilUygulamasi`          | `agent/portfolio-audit-reset`          | Draft PR #1 açık |
 | `nevzataksoy/tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | Draft PR #1 açık |
 
 07.08.2026 Görev 4 incelemesine başlanırken doğrulanan remote HEAD'ler:

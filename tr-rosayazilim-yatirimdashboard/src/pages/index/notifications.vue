@@ -16,8 +16,9 @@
       </div>
 
       <q-banner rounded class="surface-soft q-mb-lg">
-        Firebase service-account private key bu ekrana girilmez. Quasar yalnız non-secret proje metadata'sını,
-        cihaz kayıtlarını ve otomasyon tercihlerini tutar; gerçek FCM gönderimi Python servisinden yapılır.
+        Firebase service-account private key bu ekrana girilmez. Quasar yalnız non-secret proje
+        metadata'sını, cihaz kayıtlarını ve otomasyon tercihlerini tutar; gerçek FCM gönderimi
+        Python servisinden yapılır.
       </q-banner>
 
       <q-tabs
@@ -42,50 +43,100 @@
           <q-card flat class="section-card">
             <q-card-section class="row q-col-gutter-md">
               <div class="col-12 col-sm-6">
-                <q-toggle v-model="provider.enabled" color="primary" label="FCM bildirimlerini etkinleştir" />
+                <q-toggle
+                  v-model="provider.enabled"
+                  color="primary"
+                  label="FCM bildirimlerini etkinleştir"
+                />
               </div>
               <div class="col-12 col-sm-6">
-                <q-input v-model.trim="provider.firebase_project_id" outlined label="Firebase Project ID" />
+                <q-input
+                  v-model.trim="provider.firebase_project_id"
+                  outlined
+                  label="Firebase Project ID"
+                />
               </div>
               <div class="col-12 col-sm-6">
-                <q-input v-model.trim="provider.sender_id" outlined label="Sender ID / Project Number" />
+                <q-input
+                  v-model.trim="provider.sender_id"
+                  outlined
+                  label="Sender ID / Project Number"
+                />
               </div>
               <div class="col-12 col-sm-6">
-                <q-input v-model.trim="provider.android_package_name" outlined label="Android Package Name" />
+                <q-input
+                  v-model.trim="provider.android_package_name"
+                  outlined
+                  label="Android Package Name"
+                />
               </div>
               <div class="col-12">
-                <q-input v-model.trim="provider.web_vapid_key" outlined label="Web VAPID Key (PWA kullanacaksan)" />
+                <q-input
+                  v-model.trim="provider.web_vapid_key"
+                  outlined
+                  label="Web VAPID Key (PWA kullanacaksan)"
+                />
               </div>
               <div class="col-12">
-                <q-input v-model.trim="provider.note" outlined type="textarea" autogrow label="Not" />
+                <q-input
+                  v-model.trim="provider.note"
+                  outlined
+                  type="textarea"
+                  autogrow
+                  label="Not"
+                />
               </div>
 
               <div v-if="notifications.nativePushSupported" class="col-12">
                 <q-banner
                   rounded
-                  :class="notifications.currentDeviceRegistered ? 'bg-green-1 text-green-10' : 'bg-blue-1 text-blue-10'"
+                  :class="
+                    notifications.currentDeviceRegistered
+                      ? 'bg-green-1 text-green-10'
+                      : 'bg-blue-1 text-blue-10'
+                  "
                 >
                   <template #avatar>
-                    <q-icon :name="notifications.currentDeviceRegistered ? 'verified' : 'smartphone'" />
+                    <q-icon
+                      :name="notifications.currentDeviceRegistered ? 'verified' : 'smartphone'"
+                    />
                   </template>
                   <div class="text-weight-bold">
-                    {{ notifications.currentDeviceRegistered ? 'Bu cihaz FCM sistemine kayıtlı.' : 'Bu cihaz henüz FCM sistemine kayıtlı değil.' }}
+                    {{
+                      notifications.currentDeviceRegistered
+                        ? 'Bu cihaz FCM sistemine kayıtlı.'
+                        : 'Bu cihaz henüz FCM sistemine kayıtlı değil.'
+                    }}
                   </div>
                   <div v-if="notifications.currentDeviceContext" class="text-caption q-mt-xs">
                     {{ notifications.currentDeviceContext.deviceName || 'Mobil Cihaz' }} ·
-                    {{ notifications.currentDeviceContext.operatingSystem || notifications.currentDeviceContext.platform }}
+                    {{
+                      notifications.currentDeviceContext.operatingSystem ||
+                      notifications.currentDeviceContext.platform
+                    }}
                     {{ notifications.currentDeviceContext.osVersion || '' }}
                   </div>
                 </q-banner>
               </div>
 
               <div class="col-12 row justify-end q-gutter-sm notification-primary-actions">
-                <q-btn push color="primary" icon="save" label="Firebase Ayarlarını Kaydet" no-caps @click="saveProvider" />
+                <q-btn
+                  push
+                  color="primary"
+                  icon="save"
+                  label="Firebase Ayarlarını Kaydet"
+                  no-caps
+                  @click="saveProvider"
+                />
                 <q-btn
                   push
                   :color="notifications.currentDeviceRegistered ? 'grey-5' : 'positive'"
-                  :icon="notifications.currentDeviceRegistered ? 'verified' : 'notifications_active'"
-                  :label="notifications.currentDeviceRegistered ? 'Bu Cihaz Kayıtlı' : 'Bu Cihazı Kaydet'"
+                  :icon="
+                    notifications.currentDeviceRegistered ? 'verified' : 'notifications_active'
+                  "
+                  :label="
+                    notifications.currentDeviceRegistered ? 'Bu Cihaz Kayıtlı' : 'Bu Cihazı Kaydet'
+                  "
                   :disable="notifications.currentDeviceRegistered || notifications.registering"
                   :loading="notifications.registering"
                   no-caps
@@ -111,14 +162,20 @@
                 <q-item-section class="min-width-0">
                   <q-item-label class="row items-center q-gutter-xs">
                     <span class="text-weight-bold">{{ device.device_name || 'Mobil Cihaz' }}</span>
-                    <q-badge v-if="isCurrentDevice(device)" color="primary" rounded>Bu cihaz</q-badge>
-                    <q-badge v-if="device.push_target" outline color="positive">FCM kayıtlı</q-badge>
+                    <q-badge v-if="isCurrentDevice(device)" color="primary" rounded
+                      >Bu cihaz</q-badge
+                    >
+                    <q-badge v-if="device.push_target" outline color="positive"
+                      >FCM kayıtlı</q-badge
+                    >
                   </q-item-label>
                   <q-item-label caption>
-                    {{ device.platform }} · {{ device.operating_system || 'OS' }} {{ device.os_version || '' }} · App {{ device.app_version || '—' }}
+                    {{ device.platform }} · {{ device.operating_system || 'OS' }}
+                    {{ device.os_version || '' }} · App {{ device.app_version || '—' }}
                   </q-item-label>
                   <q-item-label caption>
-                    İzin: {{ device.permission_status }} · Son görülme: {{ formatDate(device.last_seen_at) }}
+                    İzin: {{ device.permission_status }} · Son görülme:
+                    {{ formatDate(device.last_seen_at) }}
                   </q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -128,7 +185,14 @@
                       color="primary"
                       @update:model-value="setDeviceActive(device.id, $event)"
                     />
-                    <q-btn flat round dense icon="delete" color="negative" @click="removeDevice(device)">
+                    <q-btn
+                      flat
+                      round
+                      dense
+                      icon="delete"
+                      color="negative"
+                      @click="removeDevice(device)"
+                    >
                       <q-tooltip>Cihaz kaydını sil</q-tooltip>
                     </q-btn>
                   </div>
@@ -143,25 +207,47 @@
 
         <q-tab-panel name="templates" class="q-pa-none">
           <div class="row justify-end q-mb-md">
-            <q-btn push color="primary" icon="add" label="Otomasyon Şablonu" no-caps @click="newTemplate" />
+            <q-btn
+              push
+              color="primary"
+              icon="add"
+              label="Otomasyon Şablonu"
+              no-caps
+              @click="newTemplate"
+            />
           </div>
           <q-card flat class="section-card">
             <q-list separator>
               <q-item v-for="item in notifications.templates" :key="item.id" class="q-py-md">
-                <q-item-section avatar><q-avatar icon="schedule" color="grey-2" text-color="primary" /></q-item-section>
+                <q-item-section avatar
+                  ><q-avatar icon="schedule" color="grey-2" text-color="primary"
+                /></q-item-section>
                 <q-item-section class="min-width-0">
                   <q-item-label class="text-weight-bold">{{ item.name }}</q-item-label>
                   <q-item-label caption>
                     {{ eventLabel(item.event_type) }}
-                    <span v-if="item.schedule_time"> · {{ String(item.schedule_time).slice(0, 5) }} · {{ item.timezone }}</span>
+                    <span v-if="item.schedule_time">
+                      · {{ String(item.schedule_time).slice(0, 5) }} · {{ item.timezone }}</span
+                    >
                     <span> · {{ item.display_currency }}</span>
                   </q-item-label>
                   <q-item-label caption lines="2">{{ item.body_template }}</q-item-label>
                 </q-item-section>
                 <q-item-section side class="row items-center no-wrap q-gutter-xs">
-                  <q-toggle :model-value="item.enabled" color="primary" @update:model-value="toggleTemplate(item, $event)" />
+                  <q-toggle
+                    :model-value="item.enabled"
+                    color="primary"
+                    @update:model-value="toggleTemplate(item, $event)"
+                  />
                   <q-btn flat round dense icon="edit" @click="editTemplate(item)" />
-                  <q-btn flat round dense icon="delete" color="negative" @click="removeTemplate(item)" />
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="negative"
+                    @click="removeTemplate(item)"
+                  />
                 </q-item-section>
               </q-item>
               <q-item v-if="!notifications.templates.length">
@@ -183,13 +269,23 @@
                   />
                 </q-item-section>
                 <q-item-section class="min-width-0">
-                  <q-item-label class="text-weight-bold">{{ log.status }} · {{ log.provider }}</q-item-label>
+                  <q-item-label class="text-weight-bold"
+                    >{{ log.status }} · {{ log.provider }}</q-item-label
+                  >
                   <q-item-label caption>{{ formatDate(log.created_at) }}</q-item-label>
-                  <q-item-label v-if="log.error_message" caption class="text-negative">{{ log.error_message }}</q-item-label>
-                  <q-item-label v-if="log.provider_message_id" caption>Provider ID: {{ log.provider_message_id }}</q-item-label>
+                  <q-item-label v-if="log.error_message" caption class="text-negative">{{
+                    log.error_message
+                  }}</q-item-label>
+                  <q-item-label v-if="log.provider_message_id" caption
+                    >Provider ID: {{ log.provider_message_id }}</q-item-label
+                  >
                 </q-item-section>
               </q-item>
-              <q-item v-if="!notifications.logs.length"><q-item-section class="text-grey-7">Henüz gönderim logu yok.</q-item-section></q-item>
+              <q-item v-if="!notifications.logs.length"
+                ><q-item-section class="text-grey-7"
+                  >Henüz gönderim logu yok.</q-item-section
+                ></q-item
+              >
             </q-list>
           </q-card>
         </q-tab-panel>
@@ -204,39 +300,92 @@
         </q-card-section>
         <q-separator />
         <q-card-section class="row q-col-gutter-md">
-          <div class="col-12 col-sm-6"><q-input v-model.trim="draft.name" outlined label="Şablon Adı" /></div>
           <div class="col-12 col-sm-6">
-            <AppPopupSelect v-model="draft.event_type" :options="NOTIFICATION_EVENT_TYPES" label="Tetikleyici" :searchable="false" />
+            <q-input v-model.trim="draft.name" outlined label="Şablon Adı" />
+          </div>
+          <div class="col-12 col-sm-6">
+            <AppPopupSelect
+              v-model="draft.event_type"
+              :options="NOTIFICATION_EVENT_TYPES"
+              label="Tetikleyici"
+              :searchable="false"
+            />
           </div>
           <div v-if="draft.event_type === 'PORTFOLIO_DAILY'" class="col-12 col-sm-6">
-            <AppPopupSelect v-model="draft.account_id" :options="accountOptions" label="Portföy Hesabı" />
+            <AppPopupSelect
+              v-model="draft.account_id"
+              :options="accountOptions"
+              label="Portföy Hesabı"
+            />
           </div>
           <div v-if="draft.event_type === 'PORTFOLIO_DAILY'" class="col-12 col-sm-6">
-            <q-input v-model="draft.schedule_time" outlined type="time" label="Gönderim Saati" stack-label />
+            <q-input
+              v-model="draft.schedule_time"
+              outlined
+              type="time"
+              label="Gönderim Saati"
+              stack-label
+            />
           </div>
           <div v-if="draft.event_type === 'PORTFOLIO_DAILY'" class="col-12 col-sm-6">
-            <AppPopupSelect v-model="draft.display_currency" :options="DISPLAY_ASSETS" label="Gösterim Para Birimi" :searchable="false" />
+            <AppPopupSelect
+              v-model="draft.display_currency"
+              :options="DISPLAY_ASSETS"
+              label="Gösterim Para Birimi"
+              :searchable="false"
+            />
           </div>
           <div v-if="draft.event_type === 'PORTFOLIO_DAILY'" class="col-12 col-sm-6">
             <q-input v-model.trim="draft.timezone" outlined label="Timezone" />
           </div>
           <div v-if="draft.event_type === 'PORTFOLIO_DAILY'" class="col-12">
             <div class="text-caption text-grey-7 q-mb-xs">Çalışacağı Günler</div>
-            <q-option-group v-model="draft.days_of_week" :options="weekdayOptions" type="checkbox" color="primary" inline />
+            <q-option-group
+              v-model="draft.days_of_week"
+              :options="weekdayOptions"
+              type="checkbox"
+              color="primary"
+              inline
+            />
           </div>
-          <div class="col-12"><q-input v-model.trim="draft.title_template" outlined label="Bildirim Başlığı" /></div>
-          <div class="col-12"><q-input v-model.trim="draft.body_template" outlined type="textarea" autogrow label="Bildirim Metni" /></div>
+          <div class="col-12">
+            <q-input v-model.trim="draft.title_template" outlined label="Bildirim Başlığı" />
+          </div>
+          <div class="col-12">
+            <q-input
+              v-model.trim="draft.body_template"
+              outlined
+              type="textarea"
+              autogrow
+              label="Bildirim Metni"
+            />
+          </div>
           <div class="col-12">
             <q-banner rounded class="surface-soft text-caption">
-              Günlük portföy: <code v-pre>{{portfolio_value}}</code>, <code v-pre>{{display_currency}}</code>, <code v-pre>{{account_name}}</code> ·
-              Sinyal: <code v-pre>{{system}}</code>, <code v-pre>{{direction}}</code>, <code v-pre>{{edge}}</code>, <code v-pre>{{confidence}}</code>, <code v-pre>{{data_quality}}</code>.
+              Günlük portföy: <code v-pre>{{ portfolio_value }}</code
+              >, <code v-pre>{{ display_currency }}</code
+              >, <code v-pre>{{ account_name }}</code> · Sinyal: <code v-pre>{{ system }}</code
+              >, <code v-pre>{{ direction }}</code
+              >, <code v-pre>{{ edge }}</code
+              >, <code v-pre>{{ confidence }}</code
+              >, <code v-pre>{{ data_quality }}</code
+              >.
             </q-banner>
           </div>
-          <div class="col-12"><q-toggle v-model="draft.enabled" color="primary" label="Şablon aktif" /></div>
+          <div class="col-12">
+            <q-toggle v-model="draft.enabled" color="primary" label="Şablon aktif" />
+          </div>
         </q-card-section>
         <q-card-actions align="right" class="popup-action-footer q-pa-md">
           <q-btn push color="grey-3" text-color="grey-9" label="Vazgeç" v-close-popup no-caps />
-          <q-btn push color="primary" icon="save" label="Şablonu Kaydet" no-caps @click="saveTemplate" />
+          <q-btn
+            push
+            color="primary"
+            icon="save"
+            label="Şablonu Kaydet"
+            no-caps
+            @click="saveTemplate"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -276,7 +425,11 @@ const weekdayOptions = [
   { label: 'Paz', value: 7 },
 ]
 const accountOptions = computed(() =>
-  portfolio.activeAccounts.map((item) => ({ label: item.name, value: item.id, caption: item.base_currency })),
+  portfolio.activeAccounts.map((item) => ({
+    label: item.name,
+    value: item.id,
+    caption: item.base_currency,
+  })),
 )
 
 function eventLabel(value) {
@@ -286,14 +439,17 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString('tr-TR') : '—'
 }
 function isCurrentDevice(device) {
-  return Boolean(device?.installation_id && device.installation_id === notifications.currentInstallationId)
+  return Boolean(
+    device?.installation_id && device.installation_id === notifications.currentInstallationId,
+  )
 }
 function hydrateProvider() {
   Object.assign(provider, {
     enabled: notifications.providerSettings?.enabled || false,
     firebase_project_id: notifications.providerSettings?.firebase_project_id || '',
     sender_id: notifications.providerSettings?.sender_id || '',
-    android_package_name: notifications.providerSettings?.android_package_name || 'tr.rosayazilim.yatirimdashboard',
+    android_package_name:
+      notifications.providerSettings?.android_package_name || 'tr.rosayazilim.yatirimdashboard',
     web_vapid_key: notifications.providerSettings?.web_vapid_key || '',
     note: notifications.providerSettings?.note || '',
   })
@@ -303,7 +459,10 @@ async function refresh() {
     await notifications.sync()
     hydrateProvider()
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Bildirim verileri alınamadı.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Bildirim verileri alınamadı.',
+    })
   }
 }
 async function saveProvider() {
@@ -311,7 +470,10 @@ async function saveProvider() {
     await notifications.saveProviderSettings(provider)
     $q.notify({ type: 'positive', message: 'Firebase ayarları kaydedildi.' })
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Ayarlar kaydedilemedi.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Ayarlar kaydedilemedi.',
+    })
   }
 }
 async function registerDevice() {
@@ -320,14 +482,21 @@ async function registerDevice() {
     const device = await notifications.registerCurrentDevice()
     if (device) $q.notify({ type: 'positive', message: 'Bu cihaz bildirim sistemine kaydedildi.' })
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Cihaz kaydedilemedi.', timeout: 5000 })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Cihaz kaydedilemedi.',
+      timeout: 5000,
+    })
   }
 }
 async function setDeviceActive(id, active) {
   try {
     await notifications.setDeviceActive(id, active)
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Cihaz güncellenemedi.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Cihaz güncellenemedi.',
+    })
   }
 }
 function removeDevice(device) {
@@ -342,7 +511,10 @@ function removeDevice(device) {
       await notifications.deleteDevice(device.id)
       $q.notify({ type: 'positive', message: 'Cihaz kaydı silindi.' })
     } catch (error) {
-      $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Cihaz silinemedi.' })
+      $q.notify({
+        type: 'negative',
+        message: error instanceof Error ? error.message : 'Cihaz silinemedi.',
+      })
     }
   })
 }
@@ -358,7 +530,8 @@ function resetDraft(item = null) {
     days_of_week: item?.days_of_week || [1, 2, 3, 4, 5, 6, 7],
     display_currency: item?.display_currency || ui.displayAsset,
     title_template: item?.title_template || 'Günlük Portföy Özeti',
-    body_template: item?.body_template || 'Portföy değeri: {{portfolio_value}} {{display_currency}}',
+    body_template:
+      item?.body_template || 'Portföy değeri: {{portfolio_value}} {{display_currency}}',
     payload: item?.payload || {},
   })
 }
@@ -376,14 +549,20 @@ async function saveTemplate() {
     templateDialog.value = false
     $q.notify({ type: 'positive', message: 'Bildirim şablonu kaydedildi.' })
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Şablon kaydedilemedi.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Şablon kaydedilemedi.',
+    })
   }
 }
 async function toggleTemplate(item, enabled) {
   try {
     await notifications.setTemplateEnabled(item.id, enabled)
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Şablon güncellenemedi.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Şablon güncellenemedi.',
+    })
   }
 }
 async function removeTemplate(item) {
@@ -391,7 +570,10 @@ async function removeTemplate(item) {
     await notifications.deleteTemplate(item.id)
     $q.notify({ type: 'positive', message: 'Şablon silindi.' })
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Şablon silinemedi.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Şablon silinemedi.',
+    })
   }
 }
 

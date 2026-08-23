@@ -22,7 +22,11 @@
 
       <q-form class="row q-col-gutter-md" @submit.prevent="openSummary">
         <div class="col-12 col-sm-6">
-          <AppPopupSelect v-model="form.source_asset" :options="sourceOptions" label="Satılan Varlık" />
+          <AppPopupSelect
+            v-model="form.source_asset"
+            :options="sourceOptions"
+            label="Satılan Varlık"
+          />
         </div>
         <div class="col-12 col-sm-6">
           <AppPopupSelect
@@ -223,11 +227,15 @@
         </q-item>
         <q-item>
           <q-item-section>Birim Fiyat</q-item-section>
-          <q-item-section side>{{ formatTarget(form.unit_price) }} / {{ form.source_asset }}</q-item-section>
+          <q-item-section side
+            >{{ formatTarget(form.unit_price) }} / {{ form.source_asset }}</q-item-section
+          >
         </q-item>
         <q-item>
           <q-item-section>Brüt Tutar</q-item-section>
-          <q-item-section side class="amount-primary">{{ formatTarget(grossProceedsTarget) }}</q-item-section>
+          <q-item-section side class="amount-primary">{{
+            formatTarget(grossProceedsTarget)
+          }}</q-item-section>
         </q-item>
         <q-item>
           <q-item-section>Komisyon</q-item-section>
@@ -235,7 +243,9 @@
         </q-item>
         <q-item>
           <q-item-section>Net Nakit Artışı</q-item-section>
-          <q-item-section side class="amount-positive">{{ formatTarget(netProceedsTarget) }}</q-item-section>
+          <q-item-section side class="amount-positive">{{
+            formatTarget(netProceedsTarget)
+          }}</q-item-section>
         </q-item>
         <q-item>
           <q-item-section>Kurum</q-item-section>
@@ -314,9 +324,7 @@ const form = reactive({
 })
 
 const sourceOptions = computed(() =>
-  ['BTC', 'ETH', 'URA'].filter(
-    (asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001,
-  ),
+  ['BTC', 'ETH', 'URA'].filter((asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001),
 )
 const availableSource = computed(() => Number(portfolio.quantities[form.source_asset] || 0))
 const grossProceedsTarget = computed(

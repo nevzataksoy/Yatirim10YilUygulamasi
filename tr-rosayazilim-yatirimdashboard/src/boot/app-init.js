@@ -2,9 +2,11 @@ import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { defineBoot } from '#q-app'
 import { watch } from 'vue'
+import { createDisplayQuoteScheduler } from '@/services/display-quotes/displayQuoteScheduler'
 import { startAppRealtime, stopAppRealtime } from '@/services/realtime'
 import { getSupabaseClient } from '@/services/supabase'
 import { useAuthStore } from '@/stores/auth'
+import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { useInstitutionsStore } from '@/stores/institutions'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -16,8 +18,14 @@ export default defineBoot(async ({ router, store }) => {
   const engine = useEngineStore(store)
   const institutions = useInstitutionsStore(store)
   const notifications = useNotificationsStore(store)
+  const displayQuotes = useDisplayQuoteStore(store)
+  const displayQuoteScheduler = createDisplayQuoteScheduler({
+    quoteStore: displayQuotes,
+    engineStore: engine,
+  })
 
   const isPublicRoute = (path) => path === '/login' || path === '/auth/callback'
+  displayQuotes.hydrateCache()
 
   async function syncAuthenticatedData() {
     if (!auth.authenticated) return
@@ -28,6 +36,7 @@ export default defineBoot(async ({ router, store }) => {
       notifications.sync(),
       notifications.bindNativeListeners(),
     ])
+    displayQuotes.applySnapshotFallback(engine.market)
   }
 
   async function handleNativeAuthUrl(url) {
@@ -54,6 +63,7 @@ export default defineBoot(async ({ router, store }) => {
       const activeClient = getSupabaseClient()
       if (!isActive) {
         activeClient?.auth.stopAutoRefresh()
+        await displayQuoteScheduler.stop()
         await stopAppRealtime()
         return
       }
@@ -62,8 +72,10 @@ export default defineBoot(async ({ router, store }) => {
       await auth.init({ force: true })
       if (auth.authenticated) {
         await syncAuthenticatedData()
+        displayQuoteScheduler.start()
         await startAppRealtime(store)
       } else {
+        await displayQuoteScheduler.stop()
         await stopAppRealtime()
       }
     })
@@ -71,6 +83,7 @@ export default defineBoot(async ({ router, store }) => {
 
   if (auth.authenticated) {
     await syncAuthenticatedData()
+    displayQuoteScheduler.start()
     await startAppRealtime(store)
   }
 
@@ -82,6 +95,7 @@ export default defineBoot(async ({ router, store }) => {
 
     if (auth.authenticated && !portfolio.lastSyncAt) {
       await syncAuthenticatedData()
+      displayQuoteScheduler.start()
       await startAppRealtime(store)
     }
 
@@ -102,12 +116,14 @@ export default defineBoot(async ({ router, store }) => {
     async (active) => {
       const currentPath = router.currentRoute.value.path
       if (!active) {
+        await displayQuoteScheduler.stop()
         await stopAppRealtime()
         if (!isPublicRoute(currentPath)) await router.replace('/login')
         return
       }
 
       await syncAuthenticatedData()
+      displayQuoteScheduler.start()
       await startAppRealtime(store)
       if (currentPath === '/login' && !auth.recoveryMode) await router.replace('/')
     },

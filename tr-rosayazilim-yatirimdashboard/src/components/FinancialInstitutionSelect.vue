@@ -14,7 +14,14 @@
       />
     </div>
     <div class="col-auto">
-      <q-btn round flat icon="add_business" color="primary" :disable="disabled" @click="dialogOpen = true">
+      <q-btn
+        round
+        flat
+        icon="add_business"
+        color="primary"
+        :disable="disabled"
+        @click="dialogOpen = true"
+      >
         <q-tooltip>Yeni kurum ekle</q-tooltip>
       </q-btn>
     </div>
@@ -42,7 +49,13 @@
           />
         </div>
         <div class="col-12 col-sm-6">
-          <q-input v-model.trim="draft.countryCode" outlined maxlength="2" label="Ülke Kodu" hint="Örn. TR, US" />
+          <q-input
+            v-model.trim="draft.countryCode"
+            outlined
+            maxlength="2"
+            label="Ülke Kodu"
+            hint="Örn. TR, US"
+          />
         </div>
         <div class="col-12">
           <q-input v-model.trim="draft.website" outlined label="Web Sitesi (opsiyonel)" />
@@ -53,7 +66,15 @@
       </q-card-section>
       <q-card-actions align="right" class="popup-action-footer q-pa-md">
         <q-btn push color="grey-3" text-color="grey-9" label="Vazgeç" v-close-popup no-caps />
-        <q-btn push color="primary" icon="save" label="Kaydet ve Seç" :loading="saving" no-caps @click="save" />
+        <q-btn
+          push
+          color="primary"
+          icon="save"
+          label="Kaydet ve Seç"
+          :loading="saving"
+          no-caps
+          @click="save"
+        />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -79,7 +100,13 @@ const institutions = useInstitutionsStore()
 const portfolio = usePortfolioStore()
 const dialogOpen = ref(false)
 const saving = ref(false)
-const draft = reactive({ name: '', institutionType: 'BANK', countryCode: 'TR', website: '', note: '' })
+const draft = reactive({
+  name: '',
+  institutionType: 'BANK',
+  countryCode: 'TR',
+  website: '',
+  note: '',
+})
 const options = computed(() => institutions.optionsForAccount(portfolio.selectedAccountId))
 
 onMounted(async () => {
@@ -103,10 +130,19 @@ async function save() {
     })
     emit('update:modelValue', row.name)
     dialogOpen.value = false
-    Object.assign(draft, { name: '', institutionType: 'BANK', countryCode: 'TR', website: '', note: '' })
+    Object.assign(draft, {
+      name: '',
+      institutionType: 'BANK',
+      countryCode: 'TR',
+      website: '',
+      note: '',
+    })
     $q.notify({ type: 'positive', message: 'Kurum sözlüğe eklendi ve seçildi.' })
   } catch (error) {
-    $q.notify({ type: 'negative', message: error instanceof Error ? error.message : 'Kurum eklenemedi.' })
+    $q.notify({
+      type: 'negative',
+      message: error instanceof Error ? error.message : 'Kurum eklenemedi.',
+    })
   } finally {
     saving.value = false
   }

@@ -24,7 +24,12 @@
       </template>
     </q-input>
 
-    <q-dialog v-model="dialogOpen" :position="dialogPosition" :maximized="false" @hide="onDialogHide">
+    <q-dialog
+      v-model="dialogOpen"
+      :position="dialogPosition"
+      :maximized="false"
+      @hide="onDialogHide"
+    >
       <q-card class="popup-select-card">
         <q-card-section class="popup-select-card__header">
           <div class="row items-start no-wrap">
@@ -249,7 +254,9 @@ const selectedOptions = computed(() => {
     )
   }
   const found = normalizedOptions.value.find(
-    (opt) => valuesEqual(props.modelValue, opt.value) || (!props.emitValue && opt.raw === props.modelValue),
+    (opt) =>
+      valuesEqual(props.modelValue, opt.value) ||
+      (!props.emitValue && opt.raw === props.modelValue),
   )
   return found ? [found] : []
 })
@@ -259,13 +266,18 @@ const displayValue = computed(() => {
   if (!props.multiple) return selectedOptions.value[0].label
   if (selectedOptions.value.length <= props.displayLimit)
     return selectedOptions.value.map((opt) => opt.label).join(', ')
-  return `${selectedOptions.value.slice(0, props.displayLimit).map((opt) => opt.label).join(', ')} +${selectedOptions.value.length - props.displayLimit}`
+  return `${selectedOptions.value
+    .slice(0, props.displayLimit)
+    .map((opt) => opt.label)
+    .join(', ')} +${selectedOptions.value.length - props.displayLimit}`
 })
 
 const hasValue = computed(() =>
   props.multiple
     ? Array.isArray(props.modelValue) && props.modelValue.length > 0
-    : props.modelValue !== null && props.modelValue !== undefined && String(props.modelValue) !== '',
+    : props.modelValue !== null &&
+      props.modelValue !== undefined &&
+      String(props.modelValue) !== '',
 )
 
 function normalizeSearchText(value) {
@@ -278,10 +290,13 @@ function normalizeSearchText(value) {
 
 const filteredOptions = computed(() => {
   const needle = normalizeSearchText(query.value)
-  if (props.filterFn) return normalizedOptions.value.filter((opt) => props.filterFn(opt.raw, needle))
+  if (props.filterFn)
+    return normalizedOptions.value.filter((opt) => props.filterFn(opt.raw, needle))
   if (!needle) return normalizedOptions.value
   return normalizedOptions.value.filter((opt) =>
-    [opt.label, opt.value, opt.caption, opt.badge].some((value) => normalizeSearchText(value).includes(needle)),
+    [opt.label, opt.value, opt.caption, opt.badge].some((value) =>
+      normalizeSearchText(value).includes(needle),
+    ),
   )
 })
 

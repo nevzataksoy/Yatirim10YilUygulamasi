@@ -108,7 +108,10 @@ export async function registerNativePush() {
 
   try {
     const tokenPromise = new Promise((resolve, reject) => {
-      timeout = setTimeout(() => reject(new Error('FCM kayıt anahtarı 20 saniye içinde alınamadı.')), 20000)
+      timeout = setTimeout(
+        () => reject(new Error('FCM kayıt anahtarı 20 saniye içinde alınamadı.')),
+        20000,
+      )
 
       Promise.all([
         PushNotifications.addListener('registration', (token) => resolve(token.value)),

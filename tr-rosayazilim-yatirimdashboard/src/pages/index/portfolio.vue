@@ -114,18 +114,16 @@ import AssetAvatar from '@/components/AssetAvatar.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import { useDisplayCurrency } from '@/composables/useDisplayCurrency'
 import { useFormatters } from '@/composables/useFormatters'
-import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
 
 const portfolio = usePortfolioStore()
-const engine = useEngineStore()
 const { formatNumber } = useFormatters()
-const { displayAsset, formatDisplay } = useDisplayCurrency()
+const { displayAsset, formatDisplay, priceUsd } = useDisplayCurrency()
 
 const rows = computed(() => {
   const items = Object.values(portfolio.ledger.assets)
     .map((item) => {
-      const value = item.quantity * engine.price(item.asset)
+      const value = item.quantity * priceUsd(item.asset)
       return { ...item, value, pnl: value - item.costBasisUsd }
     })
     .filter((item) => item.quantity > 0.0000000001)

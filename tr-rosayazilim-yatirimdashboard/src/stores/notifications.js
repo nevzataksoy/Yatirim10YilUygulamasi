@@ -35,7 +35,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const unreadCount = computed(() => messages.value.filter((item) => !item.read_at).length)
   const enabledTemplates = computed(() => templates.value.filter((item) => item.enabled))
   const currentDevice = computed(
-    () => devices.value.find((item) => item.installation_id === currentInstallationId.value) || null,
+    () =>
+      devices.value.find((item) => item.installation_id === currentInstallationId.value) || null,
   )
   const currentDeviceRegistered = computed(() => Boolean(currentDevice.value?.push_target))
   const nativePushSupported = computed(() => isNativePushSupported())
@@ -67,14 +68,39 @@ export const useNotificationsStore = defineStore('notifications', () => {
     try {
       await syncCurrentDeviceIdentity()
       const userId = auth.user.id
-      const [settingsResult, devicesResult, templatesResult, messagesResult, logsResult] = await Promise.all([
-        client.from('push_provider_settings').select('*').eq('user_id', userId).maybeSingle(),
-        client.from('notification_devices').select('*').eq('user_id', userId).order('last_seen_at', { ascending: false }),
-        client.from('notification_templates').select('*').eq('user_id', userId).order('created_at'),
-        client.from('notification_messages').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(100),
-        client.from('notification_logs').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200),
-      ])
-      for (const result of [settingsResult, devicesResult, templatesResult, messagesResult, logsResult]) {
+      const [settingsResult, devicesResult, templatesResult, messagesResult, logsResult] =
+        await Promise.all([
+          client.from('push_provider_settings').select('*').eq('user_id', userId).maybeSingle(),
+          client
+            .from('notification_devices')
+            .select('*')
+            .eq('user_id', userId)
+            .order('last_seen_at', { ascending: false }),
+          client
+            .from('notification_templates')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at'),
+          client
+            .from('notification_messages')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(100),
+          client
+            .from('notification_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(200),
+        ])
+      for (const result of [
+        settingsResult,
+        devicesResult,
+        templatesResult,
+        messagesResult,
+        logsResult,
+      ]) {
         if (result.error) throw result.error
       }
       providerSettings.value = settingsResult.data || null
@@ -138,7 +164,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     registering.value = true
     try {
       const registration = await registerNativePush()
-      if (!registration.supported) throw new Error('Push bildirim kaydı yalnız Capacitor mobil uygulamada kullanılabilir.')
+      if (!registration.supported)
+        throw new Error('Push bildirim kaydı yalnız Capacitor mobil uygulamada kullanılabilir.')
       if (registration.permissionStatus !== 'GRANTED') {
         throw new Error('Bildirim izni verilmeden cihaz kaydedilemez.')
       }
@@ -211,7 +238,8 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const eventType = input.event_type || 'PORTFOLIO_DAILY'
     const payload = {
       user_id: auth.user.id,
-      account_id: eventType === 'PORTFOLIO_DAILY' ? input.account_id || portfolio.selectedAccountId : null,
+      account_id:
+        eventType === 'PORTFOLIO_DAILY' ? input.account_id || portfolio.selectedAccountId : null,
       name: String(input.name || '').trim(),
       event_type: eventType,
       enabled: input.enabled !== false,
@@ -219,10 +247,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
       schedule_time: eventType === 'PORTFOLIO_DAILY' ? input.schedule_time || '09:00' : null,
       days_of_week: input.days_of_week?.length ? input.days_of_week : [1, 2, 3, 4, 5, 6, 7],
       display_currency: input.display_currency || ui.displayAsset || 'USD',
-      title_template: input.title_template || (eventType === 'PORTFOLIO_DAILY' ? 'Günlük Portföy Özeti' : 'Yeni yatırım sinyali'),
-      body_template: input.body_template || (eventType === 'PORTFOLIO_DAILY'
-        ? 'Portföy değeri: {{portfolio_value}} {{display_currency}}'
-        : '{{system}} için {{direction}} sinyali oluştu. Edge {{edge}}, güven {{confidence}}.'),
+      title_template:
+        input.title_template ||
+        (eventType === 'PORTFOLIO_DAILY' ? 'Günlük Portföy Özeti' : 'Yeni yatırım sinyali'),
+      body_template:
+        input.body_template ||
+        (eventType === 'PORTFOLIO_DAILY'
+          ? 'Portföy değeri: {{portfolio_value}} {{display_currency}}'
+          : '{{system}} için {{direction}} sinyali oluştu. Edge {{edge}}, güven {{confidence}}.'),
       payload: input.payload || {},
     }
     if (!payload.name) throw new Error('Şablon adı zorunlu.')
@@ -254,9 +286,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const client = getSupabaseClient()
     if (!client) return
     const readAt = new Date().toISOString()
-    const { error } = await client.from('notification_messages').update({ read_at: readAt }).eq('id', id)
+    const { error } = await client
+      .from('notification_messages')
+      .update({ read_at: readAt })
+      .eq('id', id)
     if (error) throw error
-    messages.value = messages.value.map((item) => (item.id === id ? { ...item, read_at: readAt } : item))
+    messages.value = messages.value.map((item) =>
+      item.id === id ? { ...item, read_at: readAt } : item,
+    )
   }
 
   async function markAllRead() {

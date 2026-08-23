@@ -21,7 +21,9 @@ export const useInstitutionsStore = defineStore('institutions', () => {
   const auth = useAuthStore()
   const portfolio = usePortfolioStore()
 
-  const activeInstitutions = computed(() => institutions.value.filter((item) => item.is_active !== false))
+  const activeInstitutions = computed(() =>
+    institutions.value.filter((item) => item.is_active !== false),
+  )
 
   function typeLabel(value) {
     return INSTITUTION_TYPES.find((item) => item.value === value)?.label || 'Diğer'
@@ -56,15 +58,8 @@ export const useInstitutionsStore = defineStore('institutions', () => {
     lastError.value = ''
     try {
       const [institutionsResult, mappingsResult] = await Promise.all([
-        client
-          .from('financial_institutions')
-          .select('*')
-          .eq('user_id', auth.user.id)
-          .order('name'),
-        client
-          .from('investment_account_institutions')
-          .select('*')
-          .eq('user_id', auth.user.id),
+        client.from('financial_institutions').select('*').eq('user_id', auth.user.id).order('name'),
+        client.from('investment_account_institutions').select('*').eq('user_id', auth.user.id),
       ])
       if (institutionsResult.error) throw institutionsResult.error
       if (mappingsResult.error) throw mappingsResult.error
@@ -78,10 +73,18 @@ export const useInstitutionsStore = defineStore('institutions', () => {
     }
   }
 
-  async function createInstitution({ name, institutionType, countryCode = '', website = '', note = '', accountId = null }) {
+  async function createInstitution({
+    name,
+    institutionType,
+    countryCode = '',
+    website = '',
+    note = '',
+    accountId = null,
+  }) {
     const normalizedName = String(name || '').trim()
     const targetAccountId = accountId || portfolio.selectedAccountId
-    if (!normalizedName || normalizedName.length < 2) throw new Error('Kurum adı en az 2 karakter olmalı.')
+    if (!normalizedName || normalizedName.length < 2)
+      throw new Error('Kurum adı en az 2 karakter olmalı.')
     if (!targetAccountId) throw new Error('Önce aktif portföy hesabı seçilmeli.')
     if (auth.isDemo) throw new Error('Demo modunda gerçek kurum sözlüğü oluşturulamaz.')
 
@@ -107,7 +110,9 @@ export const useInstitutionsStore = defineStore('institutions', () => {
         .single()
       if (error) throw error
       institution = data
-      institutions.value = [...institutions.value, data].sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+      institutions.value = [...institutions.value, data].sort((a, b) =>
+        a.name.localeCompare(b.name, 'tr'),
+      )
     }
 
     if (institution.is_active === false) {
@@ -142,7 +147,8 @@ export const useInstitutionsStore = defineStore('institutions', () => {
       if (error) throw error
       mappings.value = [
         ...mappings.value.filter(
-          (item) => !(item.account_id === targetAccountId && item.institution_id === institution.id),
+          (item) =>
+            !(item.account_id === targetAccountId && item.institution_id === institution.id),
         ),
         data,
       ]
@@ -150,16 +156,18 @@ export const useInstitutionsStore = defineStore('institutions', () => {
     return institution
   }
 
-
   async function updateInstitution(id, input) {
     const client = getSupabaseClient()
     if (!client || !auth.user?.id) throw new Error('Supabase bağlantısı veya oturum yok.')
     const payload = {
       name: String(input.name || '').trim(),
       institution_type: input.institutionType || input.institution_type || 'OTHER',
-      country_code: input.countryCode || input.country_code
-        ? String(input.countryCode || input.country_code).trim().toUpperCase()
-        : null,
+      country_code:
+        input.countryCode || input.country_code
+          ? String(input.countryCode || input.country_code)
+              .trim()
+              .toUpperCase()
+          : null,
       website: input.website || null,
       note: input.note || null,
       is_active: input.is_active !== false,

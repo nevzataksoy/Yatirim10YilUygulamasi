@@ -188,11 +188,15 @@
         </q-item>
         <q-item>
           <q-item-section>Birim Fiyat</q-item-section>
-          <q-item-section side>{{ formatSource(form.unit_price) }} / {{ form.target_asset }}</q-item-section>
+          <q-item-section side
+            >{{ formatSource(form.unit_price) }} / {{ form.target_asset }}</q-item-section
+          >
         </q-item>
         <q-item>
           <q-item-section>İşlem Tutarı</q-item-section>
-          <q-item-section side class="amount-primary">{{ formatSource(tradeCostSource) }}</q-item-section>
+          <q-item-section side class="amount-primary">{{
+            formatSource(tradeCostSource)
+          }}</q-item-section>
         </q-item>
         <q-item>
           <q-item-section>Komisyon</q-item-section>
@@ -200,7 +204,9 @@
         </q-item>
         <q-item>
           <q-item-section>Toplam Kaynak Düşüşü</q-item-section>
-          <q-item-section side class="amount-negative">{{ formatSource(sourceDebit) }}</q-item-section>
+          <q-item-section side class="amount-negative">{{
+            formatSource(sourceDebit)
+          }}</q-item-section>
         </q-item>
         <q-item>
           <q-item-section>Kurum</q-item-section>

@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getSecureValue, setSecureValue } from '@/services/secureStorage'
 
-export const DISPLAY_ASSETS = ['USD', 'TRY', 'BTC', 'ETH']
+export const DISPLAY_ASSETS = ['USD', 'TRY', 'EUR', 'BTC', 'ETH']
 const DISPLAY_ASSET_KEY = 'ui:display-asset'
 
 function initialDisplayAsset() {

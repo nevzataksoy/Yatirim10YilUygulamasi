@@ -69,16 +69,29 @@ export async function startAppRealtime(store) {
 
   let channel = client.channel(`app-live-${userId}`)
 
-  for (const table of ['market_snapshot', 'decision_snapshot', 'engine_health_snapshot', 'model_validation_snapshot']) {
+  for (const table of [
+    'market_snapshot',
+    'decision_snapshot',
+    'engine_health_snapshot',
+    'model_validation_snapshot',
+  ]) {
     channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, syncEngine)
   }
 
-  for (const table of ['investment_accounts', 'portfolio_transactions', 'user_investment_settings']) {
+  for (const table of [
+    'investment_accounts',
+    'portfolio_transactions',
+    'user_investment_settings',
+  ]) {
     channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, syncPortfolio)
   }
 
   for (const table of ['financial_institutions', 'investment_account_institutions']) {
-    channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, syncInstitutions)
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table },
+      syncInstitutions,
+    )
   }
 
   for (const table of [
@@ -88,7 +101,11 @@ export async function startAppRealtime(store) {
     'notification_messages',
     'notification_logs',
   ]) {
-    channel = channel.on('postgres_changes', { event: '*', schema: 'public', table }, syncNotifications)
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table },
+      syncNotifications,
+    )
   }
 
   activeChannel = channel.subscribe((status) => {
