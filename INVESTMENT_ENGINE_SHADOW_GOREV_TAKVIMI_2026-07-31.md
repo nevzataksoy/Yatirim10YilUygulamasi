@@ -4597,6 +4597,9 @@ Veri kaynağı / freshness / breadth üretim zincirinde regresyon ararız.
 
 ---
 
+### Görev 6 Sonuç Çıktısı:
+// Bu kısım Chat GPT tarafından doldurulacak.
+
 # Görev 7 — 29.08.2026 Cumartesi, 10:30 TRT
 ## 30 günlük Shadow Graduation Review
 
