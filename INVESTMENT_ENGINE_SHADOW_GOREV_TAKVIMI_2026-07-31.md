@@ -728,6 +728,22 @@ Bu checkpoint'in ana konusu URA'dır.
 ```bat
 InvestmentEngineCLI.cmd --validate-model
 ```
+Sonuç Çıktısı:
+```bat
+C:\Program Files\Rosa\InvestmentEngine>InvestmentEngineCLI.cmd --service-status
+2026-08-23T18:35:19.247676+00:00 SERVICE_NAME: RosaInvestmentEngine
+        TYPE               : 10  WIN32_OWN_PROCESS
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, IGNORES_SHUTDOWN)
+        WIN32_EXIT_CODE    : 0  (0x0)
+        SERVICE_EXIT_CODE  : 0  (0x0)
+        CHECKPOINT         : 0x0
+        WAIT_HINT          : 0x0
+
+C:\Program Files\Rosa\InvestmentEngine>InvestmentEngineCLI.cmd --validate-model
+2026-08-23T18:36:31.958387+00:00 Model validation başlatılıyor...
+2026-08-23T18:38:06.987623+00:00 model_validation: OK — core=OK observations=1405 shadow=NOT_READY
+```
 
 ### 6.2 Readiness
 
@@ -742,7 +758,40 @@ from public.model_validation_snapshot
 where validation_type = 'SHADOW_READINESS'
   and system = 'ALL';
 ```
-
+Sonuç Çıktısı:
+```json
+[
+  {
+    "status": "NOT_READY",
+    "stats": {
+      "job_count": 387,
+      "performance": [],
+      "ura_actions": 0,
+      "ura_watches": 0,
+      "calendar_days": 25,
+      "crypto_actions": 0,
+      "crypto_watches": 0,
+      "job_success_rate": 0.9974160206718347,
+      "last_decision_at": "2026-08-23T02:20:38.499567+00:00",
+      "first_decision_at": "2026-07-30T19:53:25.049772+00:00",
+      "ura_breadth_dates": 17,
+      "ura_decision_days": 17,
+      "ura_holdings_dates": 17,
+      "ura_median_quality": 87.71,
+      "crypto_decision_days": 25,
+      "crypto_median_quality": 90.83,
+      "realtime_test_age_days": 4.043461111631944
+    },
+    "waiting_reasons": [
+      "Shadow gözlem süresi 25/30 gün.",
+      "URA/USD karar günü 17/20.",
+      "URA breadth history 17/20 gün."
+    ],
+    "blockers": [],
+    "generated_at": "2026-08-23 18:38:02.878362+00"
+  }
+]
+```
 ### 6.3 URA kararları
 
 ```sql
@@ -760,6 +809,275 @@ from model.decisions
 where system = 'URA/USD'
   and model_version like '1.2.%'
 order by as_of, created_at;
+```
+Sonuç Çıktısı:
+```json
+[
+  {
+    "id": 8,
+    "as_of": "2026-07-30",
+    "direction": "URA→USD",
+    "edge_score": "33.160",
+    "confidence": "35.630",
+    "data_quality": "70.400",
+    "status": "NO_ACTION_DATA",
+    "model_version": "1.2.0",
+    "created_at": "2026-07-30 20:36:52.973542+00"
+  },
+  {
+    "id": 9,
+    "as_of": "2026-07-30",
+    "direction": "URA→USD",
+    "edge_score": "33.990",
+    "confidence": "36.170",
+    "data_quality": "70.400",
+    "status": "NO_ACTION_DATA",
+    "model_version": "1.2.0",
+    "created_at": "2026-07-30 23:40:32.89814+00"
+  },
+  {
+    "id": 11,
+    "as_of": "2026-07-31",
+    "direction": "URA→USD",
+    "edge_score": "28.550",
+    "confidence": "36.030",
+    "data_quality": "87.380",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-07-31 23:40:35.194871+00"
+  },
+  {
+    "id": 13,
+    "as_of": "2026-07-31",
+    "direction": "URA→USD",
+    "edge_score": "22.630",
+    "confidence": "32.220",
+    "data_quality": "87.550",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-01 23:40:34.504318+00"
+  },
+  {
+    "id": 15,
+    "as_of": "2026-07-31",
+    "direction": "URA→USD",
+    "edge_score": "22.630",
+    "confidence": "32.220",
+    "data_quality": "87.550",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-02 23:41:11.024758+00"
+  },
+  {
+    "id": 17,
+    "as_of": "2026-08-03",
+    "direction": "URA→USD",
+    "edge_score": "21.740",
+    "confidence": "31.700",
+    "data_quality": "87.850",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-03 23:40:37.923982+00"
+  },
+  {
+    "id": 19,
+    "as_of": "2026-08-04",
+    "direction": "URA→USD",
+    "edge_score": "21.310",
+    "confidence": "31.350",
+    "data_quality": "87.480",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-04 23:40:29.982605+00"
+  },
+  {
+    "id": 21,
+    "as_of": "2026-08-05",
+    "direction": "URA→USD",
+    "edge_score": "0.760",
+    "confidence": "22.570",
+    "data_quality": "85.400",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-05 23:40:35.15733+00"
+  },
+  {
+    "id": 23,
+    "as_of": "2026-08-06",
+    "direction": "URA→USD",
+    "edge_score": "9.620",
+    "confidence": "28.800",
+    "data_quality": "87.710",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-06 23:41:17.090055+00"
+  },
+  {
+    "id": 26,
+    "as_of": "2026-08-07",
+    "direction": "USD→URA",
+    "edge_score": "31.100",
+    "confidence": "42.770",
+    "data_quality": "87.770",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-08 23:41:02.947613+00"
+  },
+  {
+    "id": 28,
+    "as_of": "2026-08-07",
+    "direction": "USD→URA",
+    "edge_score": "31.100",
+    "confidence": "42.770",
+    "data_quality": "87.770",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-09 23:40:36.563936+00"
+  },
+  {
+    "id": 30,
+    "as_of": "2026-08-10",
+    "direction": "USD→URA",
+    "edge_score": "30.880",
+    "confidence": "42.680",
+    "data_quality": "88.070",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-10 23:40:55.494296+00"
+  },
+  {
+    "id": 32,
+    "as_of": "2026-08-11",
+    "direction": "USD→URA",
+    "edge_score": "31.270",
+    "confidence": "42.850",
+    "data_quality": "87.630",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-11 23:40:39.635501+00"
+  },
+  {
+    "id": 34,
+    "as_of": "2026-08-12",
+    "direction": "USD→URA",
+    "edge_score": "31.350",
+    "confidence": "42.930",
+    "data_quality": "87.730",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-12 23:40:38.031027+00"
+  },
+  {
+    "id": 36,
+    "as_of": "2026-08-13",
+    "direction": "USD→URA",
+    "edge_score": "30.930",
+    "confidence": "42.650",
+    "data_quality": "87.750",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-13 23:40:32.326785+00"
+  },
+  {
+    "id": 38,
+    "as_of": "2026-08-14",
+    "direction": "USD→URA",
+    "edge_score": "29.800",
+    "confidence": "41.920",
+    "data_quality": "87.730",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-14 23:40:38.845644+00"
+  },
+  {
+    "id": 40,
+    "as_of": "2026-08-14",
+    "direction": "USD→URA",
+    "edge_score": "30.110",
+    "confidence": "42.110",
+    "data_quality": "87.710",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-15 23:40:39.576205+00"
+  },
+  {
+    "id": 42,
+    "as_of": "2026-08-14",
+    "direction": "USD→URA",
+    "edge_score": "30.110",
+    "confidence": "42.110",
+    "data_quality": "87.710",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-16 23:40:36.608204+00"
+  },
+  {
+    "id": 44,
+    "as_of": "2026-08-17",
+    "direction": "USD→URA",
+    "edge_score": "30.250",
+    "confidence": "42.260",
+    "data_quality": "88.010",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-17 23:41:11.633815+00"
+  },
+  {
+    "id": 46,
+    "as_of": "2026-08-18",
+    "direction": "USD→URA",
+    "edge_score": "28.010",
+    "confidence": "40.720",
+    "data_quality": "87.580",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-18 23:40:34.291015+00"
+  },
+  {
+    "id": 48,
+    "as_of": "2026-08-19",
+    "direction": "USD→URA",
+    "edge_score": "28.120",
+    "confidence": "40.820",
+    "data_quality": "87.710",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-19 23:40:58.910754+00"
+  },
+  {
+    "id": 50,
+    "as_of": "2026-08-20",
+    "direction": "USD→URA",
+    "edge_score": "24.940",
+    "confidence": "38.750",
+    "data_quality": "87.690",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-20 23:40:38.961071+00"
+  },
+  {
+    "id": 52,
+    "as_of": "2026-08-21",
+    "direction": "USD→URA",
+    "edge_score": "26.980",
+    "confidence": "40.080",
+    "data_quality": "87.720",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-21 23:40:32.209634+00"
+  },
+  {
+    "id": 54,
+    "as_of": "2026-08-21",
+    "direction": "USD→URA",
+    "edge_score": "26.670",
+    "confidence": "39.880",
+    "data_quality": "87.710",
+    "status": "WAIT",
+    "model_version": "1.2.0",
+    "created_at": "2026-08-22 23:40:35.686101+00"
+  }
+]
 ```
 
 ### 6.4 URA factor quality
@@ -782,7 +1100,170 @@ where system = 'URA/USD'
   )
 order by factor_code;
 ```
-
+Sonuç Çıktısı:
+```json
+[
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "breadth",
+    "score": "48.097",
+    "quality": "20.000",
+    "weight": "0.100000",
+    "weighted_score": "0.961931",
+    "details": {
+      "source": "Global X URA full holdings CSV market-price history",
+      "history_max": 17,
+      "history_min": 9,
+      "breadth_date": "2026-08-21",
+      "constituents": 57,
+      "holding_date": "2026-08-21",
+      "component_coverage": {
+        "pct_above_20dma": 0,
+        "pct_above_50dma": 0,
+        "new_20d_high_pct": 0,
+        "pct_above_200dma": 0,
+        "pct_positive_day": 1
+      }
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "event",
+    "score": "0.000",
+    "quality": "20.250",
+    "weight": "0.050000",
+    "weighted_score": "0.000000",
+    "details": {
+      "monitored": true,
+      "recent_events": 1,
+      "directional_events": 0
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "fundamentals",
+    "score": "-5.927",
+    "quality": "100.000",
+    "weight": "0.150000",
+    "weighted_score": "-0.888993",
+    "details": {
+      "note": "Bu uranium spot arz-talep verisi değildir; ETF holdings/flow proxy'sidir.",
+      "proxy": "Global X URA holdings price-adjusted AUM flow",
+      "constituents": 57,
+      "current_date": "2026-08-21",
+      "days_between": 1,
+      "previous_date": "2026-08-20",
+      "aum_change_pct": 4.592793791860128,
+      "flow_proxy_pct": -0.4938850402566475,
+      "reference_date": "2026-08-21",
+      "weight_coverage": 1.0003,
+      "price_return_pct": 5.0866788321167755,
+      "snapshot_age_days": 0,
+      "total_market_value": 6426742729.08,
+      "previous_total_market_value": 6144536823.32
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "macro",
+    "score": "21.750",
+    "quality": "97.500",
+    "weight": "0.120000",
+    "weighted_score": "2.544750",
+    "details": {
+      "latest": {
+        "DGS2": 4.19,
+        "DGS10": 4.69,
+        "SP500": 7674.37,
+        "DFII10": 2.35,
+        "VIXCLS": 16.01,
+        "STLFSI4": -0.8285,
+        "DTWEXBGS": 118.9028,
+        "NASDAQCOM": 26180.45
+      },
+      "degraded": [
+        "DTWEXBGS"
+      ],
+      "reference_date": "2026-08-21",
+      "used_components": [
+        "VIXCLS",
+        "STLFSI4",
+        "DFII10"
+      ],
+      "stale_or_missing": [],
+      "freshness_quality": {
+        "DGS2": 100,
+        "DGS10": 100,
+        "SP500": 100,
+        "DFII10": 100,
+        "VIXCLS": 100,
+        "STLFSI4": 100,
+        "DTWEXBGS": 80,
+        "NASDAQCOM": 100
+      },
+      "observation_dates": {
+        "DGS2": "2026-08-20",
+        "DGS10": "2026-08-20",
+        "SP500": "2026-08-21",
+        "DFII10": "2026-08-20",
+        "VIXCLS": "2026-08-20",
+        "STLFSI4": "2026-08-14",
+        "DTWEXBGS": "2026-08-14",
+        "NASDAQCOM": "2026-08-21"
+      }
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "momentum",
+    "score": "29.163",
+    "quality": "100.000",
+    "weight": "0.170000",
+    "weighted_score": "4.957685",
+    "details": {
+      "rsi": 59.866157696067795,
+      "macd_hist": 0.29810472994918846
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "trend",
+    "score": "100.000",
+    "quality": "100.000",
+    "weight": "0.230000",
+    "weighted_score": "23.000000",
+    "details": {
+      "ema_gap_pct": 1.9708504063081111,
+      "slope_5d_pct": 1.6544814296374888
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "value",
+    "score": "-39.899",
+    "quality": "100.000",
+    "weight": "0.180000",
+    "weighted_score": "-7.181790",
+    "details": {
+      "zscore": -0.4495027644925632,
+      "percentile": 0.8055555555555556
+    }
+  },
+  {
+    "as_of": "2026-08-21",
+    "factor_code": "volatility",
+    "score": "68.643",
+    "quality": "100.000",
+    "weight": "0.000000",
+    "weighted_score": "0.000000",
+    "details": {
+      "rv20": 0.45462386507016467,
+      "rv60": 0.49763399012219584,
+      "ratio": 0.913570765048686
+    }
+  }
+]
+```
 ### 6.5 Holdings history
 
 ```sql
@@ -791,6 +1272,16 @@ select
     min(holding_date) as first_date,
     max(holding_date) as last_date
 from fundamentals.ura_holdings;
+```
+Sonuç Çıktısı:
+```json
+[
+  {
+    "holdings_days": 17,
+    "first_date": "2026-07-29",
+    "last_date": "2026-08-21"
+  }
+]
 ```
 
 ### 6.6 Son 7 gün hata özeti
@@ -806,6 +1297,3287 @@ from system.job_runs
 where started_at >= now() - interval '7 days'
   and status <> 'OK'
 order by started_at desc;
+```
+Sonuç Çıktısı:
+```json
+[
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 18:35:01.963981+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 17:35:00.730135+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 16:35:00.090592+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 15:35:00.016528+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 14:35:00.01115+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 13:35:00.007362+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 12:35:00.028437+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 11:35:00.003611+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 10:35:00.005201+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 09:35:00.008318+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 08:35:00.006069+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 07:35:00.00852+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 06:35:00.009405+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 05:35:00.02479+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 04:35:00.013043+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 03:35:00.088864+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 02:35:00.134438+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 01:35:00.001754+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-23 00:35:00.169114+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 23:35:00.012687+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 22:35:01.029388+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 21:35:00.15609+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 20:35:00.033118+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 19:35:00.980992+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 18:35:00.117544+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 17:35:00.845603+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 16:35:00.007287+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 15:35:00.006396+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 14:35:00.008391+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 13:35:00.122335+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 12:35:00.13163+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 11:35:00.204416+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 10:35:00.027805+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 09:35:00.016129+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 08:35:00.005518+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 07:35:00.002728+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 06:35:00.006832+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 05:35:00.004731+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 05:01:16.965706+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.2%",
+    "details": {
+      "quality": 20.25,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "028260 KS",
+        "BHP AU"
+      ],
+      "matched_fund_weight": 0.2025,
+      "considered_top_n_weight": 0.76
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 04:35:00.00485+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.0%",
+    "details": {
+      "quality": 20.01,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2001,
+      "considered_top_n_weight": 0.7508
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 03:35:00.01674+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.0%",
+    "details": {
+      "quality": 20.01,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2001,
+      "considered_top_n_weight": 0.7508
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 02:35:00.156576+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.0%",
+    "details": {
+      "quality": 20.01,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2001,
+      "considered_top_n_weight": 0.7508
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 01:35:00.108426+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.0%",
+    "details": {
+      "quality": 20.01,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2001,
+      "considered_top_n_weight": 0.7508
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-22 00:35:00.248357+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 4 recent filing, fund weight coverage 20.0%",
+    "details": {
+      "quality": 20.01,
+      "scope_cap": 70,
+      "filings_seen": 4,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "LEU",
+        "XE",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2001,
+      "considered_top_n_weight": 0.7508
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 23:35:00.475531+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 22:35:00.673752+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 21:35:00.374947+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 20:35:01.175244+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 19:35:00.421068+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 18:35:05.719841+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 17:35:01.13054+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 16:35:21.640631+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 15:35:00.08891+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 14:35:00.096232+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 13:35:00.021016+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 12:35:00.277078+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 11:35:00.220529+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 10:35:00.156584+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 09:35:00.007858+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 08:35:00.024568+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 07:35:00.033296+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 06:35:00.099979+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 05:35:00.071234+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 04:35:12.725169+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 03:35:01.073473+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 02:35:29.891143+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 01:35:01.190187+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-21 00:35:00.018464+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 5 recent filing, fund weight coverage 20.5%",
+    "details": {
+      "quality": 20.47,
+      "scope_cap": 70,
+      "filings_seen": 5,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "000720 KS",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.2047,
+      "considered_top_n_weight": 0.7569
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 23:35:00.267302+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 22:35:00.980108+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 21:35:00.196858+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 20:35:00.243356+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 19:35:01.081935+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 18:35:05.287968+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 17:35:00.180273+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 16:35:00.105333+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 15:35:00.124849+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 14:35:04.360703+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 13:35:00.001936+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 12:35:00.015997+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 11:35:00.606342+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 10:35:00.153956+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 09:35:00.022368+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 08:35:00.028566+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 07:35:00.009295+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 06:35:00.011846+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 05:35:00.015589+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 04:35:00.015364+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 03:35:00.081732+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 02:35:00.313781+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 01:35:00.306094+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-20 00:35:00.016972+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 7 recent filing, fund weight coverage 19.8%",
+    "details": {
+      "quality": 19.84,
+      "scope_cap": 70,
+      "filings_seen": 7,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "7011 JP",
+        "047040 KS"
+      ],
+      "matched_fund_weight": 0.1984,
+      "considered_top_n_weight": 0.7513
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 23:35:00.806037+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 22:35:00.389711+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 21:35:00.311611+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 20:35:00.241632+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 19:35:17.052433+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 18:35:00.177883+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "sec_event_job",
+    "started_at": "2026-08-19 17:35:05.129931+00",
+    "status": "DEGRADED",
+    "message": "SEC filings kontrol edildi: 5 entity, 10 recent filing, fund weight coverage 20.3%",
+    "details": {
+      "quality": 20.29,
+      "scope_cap": 70,
+      "filings_seen": 10,
+      "matched_tickers": [
+        "OKLO",
+        "UEC",
+        "XE",
+        "LEU",
+        "SMR"
+      ],
+      "entities_checked": 5,
+      "unmatched_tickers": [
+        "CCO CN",
+        "U-U CN",
+        "NXE CN",
+        "KAP LI",
+        "EFR CN",
+        "PDN AU",
+        "DML CN",
+        "SSW SJ",
+        "047040 KS",
+        "034020 KS"
+      ],
+      "matched_fund_weight": 0.2029,
+      "considered_top_n_weight": 0.7539
+    }
+  },
+  {
+    "job_name": "hourly_job",
+    "started_at": "2026-08-19 17:05:02.299558+00",
+    "status": "ERROR",
+    "message": "couldn't get a connection after 10.00 sec",
+    "details": {
+      "provider_mode": "auto"
+    }
+  }
+]
 ```
 
 ### Bana gönder
