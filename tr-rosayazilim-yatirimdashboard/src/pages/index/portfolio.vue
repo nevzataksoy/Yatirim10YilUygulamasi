@@ -39,9 +39,10 @@
         <div class="col-12 col-sm-4">
           <MetricCard
             label="Gerçekleşmemiş K/Z"
-            :value="formatDisplay(unrealizedPnl)"
+            :value="unrealizedPnlDisplay"
             icon="show_chart"
             :tone="unrealizedPnl >= 0 ? 'positive' : 'negative'"
+            value-tone
           />
         </div>
       </div>
@@ -51,7 +52,11 @@
           <q-card flat class="section-card full-height">
             <q-card-section class="portfolio-card-header-section">
               <div class="portfolio-card-header">
-                <AssetAvatar :asset="item.asset" size="48px" class="portfolio-card-avatar" />
+                <AssetAvatar
+                  :asset="item.asset"
+                  size="48px"
+                  class="portfolio-card-avatar"
+                />
 
                 <div class="portfolio-instrument-info">
                   <div class="portfolio-instrument-name">
@@ -68,7 +73,9 @@
                     v-if="item.quote"
                     class="row items-center justify-end no-wrap portfolio-last-price"
                   >
-                    <span class="text-caption text-grey-6 q-mr-xs"> Son Fiyat: </span>
+                    <span class="text-caption text-grey-6 q-mr-xs">
+                      Son Fiyat:
+                    </span>
 
                     <span
                       class="text-body2 text-weight-medium portfolio-last-price-value"
@@ -122,7 +129,9 @@
                   </div>
 
                   <div class="row items-center justify-end no-wrap portfolio-ratio">
-                    <span class="text-caption text-grey-6 q-mr-xs"> Portföy Oranı: </span>
+                    <span class="text-caption text-grey-6 q-mr-xs">
+                      Portföy Oranı:
+                    </span>
                     <span class="text-body2 text-weight-medium">
                       %{{ item.allocation.toFixed(1) }}
                     </span>
@@ -149,6 +158,7 @@
                   <div class="text-caption text-grey-6">K/Z</div>
                   <div :class="item.pnl >= 0 ? 'amount-positive' : 'amount-negative'">
                     {{ formatDisplay(item.pnl) }}
+                    <span class="q-ml-xs">({{ formatPnlPercent(item.pnlPercent) }})</span>
                   </div>
                 </div>
               </div>
@@ -243,11 +253,17 @@ const rows = computed(() => {
       const quote = quoteForAsset(item.asset)
 
       const value = item.quantity * lastPriceUsd
+      const pnl = value - item.costBasisUsd
+      const pnlPercent =
+        item.costBasisUsd > 0
+          ? (pnl / item.costBasisUsd) * 100
+          : null
 
       return {
         ...item,
         value,
-        pnl: value - item.costBasisUsd,
+        pnl,
+        pnlPercent,
         lastPriceUsd,
         quote,
       }
@@ -312,6 +328,23 @@ function lastPriceChangeClass(asset) {
 const totalValue = computed(() => rows.value.reduce((sum, item) => sum + item.value, 0))
 const totalBasis = computed(() => rows.value.reduce((sum, item) => sum + item.costBasisUsd, 0))
 const unrealizedPnl = computed(() => totalValue.value - totalBasis.value)
+const unrealizedPnlPercent = computed(() =>
+  totalBasis.value > 0 ? (unrealizedPnl.value / totalBasis.value) * 100 : null,
+)
+const unrealizedPnlDisplay = computed(
+  () => `${formatDisplay(unrealizedPnl.value)} (${formatPnlPercent(unrealizedPnlPercent.value)})`,
+)
+
+function formatPnlPercent(value) {
+  const number = Number(value)
+
+  if (!Number.isFinite(number)) return '—'
+
+  const normalized = Math.abs(number) < 0.005 ? 0 : number
+  const sign = normalized > 0 ? '+' : ''
+
+  return `${sign}${formatNumber(normalized, 2)}%`
+}
 
 function digitsFor(asset) {
   if (asset === 'BTC') return 8
