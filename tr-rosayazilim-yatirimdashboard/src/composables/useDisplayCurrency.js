@@ -1,5 +1,4 @@
 import { computed } from 'vue'
-// import { useEngineStore } from '@/stores/engine'
 import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 
 import { useUiStore } from '@/stores/ui'
@@ -11,7 +10,6 @@ function decimalsFor(asset) {
 }
 
 export function useDisplayCurrency() {
-  // const engine = useEngineStore()
   const displayQuotes = useDisplayQuoteStore()
   const ui = useUiStore()
 
@@ -21,13 +19,6 @@ export function useDisplayCurrency() {
     return displayQuotes.priceUsd(asset)
   }
 
-  // function convertUsd(value, asset = displayAsset.value) {
-  //   const usd = Number(value || 0)
-  //   if (asset === 'USD') return usd
-
-  //   const assetPriceUsd = Number(engine.price(asset) || 0)
-  //   return assetPriceUsd > 0 ? usd / assetPriceUsd : 0
-  // }
   function convertUsd(value, asset = displayAsset.value) {
     return displayQuotes.convertUsd(value, asset)
   }

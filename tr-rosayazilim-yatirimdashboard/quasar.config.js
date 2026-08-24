@@ -94,6 +94,15 @@ export default defineConfig((ctx) => {
       // vueDevtools: true,
       // https: true,
       open: true, // opens browser window automatically
+      proxy: {
+        '/__display-quotes/yahoo': {
+          target: 'https://query1.finance.yahoo.com',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) =>
+            path.replace(/^\/__display-quotes\/yahoo/, ''),
+        },
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
