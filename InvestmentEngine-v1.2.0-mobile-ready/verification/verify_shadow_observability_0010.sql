@@ -145,3 +145,50 @@ from system.job_runs
 where status='ERROR'
   and started_at >= now() - interval '30 days'
 order by started_at desc;
+
+-- ============================================================
+-- BLOCK F — Runtime observability persistence / released readiness separation
+-- Run after deploying the new binary and executing --shadow-observability.
+-- Expected: SHADOW_OBSERVABILITY exists in both validation_runs and snapshot.
+-- Existing SHADOW_READINESS snapshot remains a separate row/type.
+-- ============================================================
+
+select
+  id,
+  validation_type,
+  system,
+  model_version,
+  status,
+  started_at,
+  finished_at,
+  details
+from model.validation_runs
+where validation_type in ('SHADOW_OBSERVABILITY','SHADOW_READINESS')
+order by started_at desc
+limit 20;
+
+select
+  validation_type,
+  system,
+  generated_at,
+  model_version,
+  status,
+  details
+from public.model_validation_snapshot
+where validation_type in ('SHADOW_OBSERVABILITY','SHADOW_READINESS')
+order by validation_type, system;
+
+-- Runtime CLI provenance row: this should appear as manual and carry root_job_name.
+select
+  id,
+  started_at,
+  job_name,
+  run_kind,
+  status,
+  shadow_epoch_id,
+  details->>'root_job_name' as root_job_name,
+  message
+from system.job_runs
+where job_name='shadow_observability'
+order by started_at desc
+limit 10;
