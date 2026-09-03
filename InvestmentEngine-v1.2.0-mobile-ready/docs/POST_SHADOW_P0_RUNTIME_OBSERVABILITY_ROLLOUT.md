@@ -118,26 +118,65 @@ Recent historical rows also received `shadow_epoch_id=1`. Historical rows natura
 
 ## Gate B — Windows build and binary rollout
 
-Status: **OPEN**
+Status: **IN PROGRESS — BUILD SUB-GATE PASS / INSTALLER ROLLOUT OPEN**
 
-Do not treat source-level observability as production runtime truth until this gate passes.
+Do not treat source-level observability as production runtime truth until the installer/runtime sub-gate passes.
+
+### Gate B1 — Windows build evidence
+
+The latest `agent/portfolio-audit-reset` source was built in the normal Windows build environment while the production service remained stopped.
+
+Build validation:
+
+```text
+Python compile control       PASS
+pytest                       38 passed in 19.24s
+release_check                OK
+PyInstaller EXE build        PASS
+Inno Setup 6.4.0 compile     PASS
+```
+
+Build environment observed in the supplied output:
+
+```text
+OS                            Windows 10 10.0.19045
+Python                        3.14.0
+PyInstaller                   6.21.0
+Inno Setup                    6.4.0
+```
+
+Generated artifacts and SHA256 fingerprints:
+
+```text
+dist\InvestmentEngine.exe
+SHA256 E81C8B8840492A055279348E107F59C7C6C64D7EF65CA8143A01C4A634C78892
+
+installer\InvestmentEngineSetup-1.2.0.exe
+SHA256 73DFC9B081E7C82ED998D1AA094F3011A458F2697AA3ADB2FA6B0600DA36C176
+```
+
+PyInstaller emitted non-fatal warnings while UPX attempted to compress already non-compressible binaries (`_uuid.pyd`, `python3.dll`) and also reported `Hidden import "sip" not found!`. The build continued to successful EXE creation and installer compilation. These warnings are not treated as runtime proof; Gate B2 must verify the actual installed CLI and Windows Service behavior.
+
+**Gate B1 build result: PASS**
+
+### Gate B2 — Controlled installer/runtime rollout
+
+Status: **OPEN**
 
 Required sequence:
 
-1. Pull the latest `agent/portfolio-audit-reset` branch on the Windows build machine.
-2. Keep the production service stopped during the controlled upgrade.
-3. Run `build.bat` from `InvestmentEngine-v1.2.0-mobile-ready` as Administrator.
-4. Require all compile, pytest and release-check stages to pass before using the generated binary/installer.
-5. Install the generated `InvestmentEngineSetup-1.2.0.exe` using the existing upgrade path. Existing `settings` and `rosalock` must remain preserved.
-6. Confirm the service starts successfully.
-7. Run:
+1. Keep the production service stopped during the controlled upgrade.
+2. Install exactly the generated `InvestmentEngineSetup-1.2.0.exe` identified above.
+3. Existing `settings` and `rosalock` must remain preserved.
+4. Confirm the service starts successfully.
+5. Run:
 
 ```bat
 InvestmentEngineCLI.cmd --service-status
 InvestmentEngineCLI.cmd --shadow-observability
 ```
 
-8. Re-run verification SQL BLOCK C/D after at least one new scheduled root run if practical, and confirm newly written scheduler rows use `run_kind='scheduled'` with runtime provenance rather than `scheduled_legacy`.
+6. Re-run verification SQL BLOCK C/D after at least one new scheduled root run if practical, and confirm newly written scheduler rows use `run_kind='scheduled'` with runtime provenance rather than `scheduled_legacy`.
 
 ### Gate B acceptance criteria
 
