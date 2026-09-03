@@ -1,3 +1,4 @@
+# retry trigger after workflow registration
 name: Apply Task 7 documentation result
 
 "on":
