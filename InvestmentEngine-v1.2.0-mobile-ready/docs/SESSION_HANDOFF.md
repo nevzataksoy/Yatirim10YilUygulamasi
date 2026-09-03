@@ -1,25 +1,33 @@
 # BTC_ETH_URA_10YIL — Oturum Devir Kaydı
 
-Son güncelleme: 07 Ağustos 2026  
+Son güncelleme: 04 Eylül 2026  
 Amaç: Yeni sohbetin son aktif durumu konuşma geçmişini yeniden keşfetmeden devralması.
 
 Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, gerçek checkpoint sonuçları `SHADOW_CHECKPOINT_LOG.md` içindedir.
 
-## 1. Aktif repo/branch'ler
+## 1. Aktif repo/branch
 
-| Repo | Aktif geliştirme branch'i | Durum |
-| --- | --- | --- |
-| `nevzataksoy/Yatirim10YilUygulamasi` | `agent/portfolio-audit-reset` | Draft PR #1 açık |
-| `nevzataksoy/tr.rosayazilim.yatirimdashboard` | `feature/initial-investment-dashboard` | Draft PR #1 açık |
-
-07.08.2026 Görev 4 incelemesine başlanırken doğrulanan remote HEAD'ler:
+Ana repo:
 
 ```text
-Python: d37c6a441647ad9df6ae3f51ae19f2f10521cb58 — Revizyon Güncellemesi
-Quasar: 68da3673395038c4190567525beabb4f61e51790 — Revizyon sonrası guncelleme commit
+nevzataksoy/Yatirim10YilUygulamasi
 ```
 
-HEAD değerleri bu belge güncellendikçe değişebilir. Yeni oturum yazmadan önce remote HEAD'i ve değiştireceği dosyanın güncel SHA'sını yeniden doğrular.
+Aktif Python geliştirme branch'i:
+
+```text
+agent/portfolio-audit-reset
+```
+
+04.09.2026 Oturum 8 başlangıcında GitHub remote üzerinde doğrulanan HEAD:
+
+```text
+01a341260168dc573f2986362a98a2353e83e164 — Görev 7 adımları tamamlandı.
+```
+
+Repo default branch'i `master` olsa da güncel Shadow/Python çalışması `agent/portfolio-audit-reset` branch'indedir. Yeni oturum yazmadan önce remote HEAD ve değiştirilecek dosya SHA'sı yeniden doğrulanır.
+
+Bu çalışma ortamında doğrudan `git clone/pull` sırasında `github.com` DNS çözümlemesi başarısız olabildiği için yerel worktree temizliği kanıtlanmadan `git status clean` iddiası yapılmaz. Böyle bir durumda bağlı GitHub üzerinden remote ref, commit ve blob SHA'ları doğrulanır ve yazma işlemleri yalnız güncel remote HEAD üzerine force kullanmadan yapılır.
 
 ## 2. Status disiplini
 
@@ -28,133 +36,278 @@ HEAD değerleri bu belge güncellendikçe değişebilir. Yeni oturum yazmadan ö
 - Deployed model `1.2.0`.
 - Mode `SHADOW`.
 - Realtime Execution `OFF`.
-- Minimum quality/edge/confidence `80/70/70`; strong `80/80`.
+- Minimum quality/edge/confidence `80/70/70`; strong edge/confidence `80/80`.
 - `direction` emir değildir.
 - `ACTION` tek başına yeni kademe değildir; `action_event=true` gerekir.
 - K1/K2/reversal/reset/action-size davranışı `SIGNAL_ENGINE_DECISION_CONTRACT.md` ile sabittir.
-- Python portföy bakiyesi okumaz ve otomatik emir göndermez.
-- LIVE yalnız bildirim/order-book gözlemidir; READY otomatik LIVE değildir.
+- Python portföy bakiyesi okumaz ve otomatik exchange order göndermez.
+- LIVE yalnız bildirim/order-book gözlem katmanıdır; `READY` otomatik LIVE değildir.
+- Released `SHADOW_READINESS` kriterleri 03.09.2026 validation çalışmasında ilk kez topluca `READY` üretmiştir.
 
 ### APPROVED
 
-Görev 4 sonrası yalnız davranış değiştirmeyen v1.2.x observability hardening yapılabilir:
-
-- explicit Shadow Epoch,
-- scheduled/manual/test/backfill/dependency/maintenance run-kind provenance,
-- expected/actual scheduler run accounting,
-- completed rate ve strict OK rate'in ayrı görünmesi,
-- edge/confidence/quality/status/direction bucket diagnostics.
+- `READY` yalnız manuel graduation review kapısıdır; otomatik mode değişimi yoktur.
+- Model davranışını değiştirmeyen v1.2.x observability/hardening çalışmaları yapılabilir.
+- Explicit Shadow Epoch, run-kind provenance, scheduler expected/actual accounting ve diagnostic bucket yaklaşımı onaylı davranış-korumalı hardening yönüdür.
+- Görev 7 sonrası FRED current/revision tekilleştirme ve retention araştırması davranışı değiştirmeyen veri yaşam döngüsü çalışması olarak sürdürülebilir.
 
 ### PROPOSED
 
-Aşağıdaki model önerileri hâlâ onaylanmış değildir:
+Aşağıdaki model davranışı önerileri hâlâ onaylanmış değildir:
 
 1. Kademeler arasında minimum 5 karar seansı.
 2. Reversal için iki ardışık qualified karşı-yön kapanışı.
 3. Production/replay için tek versioned state machine.
 4. `max_regime_pct` UI yönetimi ve yeni sizing formülü.
 5. Reset sonrası same-direction K1 davranışının değiştirilmesi.
+6. Threshold/factor-weight değişiklikleri.
 
-Bunlar kullanıcı onayı + yeni model version + test + yeni Shadow Epoch olmadan uygulanmaz.
+Bunlar açık kullanıcı onayı + yeni model version + test + deploy + yeni Shadow Epoch olmadan uygulanmaz. Mevcut Shadow kanıtı yeni model semantiğine otomatik taşınmaz.
 
 ### OPEN
 
-- Görev 4 observability hardening branch üzerinde hazırlanmıştır; gerçek Windows/Supabase deploy kanıtı henüz yoktur.
-- Migration `0010_shadow_observability.sql` gerçek DB'ye uygulanmadan `model.shadow_epochs`, `run_kind` ve `shadow_epoch_id` runtime gerçeği değildir.
-- Yeni `--shadow-observability` komutu deploy edilip gerçek çıktısı alınmadan official `SHADOW_READINESS` yolu değiştirilmez.
-- Gerçek walk-forward, strict FRED-vintage PIT, production/replay parity ve FRED retention/dedup araştırması sonraki görev kapılarındadır.
+- `SHADOW -> LIVE` graduation kararı.
+- Görev 4 observability hardening'in gerçek Windows/Supabase deployment kanıtı, eğer henüz prod Shadow binary'de doğrulanmadıysa.
+- Son 30 gündeki gerçek scheduler ERROR kayıtlarının kök neden analizi.
+- Gerçek rolling/expanding walk-forward validation.
+- Strict FRED-vintage point-in-time katmanı.
+- Production/replay state-parity gap analizi.
+- URA full PIT replay için yeterli gerçek holdings/breadth/event tarihçesi.
+- FRED current/revision retention/dedup çözümünün seçimi ve kontrollü migration/backfill planı.
 
-## 3. Shadow checkpoint özeti
+## 3. Shadow görev takvimi özeti
 
 ### Görev 1 — PASS
 
-- Scheduler hourly/macro/SEC/daily URA/daily crypto çalıştı.
-- ETH/BTC quality yaklaşık `%90,45`, WAIT.
+- Scheduler ilk otomatik işleri çalıştırdı.
+- ETH/BTC quality yaklaşık `%90`, WAIT.
 - URA/USD ilk quality `%70,40`, NO_ACTION_DATA.
-- Deribit timeout sonrası atomik OKX fallback başarılı.
 
 ### Görev 2 — PASS
 
-- TCMB FX işi 16:30 TRT'de çalıştı.
-- USD/TRY `47.4305`, FX health/job `OK`.
+- TCMB FX scheduler işi başarılı.
+- FX health/job `OK`.
 
 ### Görev 3 — PASS
 
-- Weekly 08:00 TRT, Monthly Audit 09:00 TRT `OK`.
-- Core replay `1383` observation.
+- Weekly ve Monthly Audit scheduler çalıştı.
+- Core replay çalıştı.
 - Threshold/weight değişmedi.
-- `SHADOW_READINESS=NOT_READY`; erken history birikimi nedeniyle beklenen sonuç.
+- Erken history nedeniyle `SHADOW_READINESS=NOT_READY` beklenen sonuçtu.
 
 ### Görev 4 — PASS
 
-Kullanıcı 07.08.2026 tarihinde bütün 4.1–4.9 çıktıları paylaştı.
+- Servis `RUNNING`.
+- Realtime test `OK`, 8 snapshot, `max_trade_gap=0`.
+- Core validation `OK`.
+- Readiness blocker yoktu; yalnız gözlem/history süresi eksikti.
+- Üç `hourly_job` connection-pool ERROR gerçek scheduled hata olarak teşhis edildi.
+- Raw macro/SEC sayılarındaki `+1` weekly child maintenance çağrılarından geliyordu.
+- Davranış değiştirmeyen observability hardening branch üzerinde hazırlandı.
+
+### Görev 5 — PASS
+
+19.08.2026 checkpoint'i:
+
+```text
+Service: RUNNING
+Realtime: OK / 8 snapshot / max_trade_gap=0
+Core: OK / 1401 observations
+Shadow: NOT_READY
+Calendar: 21/30
+ETH/BTC days: 21/25
+URA days: 14/20
+URA breadth: 13/20
+ETH/BTC median quality: 90.95
+URA median quality: 87.71
+Job success: %99.48
+Blockers: []
+```
+
+İki gerçek hourly connection-pool hatası izleme borcu olarak korundu; threshold/model semantiği değiştirilmedi.
+
+### Görev 6 — PASS
+
+23.08.2026 checkpoint'i:
+
+```text
+Service: RUNNING
+Core: OK / 1405 observations
+Shadow: NOT_READY
+Calendar: 25/30
+ETH/BTC days: 25/25
+URA days: 17/20
+URA breadth: 17/20
+URA holdings: 17
+ETH/BTC median quality: 90.83
+URA median quality: 87.71
+Job success: %99.74
+Blockers: []
+```
+
+URA median quality `>=80` olduğu için görev karar ağacına göre Shadow değiştirilmeden devam etti.
+
+### Görev 7 — CHECKPOINT PASS / LIVE OPEN
+
+Görev 7 çıktıları kullanıcı tarafından 03.09.2026 tarihinde tamamlandı ve repo commitine işlendi.
 
 Servis/realtime/validation:
 
 ```text
 Service: RUNNING, exit code 0
 Realtime: OK, 8 snapshot, BTC-USD + ETH-USD, max_trade_gap=0
-Core replay: OK, 1389 observation
-Shadow: NOT_READY, blockers=[]
+Validation: core=OK, observations=1416
+SHADOW_READINESS: READY
 ```
 
-Readiness waiting reasons:
+Released readiness ölçümleri:
 
 ```text
-Shadow 9/30 gün
-ETH/BTC 9/25 karar günü
-URA/USD 6/20 karar günü
-URA breadth 6/20 gün
+Shadow calendar days: 36              >= 30
+ETH/BTC decision days: 35             >= 25
+URA/USD decision days: 25             >= 20
+ETH/BTC median quality: 90.83         >= 80
+URA/USD median quality: 87.71         >= 80
+URA holdings dates: 24                >= 2
+URA breadth dates: 24                 >= 20
+Recent job success: 99.2126%          >= 98%
+Realtime test age: ~0.0017 days       <= 7 days
+waiting_reasons: []
+blockers: []
 ```
 
-Decision quality:
+Bu nedenle released readiness classifier açısından Görev 7 checkpoint'i `PASS` ve `READY`dir.
+
+Ancak `READY`, LIVE'a geçiş kararı değildir. Görev 7 manual graduation review sonucu mevcut kanıtla:
 
 ```text
-ETH/BTC median 90.83, min 90.08, max 91.20
-URA/USD median 87.48, min 70.40, max 87.85
+Checkpoint: PASS
+Readiness gate: READY
+LIVE graduation: OPEN / NO-GO for now
+Mode: SHADOW korunur
+Realtime Execution: OFF korunur
 ```
 
-Holdings: 6 tarih, çoğu 58 constituent, weight coverage yaklaşık `%99,4–99,9`.
+## 4. Görev 7'de LIVE'ı açık bırakma gerekçesi
 
-## 4. Görev 4 scheduler teşhisi
+### 4.1 Shadow döneminde action davranışı hiç egzersiz edilmedi
 
-Raw son 7 gün sonucu:
+Karar özeti:
 
 ```text
-hourly_job: 165 OK + 3 ERROR = 168
-macro_job: 29 OK
-sec_event_job: 169 DEGRADED
-crypto: 7 OK
-URA: 7 OK
-FX: 5 OK
-weekly: 1 OK
-monthly: 1 OK
-model_validation: 1 OK
-realtime_test: 1 OK
+ETH/BTC WAIT: 35 karar / 35 gün
+URA/USD WAIT: 33 karar / 24 gün
+URA/USD NO_ACTION_DATA: 2 karar / 1 gün
+Crypto ACTION/WATCH: 0/0
+URA ACTION/WATCH: 0/0
+performance: []
 ```
 
-Kritik sonuçlar:
+Dolayısıyla mevcut 36 günlük epoch veri kalitesi ve scheduler güvenilirliğini ölçüyor, fakat gerçek ACTION, K1/K2, reversal ve mature realized-performance davranışını kanıtlamıyor.
 
-1. `hourly_job` toplamı tam `168 = 7 x 24`. Üç connection-pool hatası gerçek scheduled run hatasıdır; development kaydı diye gizlenmeyecek.
-2. Scheduler contract macro için `28`, SEC için `168` root run bekler. Raw tablodaki `+1/+1`, `weekly_job` içindeki child maintenance çağrılarıdır.
-3. `model_validation_job` manuel, `realtime_test` test run'ıdır; scheduler reliability paydasında root scheduled run gibi sayılmamalıdır.
-4. SEC `DEGRADED` crash değildir; yalnız doğrudan çözümlenen US SEC ticker'larının URA ağırlık kapsamı yaklaşık `%20–21` olduğu için released quality semantiğiyle degraded kalmaktadır.
-5. Görev 4 penceresi için shared schedule contract toplam `385` root run hesaplar:
+### 4.2 ETH/BTC historical core replay threshold kanıtı üretmedi
+
+`PIT_CORE_REPLAY`:
 
 ```text
-hourly 168
-macro 28
-SEC 168
-crypto 7
-URA 7
-FX 5
-weekly 1
-monthly 1
+Status: OK
+Period: 2022-10-18 .. 2026-09-02
+Observations: 1416
+Median replay data quality: 75
+Configured edge threshold: 70
+Signals @ 5/20/60 sessions: 0 / 0 / 0
+Calibration: LIMITED_SIGNAL_COUNT
+best_candidate: null
+auto_apply: false
 ```
 
-## 5. Python branch'inde hazırlanan Task 4 hardening
+65/70/75/80 aday eşiklerinde train ve holdout sinyali yoktur. 60 eşiğinde yalnız 1 train sinyali, 55 ve 50 eşiklerinde de çok az örnek vardır. Bu çıktı threshold düşürme gerekçesi değildir.
 
-Davranış değiştirmeyen dosyalar:
+Ayrıca replay derivatives/event için trustworthy historical PIT içermediğinden directional core validation'dır; production ACTION parity değildir.
+
+### 4.3 URA full PIT hâlâ hazır değil
+
+`PIT_FULL_REPLAY / URA/USD`:
+
+```text
+Status: NOT_READY
+holdings_dates: 24
+breadth_dates: 24
+reason: holdings/breadth/event tarihçesi full PIT replay için yetersiz
+```
+
+URA tarafında production-quality historical validation kanıtı oluşmadan LIVE graduation tamamlanmış sayılmaz.
+
+### 4.4 Scheduler başarı oranı gate'i geçiyor, fakat gerçek ERROR borcu var
+
+Son 30 günlük raw özet:
+
+```text
+daily_crypto_job: 29 OK
+daily_fx_job: 22 OK
+daily_ura_job: 29 OK / 1 ERROR
+hourly_job: 713 OK / 5 ERROR
+macro_job: 123 OK
+model_validation_job: 4 OK
+monthly_audit_job: 1 OK
+realtime_test: 3 OK
+sec_event_job: 721 DEGRADED / 1 ERROR
+weekly_job: 4 OK
+```
+
+Released readiness job success oranı `%99.21` ile `%98` kapısını geçmektedir. Buna rağmen gerçek ERROR kayıtları silinmez veya development artığı sayılmaz. Görülen hourly hata örneği:
+
+```text
+couldn't get a connection after 10.00 sec
+```
+
+`daily_ura_job` ve `sec_event_job` için tekil ERROR kayıtlarının kesin kök nedeni ayrıca incelenecektir.
+
+SEC `DEGRADED` kayıtlarının büyük çoğunluğu crash değildir; doğrudan çözümlenen US SEC ticker'larının URA fund-weight kapsamı yaklaşık `%19–20` seviyesinde olduğu için mevcut quality semantiğiyle degraded görünür. Bu durum coverage borcudur, threshold değiştirme gerekçesi değildir.
+
+## 5. Görev takvimi sonrası Python teknik borç planı
+
+Görev 7 ile 30 günlük görev takvimi operasyonel olarak tamamlandı. Görev takvimi boyunca ertelenen runtime/model revizyonları bu checkpoint commitinde uygulanmaz; önce kanıt ve kök neden çalışmaları ayrılır.
+
+### P0 — Runtime güvenilirliği, model semantiğine dokunmadan
+
+1. 5 `hourly_job` connection-pool ERROR kaydının ortak kök nedenini çıkar.
+2. Tek `daily_ura_job ERROR` ve tek `sec_event_job ERROR` kaydını ayrı incele.
+3. Connection-pool kullanım süresi, saturation, timeout ve call-site provenance görünürlüğünü artır.
+4. Gerekliyse idempotent safe-retry/backoff tasarla; karar semantiği veya scheduler cadence'i sessizce değiştirme.
+5. Task 4 observability migration/binary runtime'da doğrulanmadıysa önce `0010` + `--shadow-observability` rollout kanıtını kapat.
+
+### P1 — Validation parity ve PIT kanıtı
+
+1. Tek 70/30 split yerine gerçek rolling/expanding walk-forward validation kur.
+2. FRED macro için strict vintage/realtime_start-realtime_end point-in-time erişimini doğrula.
+3. Production vs replay factor/state/action gap raporu üret.
+4. K1/K2/reversal state machine replay parity'si model değişikliği yapmadan ölçülebilir hale getir.
+5. URA full PIT için gerçek historical holdings/breadth/event coverage biriktir veya güvenilir kaynakla geriye dönük olarak doğrulanabilir gerçek PIT veri sağla; sentetik history üretme.
+
+### P2 — Veri yaşam döngüsü / FRED hardening
+
+1. FRED current-revision ve vintage kayıt modelini ölç.
+2. `(series_id, observation_date)` current görünümü ile revision history'yi ayıran seçenekleri karşılaştır.
+3. Retention matrix, storage büyümesi, idempotency ve backtest gereksinimlerini birlikte değerlendir.
+4. Dry-run/backfill doğrulaması olmadan silme/dedup migration'ı çalıştırma.
+5. Uygulanmış `0001` migration'ı geriye dönük değiştirme.
+
+### P3 — Model davranışı değişiklikleri yalnız ayrı onayla
+
+Aşağıdakiler bu teknik borç planında otomatik uygulama değildir:
+
+- 5 karar seansı minimum kademe aralığı,
+- iki qualified opposite close ile reversal,
+- reset sonrası same-direction K1 davranışı,
+- yeni sizing / `max_regime_pct`,
+- threshold/factor-weight değişiklikleri.
+
+Bunlardan biri seçilirse yeni model version, migration/provenance, test, deploy ve yeni Shadow Epoch gerekir.
+
+## 6. Görev 4 observability hardening notu
+
+Branch üzerinde hazırlanan davranış-korumalı yapı:
 
 ```text
 app/run_context.py
@@ -170,89 +323,42 @@ docs/SHADOW_TASK4_HARDENING.md
 docs/SHADOW_CHECKPOINT_LOG.md
 ```
 
-Temel davranış:
-
-- Scheduler cadence tek `SCHEDULE_SPECS` sözleşmesine taşınır; mevcut saatler değişmez.
-- Scheduler root işleri ContextVar ile `scheduled` olarak işaretlenir.
-- CLI `--once` = manual, realtime = test, validation = manual, backfill = backfill provenance taşır.
-- DB connection local PostgreSQL GUC üzerinden root job/run kind bilgisini migration trigger'ına verir.
-- Migration ilk v1.2.0 gerçek karar zamanından `shadow-1.2.0-initial` epoch'unu recover eder.
-- Historical weekly child macro/SEC `maintenance`, daily dependency işleri `dependency`, geri kalan scheduler adayları `scheduled_legacy` olarak ayrılır.
-- `--shadow-observability` aynı released readiness kriterlerini kullanır ama recent-job paydasını beklenen root scheduler fire'ları ile kurar.
-- `OK/DEGRADED/SKIPPED` released completed semantiği korunur; ayrıca strict `OK rate` görünür hale gelir.
-- Edge/confidence/quality/status/direction dağılımları yalnız diagnostiktir.
-- Çıktı `SHADOW_OBSERVABILITY` validation type'ına yazılır; official `SHADOW_READINESS` rollout sırasında sessizce ezilmez.
-
-Pure test kanıtı:
+Shared Task 4 scheduler contract 7 günlük pencere için `385` root run hesaplar:
 
 ```text
-Task 4 7-day expected schedule: 385 root run
-hourly 168 / macro 28 / SEC 168 / crypto 7 / URA 7 / FX 5 / weekly 1 / monthly 1
-run-context restore test: PASS
+hourly 168
+macro 28
+SEC 168
+crypto 7
+URA 7
+FX 5
+weekly 1
+monthly 1
 ```
 
-Bu test gerçek Windows build/Supabase integration testi değildir; runtime kanıtı `OPEN` kalır.
+Gerçek Windows build/Supabase migration/runtime çıktısı kullanıcı tarafından ayrıca kanıtlanmadıysa source-level hardening deployed gerçeklik olarak işaretlenmez.
 
-## 6. Deployment sınırı
+## 7. Quasar bağlamı
 
-Bu branch değişiklikleri source-level hardening'dir. Deployed sunucunun halen v1.2.0 eski binary'sini çalıştırdığı varsayılır; kullanıcı gerçek build/deploy çıktısı vermeden yeni observability runtime'da var kabul edilmez.
+- Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir.
+- Tek Auth kullanıcısı + çoklu portföy mimarisi korunur.
+- Account-scoped ledger, append-only revision/cancellation, reset RPC ve connection/Auth hardening mevcut bağlamın parçasıdır.
+- Signal/market/validation/health global; portföy işlemleri account scoped.
+- Python önerisi hard limit değildir; kullanıcı nihai dönüşüm kararını verir.
+- Görev 7 değerlendirmesi Quasar ürün davranışını değiştirmez.
 
-Rollout istendiğinde sıra:
-
-1. Remote HEAD'i yeniden doğrula/pull et.
-2. Windows release ortamında compile + pytest + release check + build çalıştır.
-3. Migration `0010`u Supabase'e uygula.
-4. Yeni EXE/setup'ı aynı `SHADOW` ve `Realtime Execution=OFF` ile deploy et.
-5. Servisin `RUNNING` olduğunu doğrula.
-6. Çalıştır:
-
-```bat
-InvestmentEngineCLI.cmd --shadow-observability
-```
-
-7. `SHADOW_OBSERVABILITY` ile raw Task 4 job sayıları ve existing `SHADOW_READINESS` sonucunu karşılaştır.
-8. Üç hourly ERROR scheduled olarak kalmalı; weekly child macro/SEC maintenance olmalı; manual/test satırları scheduler paydasından çıkmalı.
-9. Ancak bu runtime kanıtı geçerse official readiness entegrasyonu ayrıca değerlendirilebilir.
-
-Bu rollout model version değiştirmez ve mevcut Shadow kanıtını sıfırlamaz; çünkü decision semantics değişmemektedir.
-
-## 7. Quasar güncel durumu
-
-- Aktif branch `feature/initial-investment-dashboard`.
-- Tek Auth kullanıcısı + çoklu portföy.
-- Account-scoped ledger, SecureLS/Pinia seçili hesap, append-only revision/cancellation, reset RPC, connection/Auth hardening mevcut.
-- Signal/market/validation/health global; portföy işlemleri hesap scoped.
-- Signal→Conversion seçim UX'i henüz OPEN; Python önerisi hard limit değildir.
-- Supabase portföy migration `0008` ve `0009` uygulanmış olarak belgelenmiştir; yeni Python observability migration numarası `0010`dur.
-- Bu Görev 4 turunda Quasar ürün davranışı değiştirilmemiştir; yalnız ortak handoff bağlamı senkron tutulabilir.
-
-## 8. Sonraki görevler
-
-### Görev 5 — 14.08.2026
-
-14 günlük stabilite. Mevcut 4.4–4.9 sorgularına ek olarak, observability hardening deploy edilmişse `--shadow-observability` çıktısı da alınır. Deploy edilmemişse mevcut released komutlarla görev devam eder; hardening eksikliği Shadow motoru durdurma gerekçesi değildir.
-
-### Görev 6 — 20.08.2026
-
-URA 20 günlük quality/history değerlendirmesi.
-
-### Görev 7 — 29.08.2026
-
-30 günlük manual Shadow Graduation Review. READY otomatik LIVE değildir.
-
-Görev 5–6 sonrasında gerçek walk-forward/strict PIT araştırması; Görev 7 sonrasında FRED tekilleştirme/retention karşılaştırması yapılır. Threshold değişikliği halen yasaktır.
-
-## 9. Yeni oturumun ilk eylemi
+## 8. Yeni oturumun ilk eylemi
 
 1. `CHATGPT_PROJECT_START_HERE.md` tamamen oku.
 2. `docs/PROJECT_MEMORY_BANK.md`, `docs/SIGNAL_ENGINE_DECISION_CONTRACT.md`, `docs/SESSION_HANDOFF.md` tamamen oku.
-3. Python işi ise görev takvimi, `docs/SHADOW_CHECKPOINT_LOG.md` ve `docs/SHADOW_TASK4_HARDENING.md` dosyalarını oku.
-4. RELEASED/APPROVED/PROPOSED/OPEN ayrımını koru.
-5. İki remote branch'in HEAD'ini yeniden doğrula.
+3. Python işi ise root görev takvimini ve ilgili Shadow hardening/checkpoint belgelerini oku.
+4. `RELEASED / APPROVED / PROPOSED / OPEN` ayrımını koru.
+5. Remote `agent/portfolio-audit-reset` HEAD'ini ve değiştireceğin dosyanın blob SHA'sını yeniden doğrula.
 6. Kullanıcının son push'ını okumadan dosya değiştirme.
-7. Runtime iddiası için gerçek kod veya kullanıcı çıktısı göster.
-8. Proje durumu değişirse handoff; kalıcı karar değişirse memory/contract iki repoda senkron güncellenir.
+7. Runtime iddiası için gerçek kod/deployment veya kullanıcı çıktısı göster.
+8. Model davranışı değişiyorsa önce açık kullanıcı onayı ve yeni Shadow Epoch etkisini belirt.
+9. Proje durumu değişirse handoff; kalıcı normatif karar değişirse memory/contract senkron güncellenir.
 
-## 10. Güvenlik sınırı
+## 9. Güvenlik sınırı
 
-API key, parola, Telegram token/Chat ID, DB password veya service-role secret hiçbir bağlam belgesine yazılmaz. Otomatik emir, otomatik LIVE ve validation sonucundan otomatik threshold/weight değişikliği yoktur.
+API key, parola, Telegram token/Chat ID, DB password veya service-role secret hiçbir bağlam belgesine yazılmaz. Otomatik exchange order, otomatik LIVE ve validation sonucundan otomatik threshold/weight değişikliği yoktur.
