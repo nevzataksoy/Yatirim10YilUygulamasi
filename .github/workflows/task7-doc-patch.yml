@@ -1,0 +1,266 @@
+name: Apply Task 7 documentation result
+
+"on":
+  push:
+    branches:
+      - agent/portfolio-audit-reset
+    paths:
+      - .github/workflows/task7-doc-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-task7-result:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout active branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/portfolio-audit-reset
+          fetch-depth: 0
+
+      - name: Fill Task 7 result and remove temporary workflow
+        shell: python
+        run: |
+          from pathlib import Path
+          import sys
+
+          path = Path("INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md")
+          text = path.read_text(encoding="utf-8")
+          needle = "### Görev 6 Sonuç Çıktısı:\n//Bu Bölüm ChatGPT Codex Tarafından Doldurulacak"
+          if needle not in text:
+              print("Task 7 placeholder not found; refusing to modify file.")
+              sys.exit(1)
+
+          replacement = r'''### Görev 7 Sonuç Çıktısı:
+
+## Görev 7 sonucu: CHECKPOINT PASS — `SHADOW_READINESS=READY`, LIVE graduation `OPEN / NO-GO`
+
+03.09.2026 tarihinde paylaşılan Görev 7 çıktıları, released v1.2.0 readiness sözleşmesindeki bütün minimum kapıların teknik olarak geçtiğini gösteriyor:
+
+```text
+Service                         RUNNING / exit code 0
+Realtime smoke test             OK
+Realtime snapshots              8
+Realtime products               BTC-USD + ETH-USD
+Realtime max_trade_gap          0
+Core validation                 OK
+Core observations               1416
+Shadow calendar days            36 >= 30
+ETH/BTC decision days           35 >= 25
+URA/USD decision days           25 >= 20
+ETH/BTC median quality          90.83 >= 80
+URA/USD median quality          87.71 >= 80
+URA holdings dates              24 >= 2
+URA breadth dates               24 >= 20
+Recent job success rate         99.21% >= 98%
+Realtime test age               ~0.0017 gün <= 7 gün
+waiting_reasons                 []
+blockers                        []
+SHADOW_READINESS                READY
+```
+
+Bu nedenle **Görev 7 checkpoint sonucu PASS** olarak kapatılabilir. Ancak released sözleşmedeki `READY` yalnızca **manuel Shadow graduation review kapısıdır**; otomatik LIVE geçişi değildir. Mevcut kanıtla graduation kararı:
+
+```text
+Checkpoint                     PASS
+Released readiness gate        READY
+LIVE graduation                OPEN / NO-GO for now
+Mode                           SHADOW korunur
+Realtime Execution             OFF korunur
+Threshold/weight değişikliği   YOK
+K1/K2/reversal/reset/sizing    DEĞİŞMEDİ
+```
+
+### 1. LIVE geçişini açık bırakma gerekçesi — Shadow döneminde ACTION davranışı hiç egzersiz edilmedi
+
+Görev 7 karar özeti:
+
+```text
+ETH/BTC WAIT                    35 karar / 35 gün
+ETH/BTC ACTION/WATCH            0 / 0
+URA/USD WAIT                    33 karar / 24 gün
+URA/USD NO_ACTION_DATA          2 karar / 1 gün
+URA/USD ACTION/WATCH            0 / 0
+performance                     []
+```
+
+36 günlük Shadow epoch veri kalitesi, scheduler sürekliliği ve readiness toplama mantığı için yeterli gözlem sağladı; fakat gerçek `ACTION`, K1/K2 ilerlemesi, reversal ve mature realized-performance davranışı bu epoch içinde hiç çalışmadı. Bu nedenle yalnız `READY` sonucuna bakarak v1.2.0'ın LIVE davranışını üretim kanıtı varmış gibi kabul etmiyoruz.
+
+### 2. ETH/BTC historical core replay mevcut threshold için action kanıtı üretmedi
+
+`PIT_CORE_REPLAY / ETH/BTC / v1.2.0` sonucu:
+
+```text
+Status                         OK
+Period                         2022-10-18 .. 2026-09-02
+Observations                   1416
+Median replay data quality     75
+Configured edge threshold      70
+Signals @ 5 sessions           0
+Signals @ 20 sessions          0
+Signals @ 60 sessions          0
+Calibration                    LIMITED_SIGNAL_COUNT
+best_candidate                 null
+auto_apply                     false
+```
+
+65/70/75/80 aday eşiklerinde train ve holdout tarafında sinyal oluşmuyor. 60 eşiğinde yalnız 1 train sinyali, 55 ve 50 eşiklerinde de çok sınırlı örnek var. Bu sonuç **threshold düşürme gerekçesi değildir**. Ayrıca mevcut core replay historical derivatives/event PIT içermediği için production `ACTION` parity kanıtı değildir; directional core validation olarak okunmalıdır.
+
+### 3. URA full PIT replay hâlâ hazır değil
+
+`PIT_FULL_REPLAY / URA/USD`:
+
+```text
+Status             NOT_READY
+holdings_dates      24
+breadth_dates       24
+reason              holdings/breadth/event tarihçesi full PIT replay için yetersiz
+```
+
+URA tarafında production-quality historical validation kanıtı oluşmadan LIVE graduation tamamlanmış kabul edilmeyecek. Sentetik holdings/breadth/event history üretilmeyecek.
+
+### 4. Scheduler released kapısı geçti; gerçek ERROR kayıtları teknik borç olarak korunuyor
+
+Son 30 günlük raw scheduler özeti:
+
+```text
+daily_crypto_job        29 OK
+daily_fx_job            22 OK
+daily_ura_job           29 OK / 1 ERROR
+hourly_job             713 OK / 5 ERROR
+macro_job              123 OK
+model_validation_job     4 OK
+monthly_audit_job        1 OK
+realtime_test             3 OK
+sec_event_job           721 DEGRADED / 1 ERROR
+weekly_job                4 OK
+```
+
+Released readiness hesabı `%99.21` ile `%98` kapısını geçmektedir. Buna rağmen gerçek ERROR satırları silinmez, readiness'ten saklanmaz ve development artığı sayılmaz. Görev 7 çıktısında görülen hourly hata örneği:
+
+```text
+couldn't get a connection after 10.00 sec
+```
+
+Toplam 5 hourly connection-pool ERROR ile tek `daily_ura_job ERROR` ve tek `sec_event_job ERROR` için kök neden analizi `OPEN` teknik borçtur.
+
+`sec_event_job` tarafındaki 721 `DEGRADED` kaydın büyük çoğunluğu crash değildir. Direct SEC ticker eşleşmesi yalnız OKLO, UEC, XE, SMR, LEU gibi sınırlı US ticker kümesinde kalıyor ve URA fund-weight coverage yaklaşık `%19–20` seviyesinde oluşuyor. Bu durum released quality semantiğine göre coverage/degradation bilgisidir; model threshold'unu değiştirme gerekçesi değildir.
+
+### 5. RELEASED / APPROVED / PROPOSED / OPEN ayrımı
+
+**RELEASED**
+
+- Model `1.2.0`.
+- Mode `SHADOW`; Realtime Execution `OFF`.
+- Min quality/edge/confidence `80/70/70`; strong edge/confidence `80/80`.
+- Mevcut K1/K2, reversal, 5 weak-evaluation reseti ve action-size davranışı değişmedi.
+- Python portföy bakiyesi okumaz ve otomatik exchange order göndermez.
+- `READY` sonucu released readiness kriterlerinin geçtiğini gösterir; otomatik LIVE değildir.
+
+**APPROVED**
+
+- `READY` yalnız manuel graduation review kapısıdır.
+- Model davranışını değiştirmeyen observability/scheduler provenance hardening yapılabilir.
+- FRED current/revision tekilleştirme ve retention araştırması post-Shadow veri yaşam döngüsü işi olarak yürütülebilir; seçim yapılmadan veri silinmez.
+
+**PROPOSED — uygulanmadı**
+
+- Kademeler arasında minimum 5 karar seansı.
+- Reversal için iki ardışık qualified karşı-yön kapanışı.
+- Production/replay için tek versioned state machine.
+- `max_regime_pct` UI yönetimi / yeni sizing formülü.
+- Reset sonrası same-direction K1 davranışının değiştirilmesi.
+- Threshold veya factor-weight değişiklikleri.
+
+Bunlardan herhangi biri seçilecekse açık kullanıcı onayı + yeni model version + test/deploy + yeni Shadow Epoch gerekir. Mevcut v1.2.0 Shadow kanıtı yeni model semantiğine otomatik taşınmaz.
+
+**OPEN**
+
+- `SHADOW -> LIVE` graduation kararı.
+- 5 hourly + 1 daily URA + 1 SEC gerçek ERROR kaydının root-cause analizi.
+- Task 4 observability hardening'in gerçek Windows/Supabase runtime rollout kanıtı, eğer henüz prod Shadow binary'de doğrulanmadıysa.
+- Gerçek rolling/expanding walk-forward validation.
+- Strict FRED-vintage point-in-time katmanı.
+- Production/replay factor-state-action parity gap analizi.
+- URA full PIT için yeterli gerçek holdings/breadth/event tarihçesi.
+- FRED current/revision retention/dedup çözümünün seçimi ve kontrollü migration/backfill planı.
+
+### 6. Görev takvimi sonrası Python teknik borç planı
+
+Görev 7 ile 30 günlük Shadow görev takvimi operasyonel olarak tamamlandı. Görev takvimi boyunca ertelenen runtime/model revizyonları bu kapanışta uygulanmıyor; önce kanıt ve kök neden çalışmaları ayrılıyor.
+
+#### P0 — Runtime güvenilirliği; model semantiğine dokunmadan
+
+1. 5 `hourly_job` connection-pool ERROR kaydının ortak kök nedenini çıkar.
+2. Tek `daily_ura_job ERROR` ve tek `sec_event_job ERROR` kaydını ayrı incele.
+3. Connection-pool saturation, checkout süresi, timeout ve call-site/run-kind provenance görünürlüğünü artır.
+4. Retry/backoff gerekiyorsa yalnız idempotent ve davranış-korumalı tasarla; scheduler cadence veya decision semantiğini sessizce değiştirme.
+5. Task 4 `0010_shadow_observability.sql` + `--shadow-observability` gerçek runtime'da doğrulanmadıysa önce bu rollout kanıtını kapat.
+
+#### P1 — Validation parity / PIT kanıtı
+
+1. Tek 70/30 split yerine gerçek rolling/expanding walk-forward validation kur.
+2. FRED macro için strict vintage / realtime_start-realtime_end point-in-time erişimini doğrula.
+3. Production ile replay arasındaki factor/state/action farklarını raporla.
+4. K1/K2/reversal state machine replay parity'sini model davranışını değiştirmeden ölçülebilir hale getir.
+5. URA full PIT için gerçek historical holdings/breadth/event coverage biriktir veya doğrulanabilir gerçek PIT kaynağı kullan; sentetik history üretme.
+
+#### P2 — Veri yaşam döngüsü / FRED hardening
+
+1. FRED current/revision ve vintage kayıt modelini gerçek veri üzerinde ölç.
+2. `(series_id, observation_date)` current görünümü ile revision history'yi ayıran seçenekleri karşılaştır.
+3. Retention matrix, storage büyümesi, idempotency ve backtest gereksinimlerini birlikte değerlendir.
+4. Dry-run/backfill doğrulaması olmadan silme/dedup migration'ı çalıştırma.
+5. Uygulanmış `0001` migration'ı geriye dönük değiştirme.
+
+#### P3 — Model davranışı yalnız ayrı onay ve yeni epoch ile
+
+Aşağıdaki başlıklar teknik borç listesinde incelenebilir fakat otomatik uygulanmayacaktır:
+
+- minimum 5 karar seansı kademe aralığı,
+- iki qualified opposite close ile reversal,
+- reset sonrası same-direction K1 davranışı,
+- yeni sizing / `max_regime_pct`,
+- threshold/factor-weight değişiklikleri.
+
+Bunlardan biri seçilirse yeni model version, migration/provenance, test, deploy ve yeni Shadow Epoch planı birlikte hazırlanır.
+
+### 7. Görev 7 kapanış kararı
+
+```text
+GÖREV 7                       PASS
+30 günlük görev takvimi       TAMAMLANDI
+SHADOW_READINESS              READY
+LIVE                          AÇILMADI
+Mode                          SHADOW
+Realtime Execution            OFF
+Runtime Python revizyonu      BU KAPANIŞTA YOK
+Sonraki çalışma odağı         P0 reliability -> P1 parity/PIT -> P2 FRED lifecycle
+Model davranışı revizyonları  yalnız ayrı APPROVAL + yeni model/epoch
+```
+
+Bu sonuç mevcut v1.2.0 Shadow kanıtını korur; readiness sonucunu olduğundan güçlü yorumlamaz ve görev takvimi boyunca toplanan evidence üzerine sonradan davranış değişikliği bindirmez.'''
+
+          updated = text.replace(needle, replacement, 1)
+          if updated == text:
+              print("No update produced; refusing to continue.")
+              sys.exit(1)
+          path.write_text(updated, encoding="utf-8")
+
+          workflow = Path(".github/workflows/task7-doc-patch.yml")
+          if workflow.exists():
+              workflow.unlink()
+
+      - name: Commit and push result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md .github/workflows/task7-doc-patch.yml
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git commit -m "Record Task 7 graduation assessment"
+          git push origin HEAD:agent/portfolio-audit-reset
