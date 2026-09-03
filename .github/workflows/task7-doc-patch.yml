@@ -1,4 +1,3 @@
-# retry trigger after workflow registration
 name: Apply Task 7 documentation result
 
 "on":
@@ -25,229 +24,19 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import base64
           import sys
 
           path = Path("INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md")
           text = path.read_text(encoding="utf-8")
           needle = "### Görev 6 Sonuç Çıktısı:\n//Bu Bölüm ChatGPT Codex Tarafından Doldurulacak"
-          if needle not in text:
-              print("Task 7 placeholder not found; refusing to modify file.")
+          if text.count(needle) != 1:
+              print(f"Expected exactly one Task 7 placeholder, found {text.count(needle)}")
               sys.exit(1)
 
-          replacement = r'''### Görev 7 Sonuç Çıktısı:
-
-## Görev 7 sonucu: CHECKPOINT PASS — `SHADOW_READINESS=READY`, LIVE graduation `OPEN / NO-GO`
-
-03.09.2026 tarihinde paylaşılan Görev 7 çıktıları, released v1.2.0 readiness sözleşmesindeki bütün minimum kapıların teknik olarak geçtiğini gösteriyor:
-
-```text
-Service                         RUNNING / exit code 0
-Realtime smoke test             OK
-Realtime snapshots              8
-Realtime products               BTC-USD + ETH-USD
-Realtime max_trade_gap          0
-Core validation                 OK
-Core observations               1416
-Shadow calendar days            36 >= 30
-ETH/BTC decision days           35 >= 25
-URA/USD decision days           25 >= 20
-ETH/BTC median quality          90.83 >= 80
-URA/USD median quality          87.71 >= 80
-URA holdings dates              24 >= 2
-URA breadth dates               24 >= 20
-Recent job success rate         99.21% >= 98%
-Realtime test age               ~0.0017 gün <= 7 gün
-waiting_reasons                 []
-blockers                        []
-SHADOW_READINESS                READY
-```
-
-Bu nedenle **Görev 7 checkpoint sonucu PASS** olarak kapatılabilir. Ancak released sözleşmedeki `READY` yalnızca **manuel Shadow graduation review kapısıdır**; otomatik LIVE geçişi değildir. Mevcut kanıtla graduation kararı:
-
-```text
-Checkpoint                     PASS
-Released readiness gate        READY
-LIVE graduation                OPEN / NO-GO for now
-Mode                           SHADOW korunur
-Realtime Execution             OFF korunur
-Threshold/weight değişikliği   YOK
-K1/K2/reversal/reset/sizing    DEĞİŞMEDİ
-```
-
-### 1. LIVE geçişini açık bırakma gerekçesi — Shadow döneminde ACTION davranışı hiç egzersiz edilmedi
-
-Görev 7 karar özeti:
-
-```text
-ETH/BTC WAIT                    35 karar / 35 gün
-ETH/BTC ACTION/WATCH            0 / 0
-URA/USD WAIT                    33 karar / 24 gün
-URA/USD NO_ACTION_DATA          2 karar / 1 gün
-URA/USD ACTION/WATCH            0 / 0
-performance                     []
-```
-
-36 günlük Shadow epoch veri kalitesi, scheduler sürekliliği ve readiness toplama mantığı için yeterli gözlem sağladı; fakat gerçek `ACTION`, K1/K2 ilerlemesi, reversal ve mature realized-performance davranışı bu epoch içinde hiç çalışmadı. Bu nedenle yalnız `READY` sonucuna bakarak v1.2.0'ın LIVE davranışını üretim kanıtı varmış gibi kabul etmiyoruz.
-
-### 2. ETH/BTC historical core replay mevcut threshold için action kanıtı üretmedi
-
-`PIT_CORE_REPLAY / ETH/BTC / v1.2.0` sonucu:
-
-```text
-Status                         OK
-Period                         2022-10-18 .. 2026-09-02
-Observations                   1416
-Median replay data quality     75
-Configured edge threshold      70
-Signals @ 5 sessions           0
-Signals @ 20 sessions          0
-Signals @ 60 sessions          0
-Calibration                    LIMITED_SIGNAL_COUNT
-best_candidate                 null
-auto_apply                     false
-```
-
-65/70/75/80 aday eşiklerinde train ve holdout tarafında sinyal oluşmuyor. 60 eşiğinde yalnız 1 train sinyali, 55 ve 50 eşiklerinde de çok sınırlı örnek var. Bu sonuç **threshold düşürme gerekçesi değildir**. Ayrıca mevcut core replay historical derivatives/event PIT içermediği için production `ACTION` parity kanıtı değildir; directional core validation olarak okunmalıdır.
-
-### 3. URA full PIT replay hâlâ hazır değil
-
-`PIT_FULL_REPLAY / URA/USD`:
-
-```text
-Status             NOT_READY
-holdings_dates      24
-breadth_dates       24
-reason              holdings/breadth/event tarihçesi full PIT replay için yetersiz
-```
-
-URA tarafında production-quality historical validation kanıtı oluşmadan LIVE graduation tamamlanmış kabul edilmeyecek. Sentetik holdings/breadth/event history üretilmeyecek.
-
-### 4. Scheduler released kapısı geçti; gerçek ERROR kayıtları teknik borç olarak korunuyor
-
-Son 30 günlük raw scheduler özeti:
-
-```text
-daily_crypto_job        29 OK
-daily_fx_job            22 OK
-daily_ura_job           29 OK / 1 ERROR
-hourly_job             713 OK / 5 ERROR
-macro_job              123 OK
-model_validation_job     4 OK
-monthly_audit_job        1 OK
-realtime_test             3 OK
-sec_event_job           721 DEGRADED / 1 ERROR
-weekly_job                4 OK
-```
-
-Released readiness hesabı `%99.21` ile `%98` kapısını geçmektedir. Buna rağmen gerçek ERROR satırları silinmez, readiness'ten saklanmaz ve development artığı sayılmaz. Görev 7 çıktısında görülen hourly hata örneği:
-
-```text
-couldn't get a connection after 10.00 sec
-```
-
-Toplam 5 hourly connection-pool ERROR ile tek `daily_ura_job ERROR` ve tek `sec_event_job ERROR` için kök neden analizi `OPEN` teknik borçtur.
-
-`sec_event_job` tarafındaki 721 `DEGRADED` kaydın büyük çoğunluğu crash değildir. Direct SEC ticker eşleşmesi yalnız OKLO, UEC, XE, SMR, LEU gibi sınırlı US ticker kümesinde kalıyor ve URA fund-weight coverage yaklaşık `%19–20` seviyesinde oluşuyor. Bu durum released quality semantiğine göre coverage/degradation bilgisidir; model threshold'unu değiştirme gerekçesi değildir.
-
-### 5. RELEASED / APPROVED / PROPOSED / OPEN ayrımı
-
-**RELEASED**
-
-- Model `1.2.0`.
-- Mode `SHADOW`; Realtime Execution `OFF`.
-- Min quality/edge/confidence `80/70/70`; strong edge/confidence `80/80`.
-- Mevcut K1/K2, reversal, 5 weak-evaluation reseti ve action-size davranışı değişmedi.
-- Python portföy bakiyesi okumaz ve otomatik exchange order göndermez.
-- `READY` sonucu released readiness kriterlerinin geçtiğini gösterir; otomatik LIVE değildir.
-
-**APPROVED**
-
-- `READY` yalnız manuel graduation review kapısıdır.
-- Model davranışını değiştirmeyen observability/scheduler provenance hardening yapılabilir.
-- FRED current/revision tekilleştirme ve retention araştırması post-Shadow veri yaşam döngüsü işi olarak yürütülebilir; seçim yapılmadan veri silinmez.
-
-**PROPOSED — uygulanmadı**
-
-- Kademeler arasında minimum 5 karar seansı.
-- Reversal için iki ardışık qualified karşı-yön kapanışı.
-- Production/replay için tek versioned state machine.
-- `max_regime_pct` UI yönetimi / yeni sizing formülü.
-- Reset sonrası same-direction K1 davranışının değiştirilmesi.
-- Threshold veya factor-weight değişiklikleri.
-
-Bunlardan herhangi biri seçilecekse açık kullanıcı onayı + yeni model version + test/deploy + yeni Shadow Epoch gerekir. Mevcut v1.2.0 Shadow kanıtı yeni model semantiğine otomatik taşınmaz.
-
-**OPEN**
-
-- `SHADOW -> LIVE` graduation kararı.
-- 5 hourly + 1 daily URA + 1 SEC gerçek ERROR kaydının root-cause analizi.
-- Task 4 observability hardening'in gerçek Windows/Supabase runtime rollout kanıtı, eğer henüz prod Shadow binary'de doğrulanmadıysa.
-- Gerçek rolling/expanding walk-forward validation.
-- Strict FRED-vintage point-in-time katmanı.
-- Production/replay factor-state-action parity gap analizi.
-- URA full PIT için yeterli gerçek holdings/breadth/event tarihçesi.
-- FRED current/revision retention/dedup çözümünün seçimi ve kontrollü migration/backfill planı.
-
-### 6. Görev takvimi sonrası Python teknik borç planı
-
-Görev 7 ile 30 günlük Shadow görev takvimi operasyonel olarak tamamlandı. Görev takvimi boyunca ertelenen runtime/model revizyonları bu kapanışta uygulanmıyor; önce kanıt ve kök neden çalışmaları ayrılıyor.
-
-#### P0 — Runtime güvenilirliği; model semantiğine dokunmadan
-
-1. 5 `hourly_job` connection-pool ERROR kaydının ortak kök nedenini çıkar.
-2. Tek `daily_ura_job ERROR` ve tek `sec_event_job ERROR` kaydını ayrı incele.
-3. Connection-pool saturation, checkout süresi, timeout ve call-site/run-kind provenance görünürlüğünü artır.
-4. Retry/backoff gerekiyorsa yalnız idempotent ve davranış-korumalı tasarla; scheduler cadence veya decision semantiğini sessizce değiştirme.
-5. Task 4 `0010_shadow_observability.sql` + `--shadow-observability` gerçek runtime'da doğrulanmadıysa önce bu rollout kanıtını kapat.
-
-#### P1 — Validation parity / PIT kanıtı
-
-1. Tek 70/30 split yerine gerçek rolling/expanding walk-forward validation kur.
-2. FRED macro için strict vintage / realtime_start-realtime_end point-in-time erişimini doğrula.
-3. Production ile replay arasındaki factor/state/action farklarını raporla.
-4. K1/K2/reversal state machine replay parity'sini model davranışını değiştirmeden ölçülebilir hale getir.
-5. URA full PIT için gerçek historical holdings/breadth/event coverage biriktir veya doğrulanabilir gerçek PIT kaynağı kullan; sentetik history üretme.
-
-#### P2 — Veri yaşam döngüsü / FRED hardening
-
-1. FRED current/revision ve vintage kayıt modelini gerçek veri üzerinde ölç.
-2. `(series_id, observation_date)` current görünümü ile revision history'yi ayıran seçenekleri karşılaştır.
-3. Retention matrix, storage büyümesi, idempotency ve backtest gereksinimlerini birlikte değerlendir.
-4. Dry-run/backfill doğrulaması olmadan silme/dedup migration'ı çalıştırma.
-5. Uygulanmış `0001` migration'ı geriye dönük değiştirme.
-
-#### P3 — Model davranışı yalnız ayrı onay ve yeni epoch ile
-
-Aşağıdaki başlıklar teknik borç listesinde incelenebilir fakat otomatik uygulanmayacaktır:
-
-- minimum 5 karar seansı kademe aralığı,
-- iki qualified opposite close ile reversal,
-- reset sonrası same-direction K1 davranışı,
-- yeni sizing / `max_regime_pct`,
-- threshold/factor-weight değişiklikleri.
-
-Bunlardan biri seçilirse yeni model version, migration/provenance, test, deploy ve yeni Shadow Epoch planı birlikte hazırlanır.
-
-### 7. Görev 7 kapanış kararı
-
-```text
-GÖREV 7                       PASS
-30 günlük görev takvimi       TAMAMLANDI
-SHADOW_READINESS              READY
-LIVE                          AÇILMADI
-Mode                          SHADOW
-Realtime Execution            OFF
-Runtime Python revizyonu      BU KAPANIŞTA YOK
-Sonraki çalışma odağı         P0 reliability -> P1 parity/PIT -> P2 FRED lifecycle
-Model davranışı revizyonları  yalnız ayrı APPROVAL + yeni model/epoch
-```
-
-Bu sonuç mevcut v1.2.0 Shadow kanıtını korur; readiness sonucunu olduğundan güçlü yorumlamaz ve görev takvimi boyunca toplanan evidence üzerine sonradan davranış değişikliği bindirmez.'''
-
+          encoded = "IyMjIEfDtnJldiA3IFNvbnXDpyDDh8Sxa3TEsXPEsToKCiMjIEfDtnJldiA3IHNvbnVjdTogQ0hFQ0tQT0lOVCBQQVNTIOKAlCBgU0hBRE9XX1JFQURJTkVTUz1SRUFEWWAsIExJVkUgZ3JhZHVhdGlvbiBgT1BFTiAvIE5PLUdPYAoKMDMuMDkuMjAyNiB0YXJpaGluZGUgcGF5bGHFn8SxbGFuIEfDtnJldiA3IMOnxLFrdMSxbGFyxLEsIHJlbGVhc2VkIHYxLjIuMCByZWFkaW5lc3Mgc8O2emxlxZ9tZXNpbmRla2kgYsO8dMO8biBtaW5pbXVtIGthcMSxbGFyxLFuIHRla25payBvbGFyYWsgZ2XDp3RpxJ9pbmkgZ8O2c3Rlcml5b3I6CgpgYGB0ZXh0ClNlcnZpY2UgICAgICAgICAgICAgICAgICAgICAgICAgUlVOTklORyAvIGV4aXQgY29kZSAwClJlYWx0aW1lIHNtb2tlIHRlc3QgICAgICAgICAgICAgT0sKUmVhbHRpbWUgc25hcHNob3RzICAgICAgICAgICAgICA4ClJlYWx0aW1lIHByb2R1Y3RzICAgICAgICAgICAgICAgQlRDLVVTRCArIEVUSC1VU0QKUmVhbHRpbWUgbWF4X3RyYWRlX2dhcCAgICAgICAgICAwCkNvcmUgdmFsaWRhdGlvbiAgICAgICAgICAgICAgICAgT0sKQ29yZSBvYnNlcnZhdGlvbnMgICAgICAgICAgICAgICAxNDE2ClNoYWRvdyBjYWxlbmRhciBkYXlzICAgICAgICAgICAgMzYgPj0gMzAKRVRIL0JUQyBkZWNpc2lvbiBkYXlzICAgICAgICAgICAzNSA+PSAyNQpVUkEvVVNEIGRlY2lzaW9uIGRheXMgICAgICAgICAgIDI1ID49IDIwCkVUSC9CVEMgbWVkaWFuIHF1YWxpdHkgICAgICAgICAgOTAuODMgPj0gODAKVVJBL1VTRCBtZWRpYW4gcXVhbGl0eSAgICAgICAgICA4Ny43MSA+PSA4MApVUkEgaG9sZGluZ3MgZGF0ZXMgICAgICAgICAgICAgIDI0ID49IDIKVVJBIGJyZWFkdGggZGF0ZXMgICAgICAgICAgICAgICAyNCA+PSAyMApSZWNlbnQgam9iIHN1Y2Nlc3MgcmF0ZSAgICAgICAgIDk5LjIxJSA+PSA5OCUKUmVhbHRpbWUgdGVzdCBhZ2UgICAgICAgICAgICAgICB+MC4wMDE3IGfDvG4gPD0gNyBnw7xuCndhaXRpbmdfcmVhc29ucyAgICAgICAgICAgICAgICAgW10KYmxvY2tlcnMgICAgICAgICAgICAgICAgICAgICAgICBbXQpTSEFET1dfUkVBRElORVNTICAgICAgICAgICAgICAgIFJFQURZCmBgYAoKQnUgbmVkZW5sZSAqKkfDtnJldiA3IGNoZWNrcG9pbnQgc29udWN1IFBBU1MqKiBvbGFyYWsga2FwYXTEsWxhYmlsaXIuIEFuY2FrIHJlbGVhc2VkIHPDtnpsZcWfbWVkZWtpIGBSRUFEWWAgeWFsbsSxemNhICoqbWFudWVsIFNoYWRvdyBncmFkdWF0aW9uIHJldmlldyBrYXDEsXPEsWTEsXIqKjsgb3RvbWF0aWsgTElWRSBnZcOnacWfaSBkZcSfaWxkaXIuIE1ldmN1dCBrYW7EsXRsYSBncmFkdWF0aW9uIGthcmFyxLE6CgpgYGB0ZXh0CkNoZWNrcG9pbnQgICAgICAgICAgICAgICAgICAgICBQQVNTClJlbGVhc2VkIHJlYWRpbmVzcyBnYXRlICAgICAgICBSRUFEWQpMSVZFIGdyYWR1YXRpb24gICAgICAgICAgICAgICAgT1BFTiAvIE5PLUdPIGZvciBub3cKTW9kZSAgICAgICAgICAgICAgICAgICAgICAgICAgIFNIQURPVyBrb3J1bnVyClJlYWx0aW1lIEV4ZWN1dGlvbiAgICAgICAgICAgICBPRkYga29ydW51cgpUaHJlc2hvbGQvd2VpZ2h0IGRlxJ9pxZ9pa2xpxJ9pICAgWU9LCksxL0syL3JldmVyc2FsL3Jlc2V0L3NpemluZyAgICBERcSexLDFnk1FRMSwCmBgYAoKIyMjIDEuIExJVkUgZ2XDp2nFn2luaSBhw6fEsWsgYsSxcmFrbWEgZ2VyZWvDp2VzaSDigJQgU2hhZG93IGTDtm5lbWluZGUgQUNUSU9OIGRhdnJhbsSxxZ/EsSBoacOnIGVnemVyc2l6IGVkaWxtZWRpCgpHw7ZyZXYgNyBrYXJhciDDtnpldGk6CgpgYGB0ZXh0CkVUSC9CVEMgV0FJVCAgICAgICAgICAgICAgICAgICAgMzUga2FyYXIgLyAzNSBnw7xuCkVUSC9CVEMgQUNUSU9OL1dBVENIICAgICAgICAgICAgMCAvIDAKVVJBL1VTRCBXQUlUICAgICAgICAgICAgICAgICAgICAzMyBrYXJhciAvIDI0IGfDvG4KVVJBL1VTRCBOT19BQ1RJT05fREFUQSAgICAgICAgICAyIGthcmFyIC8gMSBnw7xuClVSQS9VU0QgQUNUSU9OL1dBVENIICAgICAgICAgICAgMCAvIDAKcGVyZm9ybWFuY2UgICAgICAgICAgICAgICAgICAgICBbXQpgYGAKCjM2IGfDvG5sw7xrIFNoYWRvdyBlcG9jaCB2ZXJpIGthbGl0ZXNpLCBzY2hlZHVsZXIgc8O8cmVrbGlsacSfaSB2ZSByZWFkaW5lc3MgdG9wbGFtYSBtYW50xLHEn8SxIGnDp2luIHlldGVybGkgZ8O2emxlbSBzYcSfbGFkxLE7IGZha2F0IGdlcsOnZWsgYEFDVElPTmAsIEsxL0syIGlsZXJsZW1lc2ksIHJldmVyc2FsIHZlIG1hdHVyZSByZWFsaXplZC1wZXJmb3JtYW5jZSBkYXZyYW7EscWfxLEgYnUgZXBvY2ggacOnaW5kZSBoacOnIMOnYWzEscWfbWFkxLEuIEJ1IG5lZGVubGUgeWFsbsSxeiBgUkVBRFlgIHNvbnVjdW5hIGJha2FyYWsgdjEuMi4wJ8SxbiBMSVZFIGRhdnJhbsSxxZ/EsW7EsSDDvHJldGltIGthbsSxdMSxIHZhcm3EscWfIGdpYmkga2FidWwgZXRtaXlvcnV6LgoKIyMjIDIuIEVUSC9CVEMgaGlzdG9yaWNhbCBjb3JlIHJlcGxheSBtZXZjdXQgdGhyZXNob2xkIGnDp2luIGFjdGlvbiBrYW7EsXTEsSDDvHJldG1lZGkKCmBQSVRfQ09SRV9SRVBMQVkgLyBFVEgvQlRDIC8gdjEuMi4wYCBzb251Y3U6CgpgYGB0ZXh0ClN0YXR1cyAgICAgICAgICAgICAgICAgICAgICAgICBPSwpQZXJpb2QgICAgICAgICAgICAgICAgICAgICAgICAgMjAyMi0xMC0xOCAuLiAyMDI2LTA5LTAyCk9ic2VydmF0aW9ucyAgICAgICAgICAgICAgICAgICAxNDE2Ck1lZGlhbiByZXBsYXkgZGF0YSBxdWFsaXR5ICAgICA3NQpDb25maWd1cmVkIGVkZ2UgdGhyZXNob2xkICAgICAgNzAKU2lnbmFscyBAIDUgc2Vzc2lvbnMgICAgICAgICAgIDAKU2lnbmFscyBAIDIwIHNlc3Npb25zICAgICAgICAgIDAKU2lnbmFscyBAIDYwIHNlc3Npb25zICAgICAgICAgIDAKQ2FsaWJyYXRpb24gICAgICAgICAgICAgICAgICAgIExJTUlURURfU0lHTkFMX0NPVU5UCmJlc3RfY2FuZGlkYXRlICAgICAgICAgICAgICAgICBudWxsCmF1dG9fYXBwbHkgICAgICAgICAgICAgICAgICAgICBmYWxzZQpgYGAKCjY1LzcwLzc1LzgwIGFkYXkgZcWfaWtsZXJpbmRlIHRyYWluIHZlIGhvbGRvdXQgdGFyYWbEsW5kYSBzaW55YWwgb2x1xZ9tdXlvci4gNjAgZcWfacSfaW5kZSB5YWxuxLF6IDEgdHJhaW4gc2lueWFsaSwgNTUgdmUgNTAgZcWfaWtsZXJpbmRlIGRlIMOnb2sgc8SxbsSxcmzEsSDDtnJuZWsgdmFyLiBCdSBzb251w6cgKip0aHJlc2hvbGQgZMO8xZ/DvHJtZSBnZXJla8OnZXNpIGRlxJ9pbGRpcioqLiBBeXLEsWNhIG1ldmN1dCBjb3JlIHJlcGxheSBoaXN0b3JpY2FsIGRlcml2YXRpdmVzL2V2ZW50IFBJVCBpw6dlcm1lZGnEn2kgacOnaW4gcHJvZHVjdGlvbiBgQUNUSU9OYCBwYXJpdHkga2FuxLF0xLEgZGXEn2lsZGlyOyBkaXJlY3Rpb25hbCBjb3JlIHZhbGlkYXRpb24gb2xhcmFrIG9rdW5tYWzEsWTEsXIuCgojIyMgMy4gVVJBIGZ1bGwgUElUIHJlcGxheSBow6Jsw6IgaGF6xLFyIGRlxJ9pbAoKYFBJVF9GVUxMX1JFUExBWSAvIFVSQS9VU0RgOgoKYGBgdGV4dApTdGF0dXMgICAgICAgICAgICAgTk9UX1JFQURZCmhvbGRpbmdzX2RhdGVzICAgICAgMjQKYnJlYWR0aF9kYXRlcyAgICAgICAyNApyZWFzb24gICAgICAgICAgICAgIGhvbGRpbmdzL2JyZWFkdGgvZXZlbnQgdGFyaWjDp2VzaSBmdWxsIFBJVCByZXBsYXkgacOnaW4geWV0ZXJzaXoKYGBgCgpVUkEgdGFyYWbEsW5kYSBwcm9kdWN0aW9uLXF1YWxpdHkgaGlzdG9yaWNhbCB2YWxpZGF0aW9uIGthbsSxdMSxIG9sdcWfbWFkYW4gTElWRSBncmFkdWF0aW9uIHRhbWFtbGFubcSxxZ8ga2FidWwgZWRpbG1leWVjZWsuIFNlbnRldGlrIGhvbGRpbmdzL2JyZWFkdGgvZXZlbnQgaGlzdG9yeSDDvHJldGlsbWV5ZWNlay4KCiMjIyA0LiBTY2hlZHVsZXIgcmVsZWFzZWQga2FwxLFzxLEgZ2XDp3RpOyBnZXLDp2VrIEVSUk9SIGthecSxdGxhcsSxIHRla25payBib3LDpyBvbGFyYWsga29ydW51eW9yCgpTb24gMzAgZ8O8bmzDvGsgcmF3IHNjaGVkdWxlciDDtnpldGk6CgpgYGB0ZXh0CmRhaWx5X2NyeXB0b19qb2IgICAgICAgIDI5IE9LCmRhaWx5X2Z4X2pvYiAgICAgICAgICAgIDIyIE9LCmRhaWx5X3VyYV9qb2IgICAgICAgICAgIDI5IE9LIC8gMSBFUlJPUgpob3VybHlfam9iICAgICAgICAgICAgIDcxMyBPSyAvIDUgRVJST1IKbWFjcm9fam9iICAgICAgICAgICAgICAxMjMgT0sKbW9kZWxfdmFsaWRhdGlvbl9qb2IgICAgIDQgT0sKbW9udGhseV9hdWRpdF9qb2IgICAgICAgIDEgT0sKcmVhbHRpbWVfdGVzdCAgICAgICAgICAgICAzIE9LCnNlY19ldmVudF9qb2IgICAgICAgICAgIDcyMSBERUdSQURFRCAvIDEgRVJST1IKd2Vla2x5X2pvYiAgICAgICAgICAgICAgICA0IE9LCmBgYAoKUmVsZWFzZWQgcmVhZGluZXNzIGhlc2FixLEgYCU5OS4yMWAgaWxlIGAlOThgIGthcMSxc8SxbsSxIGdlw6dtZWt0ZWRpci4gQnVuYSByYcSfbWVuIGdlcsOnZWsgRVJST1Igc2F0xLFybGFyxLEgc2lsaW5tZXosIHJlYWRpbmVzcyd0ZW4gc2FrbGFubWF6IHZlIGRldmVsb3BtZW50IGFydMSxxJ/EsSBzYXnEsWxtYXouIEfDtnJldiA3IMOnxLFrdMSxc8SxbmRhIGfDtnLDvGxlbiBob3VybHkgaGF0YSDDtnJuZcSfaToKCmBgYHRleHQKY291bGRuJ3QgZ2V0IGEgY29ubmVjdGlvbiBhZnRlciAxMC4wMCBzZWMKYGBgCgpUb3BsYW0gNSBob3VybHkgY29ubmVjdGlvbi1wb29sIEVSUk9SIGlsZSB0ZWsgYGRhaWx5X3VyYV9qb2IgRVJST1JgIHZlIHRlayBgc2VjX2V2ZW50X2pvYiBFUlJPUmAgacOnaW4ga8O2ayBuZWRlbiBhbmFsaXppIGBPUEVOYCB0ZWtuaWsgYm9yw6d0dXIuCgpgc2VjX2V2ZW50X2pvYmAgdGFyYWbEsW5kYWtpIDcyMSBgREVHUkFERURgIGtheWTEsW4gYsO8ecO8ayDDp2/En3VubHXEn3UgY3Jhc2ggZGXEn2lsZGlyLiBEaXJlY3QgU0VDIHRpY2tlciBlxZ9sZcWfbWVzaSB5YWxuxLF6IE9LTE8sIFVFQywgWEUsIFNNUiwgTEVVIGdpYmkgc8SxbsSxcmzEsSBVUyB0aWNrZXIga8O8bWVzaW5kZSBrYWzEsXlvciB2ZSBVUkEgZnVuZC13ZWlnaHQgY292ZXJhZ2UgeWFrbGHFn8SxayBgJTE54oCTMjBgIHNldml5ZXNpbmRlIG9sdcWfdXlvci4gQnUgZHVydW0gcmVsZWFzZWQgcXVhbGl0eSBzZW1hbnRpxJ9pbmUgZ8O2cmUgY292ZXJhZ2UvZGVncmFkYXRpb24gYmlsZ2lzaWRpcjsgbW9kZWwgdGhyZXNob2xkJ3VudSBkZcSfacWfdGlybWUgZ2VyZWvDp2VzaSBkZcSfaWxkaXIuCgojIyMgNS4gUkVMRUFTRUQgLyBBUFBST1ZFRCAvIFBST1BPU0VEIC8gT1BFTiBheXLEsW3EsQoKKipSRUxFQVNFRCoqCgotIE1vZGVsIGAxLjIuMGAuCi0gTW9kZSBgU0hBRE9XYDsgUmVhbHRpbWUgRXhlY3V0aW9uIGBPRkZgLgotIE1pbiBxdWFsaXR5L2VkZ2UvY29uZmlkZW5jZSBgODAvNzAvNzBgOyBzdHJvbmcgZWRnZS9jb25maWRlbmNlIGA4MC84MGAuCi0gTWV2Y3V0IEsxL0syLCByZXZlcnNhbCwgNSB3ZWFrLWV2YWx1YXRpb24gcmVzZXRpIHZlIGFjdGlvbi1zaXplIGRhdnJhbsSxxZ/EsSBkZcSfacWfbWVkaS4KLSBQeXRob24gcG9ydGbDtnkgYmFraXllc2kgb2t1bWF6IHZlIG90b21hdGlrIGV4Y2hhbmdlIG9yZGVyIGfDtm5kZXJtZXouCi0gYFJFQURZYCBzb251Y3UgcmVsZWFzZWQgcmVhZGluZXNzIGtyaXRlcmxlcmluaW4gZ2XDp3RpxJ9pbmkgZ8O2c3RlcmlyOyBvdG9tYXRpayBMSVZFIGRlxJ9pbGRpci4KCioqQVBQUk9WRUQqKgoKLSBgUkVBRFlgIHlhbG7EsXogbWFudWVsIGdyYWR1YXRpb24gcmV2aWV3IGthcMSxc8SxZMSxci4KLSBNb2RlbCBkYXZyYW7EscWfxLFuxLEgZGXEn2nFn3Rpcm1leWVuIG9ic2VydmFiaWxpdHkvc2NoZWR1bGVyIHByb3ZlbmFuY2UgaGFyZGVuaW5nIHlhcMSxbGFiaWxpci4KLSBGUkVEIGN1cnJlbnQvcmV2aXNpb24gdGVraWxsZcWfdGlybWUgdmUgcmV0ZW50aW9uIGFyYcWfdMSxcm1hc8SxIHBvc3QtU2hhZG93IHZlcmkgeWHFn2FtIGTDtm5nw7xzw7wgacWfaSBvbGFyYWsgecO8csO8dMO8bGViaWxpcjsgc2XDp2ltIHlhcMSxbG1hZGFuIHZlcmkgc2lsaW5tZXouCgoqKlBST1BPU0VEIOKAlCB1eWd1bGFubWFkxLEqKgoKLSBLYWRlbWVsZXIgYXJhc8SxbmRhIG1pbmltdW0gNSBrYXJhciBzZWFuc8SxLgotIFJldmVyc2FsIGnDp2luIGlraSBhcmTEscWfxLFrIHF1YWxpZmllZCBrYXLFn8SxLXnDtm4ga2FwYW7EscWfxLEuCi0gUHJvZHVjdGlvbi9yZXBsYXkgacOnaW4gdGVrIHZlcnNpb25lZCBzdGF0ZSBtYWNoaW5lLgotIGBtYXhfcmVnaW1lX3BjdGAgVUkgecO2bmV0aW1pIC8geWVuaSBzaXppbmcgZm9ybcO8bMO8LgotIFJlc2V0IHNvbnJhc8SxIHNhbWUtZGlyZWN0aW9uIEsxIGRhdnJhbsSxxZ/EsW7EsW4gZGXEn2nFn3RpcmlsbWVzaS4KLSBUaHJlc2hvbGQgdmV5YSBmYWN0b3Itd2VpZ2h0IGRlxJ9pxZ9pa2xpa2xlcmkuCgpCdW5sYXJkYW4gaGVyaGFuZ2kgYmlyaSBzZcOnaWxlY2Vrc2UgYcOnxLFrIGt1bGxhbsSxY8SxIG9uYXnEsSArIHllbmkgbW9kZWwgdmVyc2lvbiArIHRlc3QvZGVwbG95ICsgeWVuaSBTaGFkb3cgRXBvY2ggZ2VyZWtpci4gTWV2Y3V0IHYxLjIuMCBTaGFkb3cga2FuxLF0xLEgeWVuaSBtb2RlbCBzZW1hbnRpxJ9pbmUgb3RvbWF0aWsgdGHFn8Sxbm1hei4KCioqT1BFTioqCgotIGBTSEFET1cgLT4gTElWRWAgZ3JhZHVhdGlvbiBrYXJhcsSxLgotIDUgaG91cmx5ICsgMSBkYWlseSBVUkEgKyAxIFNFQyBnZXLDp2VrIEVSUk9SIGtheWTEsW7EsW4gcm9vdC1jYXVzZSBhbmFsaXppLgotIFRhc2sgNCBvYnNlcnZhYmlsaXR5IGhhcmRlbmluZydpbiBnZXLDp2VrIFdpbmRvd3MvU3VwYWJhc2UgcnVudGltZSByb2xsb3V0IGthbsSxdMSxLCBlxJ9lciBoZW7DvHogcHJvZCBTaGFkb3cgYmluYXJ5J2RlIGRvxJ9ydWxhbm1hZMSxeXNhLgotIEdlcsOnZWsgcm9sbGluZy9leHBhbmRpbmcgd2Fsay1mb3J3YXJkIHZhbGlkYXRpb24uCi0gU3RyaWN0IEZSRUQtdmludGFnZSBwb2ludC1pbi10aW1lIGthdG1hbsSxLgotIFByb2R1Y3Rpb24vcmVwbGF5IGZhY3Rvci1zdGF0ZS1hY3Rpb24gcGFyaXR5IGdhcCBhbmFsaXppLgotIFVSQSBmdWxsIFBJVCBpw6dpbiB5ZXRlcmxpIGdlcsOnZWsgaG9sZGluZ3MvYnJlYWR0aC9ldmVudCB0YXJpaMOnZXNpLgotIEZSRUQgY3VycmVudC9yZXZpc2lvbiByZXRlbnRpb24vZGVkdXAgw6fDtnrDvG3DvG7DvG4gc2XDp2ltaSB2ZSBrb250cm9sbMO8IG1pZ3JhdGlvbi9iYWNrZmlsbCBwbGFuxLEuCgojIyMgNi4gR8O2cmV2IHRha3ZpbWkgc29ucmFzxLEgUHl0aG9uIHRla25payBib3LDpyBwbGFuxLEKCkfDtnJldiA3IGlsZSAzMCBnw7xubMO8ayBTaGFkb3cgZ8O2cmV2IHRha3ZpbWkgb3BlcmFzeW9uZWwgb2xhcmFrIHRhbWFtbGFuZMSxLiBHw7ZyZXYgdGFrdmltaSBib3l1bmNhIGVydGVsZW5lbiBydW50aW1lL21vZGVsIHJldml6eW9ubGFyxLEgYnUga2FwYW7EscWfdGEgdXlndWxhbm3EsXlvcjsgw7ZuY2Uga2FuxLF0IHZlIGvDtmsgbmVkZW4gw6dhbMSxxZ9tYWxhcsSxIGF5csSxbMSxeW9yLgoKIyMjIyBQMCDigJQgUnVudGltZSBnw7x2ZW5pbGlybGnEn2k7IG1vZGVsIHNlbWFudGnEn2luZSBkb2t1bm1hZGFuCgoxLiA1IGBob3VybHlfam9iYCBjb25uZWN0aW9uLXBvb2wgRVJST1Iga2F5ZMSxbsSxbiBvcnRhayBrw7ZrIG5lZGVuaW5pIMOnxLFrYXIuCjIuIFRlayBgZGFpbHlfdXJhX2pvYiBFUlJPUmAgdmUgdGVrIGBzZWNfZXZlbnRfam9iIEVSUk9SYCBrYXlkxLFuxLEgYXlyxLEgaW5jZWxlLgozLiBDb25uZWN0aW9uLXBvb2wgc2F0dXJhdGlvbiwgY2hlY2tvdXQgc8O8cmVzaSwgdGltZW91dCB2ZSBjYWxsLXNpdGUvcnVuLWtpbmQgcHJvdmVuYW5jZSBnw7Zyw7xuw7xybMO8xJ/DvG7DvCBhcnTEsXIuCjQuIFJldHJ5L2JhY2tvZmYgZ2VyZWtpeW9yc2EgeWFsbsSxeiBpZGVtcG90ZW50IHZlIGRhdnJhbsSxxZ8ta29ydW1hbMSxIHRhc2FybGE7IHNjaGVkdWxlciBjYWRlbmNlIHZleWEgZGVjaXNpb24gc2VtYW50acSfaW5pIHNlc3NpemNlIGRlxJ9pxZ90aXJtZS4KNS4gVGFzayA0IGAwMDEwX3NoYWRvd19vYnNlcnZhYmlsaXR5LnNxbGAgKyBgLS1zaGFkb3ctb2JzZXJ2YWJpbGl0eWAgZ2Vyw6dlayBydW50aW1lJ2RhIGRvxJ9ydWxhbm1hZMSxeXNhIMO2bmNlIGJ1IHJvbGxvdXQga2FuxLF0xLFuxLEga2FwYXQuCgojIyMjIFAxIOKAlCBWYWxpZGF0aW9uIHBhcml0eSAvIFBJVCBrYW7EsXTEsQoKMS4gVGVrIDcwLzMwIHNwbGl0IHllcmluZSBnZXLDp2VrIHJvbGxpbmcvZXhwYW5kaW5nIHdhbGstZm9yd2FyZCB2YWxpZGF0aW9uIGt1ci4KMi4gRlJFRCBtYWNybyBpw6dpbiBzdHJpY3QgdmludGFnZSAvIHJlYWx0aW1lX3N0YXJ0LXJlYWx0aW1lX2VuZCBwb2ludC1pbi10aW1lIGVyacWfaW1pbmkgZG/En3J1bGEuCjMuIFByb2R1Y3Rpb24gaWxlIHJlcGxheSBhcmFzxLFuZGFraSBmYWN0b3Ivc3RhdGUvYWN0aW9uIGZhcmtsYXLEsW7EsSByYXBvcmxhLgo0LiBLMS9LMi9yZXZlcnNhbCBzdGF0ZSBtYWNoaW5lIHJlcGxheSBwYXJpdHknc2luaSBtb2RlbCBkYXZyYW7EscWfxLFuxLEgZGXEn2nFn3Rpcm1lZGVuIMO2bMOnw7xsZWJpbGlyIGhhbGUgZ2V0aXIuCjUuIFVSQSBmdWxsIFBJVCBpw6dpbiBnZXLDp2VrIGhpc3RvcmljYWwgaG9sZGluZ3MvYnJlYWR0aC9ldmVudCBjb3ZlcmFnZSBiaXJpa3RpciB2ZXlhIGRvxJ9ydWxhbmFiaWxpciBnZXLDp2VrIFBJVCBrYXluYcSfxLEga3VsbGFuOyBzZW50ZXRpayBoaXN0b3J5IMO8cmV0bWUuCgojIyMjIFAyIOKAlCBWZXJpIHlhxZ9hbSBkw7ZuZ8O8c8O8IC8gRlJFRCBoYXJkZW5pbmcKCjEuIEZSRUQgY3VycmVudC9yZXZpc2lvbiB2ZSB2aW50YWdlIGthecSxdCBtb2RlbGluaSBnZXLDp2VrIHZlcmkgw7x6ZXJpbmRlIMO2bMOnLgoyLiBgKHNlcmllc19pZCwgb2JzZXJ2YXRpb25fZGF0ZSlgIGN1cnJlbnQgZ8O2csO8bsO8bcO8IGlsZSByZXZpc2lvbiBoaXN0b3J5J3lpIGF5xLFyYW4gc2XDp2VuZWtsZXJpIGthcsWfxLFsYcWfdMSxci4KMy4gUmV0ZW50aW9uIG1hdHJpeCwgc3RvcmFnZSBiw7x5w7xtZXNpLCBpZGVtcG90ZW5jeSB2ZSBiYWNrdGVzdCBnZXJla3NpbmltbGVyaW5pIGJpcmxpa3RlIGRlxJ9lcmxlbmRpci4KNC4gRHJ5LXJ1bi9iYWNrZmlsbCBkb8SfcnVsYW1hc8SxIG9sbWFkYW4gc2lsbWUvZGVkdXAgbWlncmF0aW9uJ8SxIMOnYWzEscWfdMSxcm1hLgo1LiBVeWd1bGFubcSxxZ8gYDAwMDFgIG1pZ3JhdGlvbifEsSBnZXJpeWUgZMO2bsO8ayBkZcSfacWfdGlybWUuCgojIyMjIFAzIOKAlCBNb2RlbCBkYXZyYW7EscWfxLEgeWFsbsSxeiBheXLEsSBvbmF5IHZlIHllbmkgZXBvY2ggaWxlCgpBxZ9hxJ/EsWRha2kgYmHFn2zEsWtsYXIgdGVrbmlrIGJvcsOnIGxpc3Rlc2luZGUgaW5jZWxlbmViaWxpciBmYWthdCBvdG9tYXRpayB1eWd1bGFubWF5YWNha3TEsXI6CgotIG1pbmltdW0gNSBrYXJhciBzZWFuc8SxIGthZGVtZSBhcmFsxLHEn8SxLAotIGlraSBxdWFsaWZpZWQgb3Bwb3NpdGUgY2xvc2UgaWxlIHJldmVyc2FsLAotIHJlc2V0IHNvbnJhc8SxIHNhbWUtZGlyZWN0aW9uIEsxIGRhdnJhbsSxxZ/EsSwKLSB5ZW5pIHNpemluZyAvIGBtYXhfcmVnaW1lX3BjdGAsCi0gdGhyZXNob2xkL2ZhY3Rvci13ZWlnaHQgZGXEn2nFn2lrbGlrbGVyaS4KCkJ1bmxhcmRhbiBiaXJpIHNlw6dpbGlyc2UgeWVuaSBtb2RlbCB2ZXJzaW9uLCBtaWdyYXRpb24vcHJvdmVuYW5jZSwgdGVzdCwgZGVwbG95IHZlIHllbmkgU2hhZG93IEVwb2NoIHBsYW7EsSBiaXJsaWt0ZSBoYXrEsXJsYW7EsXIuCgojIyMgNy4gR8O2cmV2IDcga2FwYW7EscWfIGthcmFyxLEKCmBgYHRleHQKR8OWUkVWIDcgICAgICAgICAgICAgICAgICAgICAgIFBBU1MKMzAgZ8O8bmzDvGsgZ8O2cmV2IHRha3ZpbWkgICAgICAgVEFNQU1MQU5ESQpTSEFET1dfUkVBRElORVNTICAgICAgICAgICAgICBSRUFEWQpMSVZFICAgICAgICAgICAgICAgICAgICAgICAgICBBw4dJTE1BREkKTW9kZSAgICAgICAgICAgICAgICAgICAgICAgICAgU0hBRE9XClJlYWx0aW1lIEV4ZWN1dGlvbiAgICAgICAgICAgIE9GRgpSdW50aW1lIFB5dGhvbiByZXZpenlvbnUgICAgICBCVSBLQVBBTknFnlRBIFlPSwpTb25yYWtpIMOnYWzEscWfbWEgb2RhxJ/EsSAgICAgICAgIFAwIHJlbGlhYmlsaXR5IC0+IFAxIHBhcml0eS9QSVQgLT4gUDIgRlJFRCBsaWZlY3ljbGUKTW9kZWwgZGF2cmFuxLHFn8SxIHJldml6eW9ubGFyxLEgIHlhbG7EsXogYXlyxLEgQVBQUk9WQUwgKyB5ZW5pIG1vZGVsL2Vwb2NoCmBgYAoKQnUgc29udcOnIG1ldmN1dCB2MS4yLjAgU2hhZG93IGthbsSxdMSxbsSxIGtvcnVyOyByZWFkaW5lc3Mgc29udWN1bnUgb2xkdcSfdW5kYW4gZ8O8w6dsw7wgeW9ydW1sYW1heiB2ZSBnw7ZyZXYgdGFrdmltaSBib3l1bmNhIHRvcGxhbmFuIGV2aWRlbmNlIMO8emVyaW5lIHNvbnJhZGFuIGRhdnJhbsSxxZ8gZGXEn2nFn2lrbGnEn2kgYmluZGlybWV6Lg=="
+          replacement = base64.b64decode(encoded).decode("utf-8")
           updated = text.replace(needle, replacement, 1)
-          if updated == text:
-              print("No update produced; refusing to continue.")
-              sys.exit(1)
           path.write_text(updated, encoding="utf-8")
 
           workflow = Path(".github/workflows/task7-doc-patch.yml")
