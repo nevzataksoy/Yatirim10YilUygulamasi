@@ -182,6 +182,96 @@ Cold startup remains comfortably below the Windows SCM timeout and the callsite-
 
 **Callsite-fix startup preflight: PASS**
 
+## Callsite-fix controlled production installation
+
+The callsite-fix installer was deployed to production after a controlled service stop.
+
+Before installation:
+
+```text
+SERVICE_NAME: RosaInvestmentEngine
+STATE: STOPPED
+PID: 0
+```
+
+No `InvestmentEngine.exe` process remained. The prior orphan-OneFile condition did not recur.
+
+The installer fingerprint was verified immediately before installation:
+
+```text
+Installer SHA256
+A18CA1F9562299B255F2F29257D8EC4CE1E6BC0D81F57D85A8B47564FCBF8498
+```
+
+Installation completed successfully. Post-install verification:
+
+```text
+Installed EXE SHA256
+86506CA2429A08760A93FAE5DF00461CF44A0C926A1E5184F940D4E16B69AC27
+
+_internal   True
+settings    True
+rosalock    True
+
+SERVICE_NAME: RosaInvestmentEngine
+STATE: RUNNING
+ProcessId: 15180
+Path: "C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe" --service
+```
+
+**Callsite-fix production installation: PASS**
+
+## Callsite-fix production telemetry evidence
+
+The upgraded service created a new process-specific telemetry file:
+
+```text
+C:\Program Files\Rosa\InvestmentEngine\logs\connection-pool-telemetry-15180.jsonl
+```
+
+The first production telemetry event after the fix was a pressured checkout with a concrete frozen-runtime callsite:
+
+```text
+event             checkout_pressure
+callsite          database.repository.publish_health
+root_job_name     ""
+run_kind          legacy
+thread            Dummy-1
+wait_ms           1477.9
+pool_size before  1
+available before  0
+pool_size acquired 2
+requests_queued   1
+requests_wait_ms  1477
+connections_num   2
+connections_ms    1477
+requests_errors   0
+returns_bad       0
+connections_errors 0
+connections_lost   0
+```
+
+A following sample for the same concrete callsite recorded:
+
+```text
+callsite             database.repository.publish_health
+wait_ms              1477.9
+hold_ms              972.092
+pool_size             2
+pool_available        2
+connections_ms        2964
+connections_errors    0
+connections_lost      0
+returns_bad           0
+requests_errors       0
+```
+
+This verifies that the frozen-runtime callsite fix is working in production: `callsite` is no longer `unknown` for this path.
+
+The first post-fix production observation does **not** demonstrate pool-capacity saturation. The pool started at size `1`, had no immediately available connection, queued the request while creating another connection, then grew only to size `2` of `6`. Connection creation was again on the order of 1.5 seconds and no connection error/loss/bad-return/request-error counters were observed.
+
+This is startup evidence only. It is insufficient to assign the historical 10-second pool timeouts to connection creation latency, network/database health, or any other root cause. C2 must continue collecting production telemetry and correlate timeout/pressure events with pool occupancy, connection-establishment counters, hold times, callsites, root jobs and background DB consumers.
+
 ## Current rollout status
 
 Initial telemetry production installation: **PASS**
@@ -192,8 +282,12 @@ Callsite-fix build: **PASS**
 
 Callsite-fix startup preflight: **PASS**
 
-Callsite-fix production installation: **OPEN**
+Callsite-fix production installation: **PASS**
 
-Next step: controlled service stop, stale-process verification, installer hash verification, upgrade with the callsite-fix installer, and confirmation that the new service telemetry contains concrete callsites such as repository or notification-dispatcher methods instead of `unknown`.
+Callsite-fix production callsite verification: **PASS**
+
+C2 long-duration production telemetry collection / RCA: **OPEN**
+
+Next step: accumulate production telemetry and analyze `checkout_pressure`, `checkout_timeout`, `hold_slow`, `counter_delta` and `sample` events before considering any pool sizing, timeout, retry or scheduling remediation.
 
 No pool sizing, timeout, retry, scheduler, model, SHADOW-mode or Realtime Execution behavior has been changed.
