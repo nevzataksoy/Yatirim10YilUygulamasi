@@ -4,7 +4,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 echo ============================================================
-echo Rosa Investment Engine - OneFile Build
+echo Rosa Investment Engine - OneDir Build
 echo ============================================================
 
 :: Build ve Inno Setup islemleri yonetici olarak calisir.
@@ -60,16 +60,14 @@ if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist InvestmentEngine.spec del /q InvestmentEngine.spec
 
-set "UPX_ARG="
-if exist "C:\Tools\upx-5.0.1-win64\upx.exe" set "UPX_ARG=--upx-dir C:\Tools\upx-5.0.1-win64"
-if exist "C:\Tools\upx\upx.exe" set "UPX_ARG=--upx-dir C:\Tools\upx"
-
 echo.
-echo PyInstaller one-file EXE olusturuluyor...
+echo PyInstaller one-dir runtime olusturuluyor...
 "%VPY%" -m PyInstaller ^
     --noconfirm ^
     --clean ^
-    --onefile ^
+    --onedir ^
+    --contents-directory "_internal" ^
+    --noupx ^
     --windowed ^
     --uac-admin ^
     --name "InvestmentEngine" ^
@@ -89,17 +87,21 @@ echo PyInstaller one-file EXE olusturuluyor...
     --hidden-import cryptography ^
     --hidden-import websocket ^
     --hidden-import websocket._app ^
-    %UPX_ARG% ^
     run.py
 if errorlevel 1 goto :fail
 
-if not exist "dist\InvestmentEngine.exe" (
-    echo ERROR: dist\InvestmentEngine.exe olusmadi.
+if not exist "dist\InvestmentEngine\InvestmentEngine.exe" (
+    echo ERROR: dist\InvestmentEngine\InvestmentEngine.exe olusmadi.
+    goto :fail
+)
+if not exist "dist\InvestmentEngine\_internal" (
+    echo ERROR: dist\InvestmentEngine\_internal klasoru olusmadi.
     goto :fail
 )
 
 echo.
-echo EXE build basarili: dist\InvestmentEngine.exe
+echo EXE build basarili: dist\InvestmentEngine\InvestmentEngine.exe
+echo Runtime dependencies: dist\InvestmentEngine\_internal
 
 :: Inno Setup mevcutsa installer'i de derle.
 set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
@@ -114,7 +116,7 @@ if exist "%ISCC%" (
     echo Installer build basarili. installer klasorunu kontrol edin.
 ) else (
     echo.
-    echo NOT: Inno Setup 6 bulunamadi. EXE hazirlandi, setup derlenmedi.
+    echo NOT: Inno Setup 6 bulunamadi. Runtime hazirlandi, setup derlenmedi.
     echo investmentengine_setup.iss dosyasini Inno Setup Compiler ile derleyebilirsiniz.
 )
 
@@ -122,7 +124,8 @@ echo.
 echo ============================================================
 echo BUILD TAMAMLANDI
 echo ============================================================
-echo EXE: dist\InvestmentEngine.exe
+echo EXE: dist\InvestmentEngine\InvestmentEngine.exe
+echo INTERNAL: dist\InvestmentEngine\_internal
 echo.
 pause
 exit /b 0
