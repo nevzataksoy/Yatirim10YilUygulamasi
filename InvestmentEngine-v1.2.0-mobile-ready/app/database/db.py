@@ -80,7 +80,6 @@ class DatabaseService:
         checkout_started = time.perf_counter()
         acquired_at: float | None = None
         wait_ms: float | None = None
-        hold_ms: float | None = None
         stats_before = self._pool_stats()
 
         try:
@@ -107,31 +106,35 @@ class DatabaseService:
                         "set_config('rosa.run_kind', %s, true)",
                         (root_job_name, run_kind),
                     )
-                try:
-                    yield conn
-                finally:
-                    hold_ms = (time.perf_counter() - acquired_at) * 1000.0
+                yield conn
 
         except PoolTimeout as exc:
-            timeout_ms = (time.perf_counter() - checkout_started) * 1000.0
-            stats_timeout = self._pool_stats()
-            deltas = self._pool_telemetry.observe_counter_deltas(stats_timeout)
-            self._pool_telemetry.record(
-                "checkout_timeout",
-                **context,
-                wait_ms=round(timeout_ms, 3),
-                error=str(exc)[:500],
-                stats_before=stats_before,
-                stats_timeout=stats_timeout,
-                counter_deltas=deltas,
-            )
+            # Only classify this connection request as a checkout timeout when it
+            # never acquired a slot. A PoolTimeout propagated by nested work after
+            # acquisition belongs to that nested request and is re-raised unchanged.
+            if acquired_at is None:
+                timeout_ms = (time.perf_counter() - checkout_started) * 1000.0
+                stats_timeout = self._pool_stats()
+                deltas = self._pool_telemetry.observe_counter_deltas(stats_timeout)
+                self._pool_telemetry.record(
+                    "checkout_timeout",
+                    **context,
+                    wait_ms=round(timeout_ms, 3),
+                    error=str(exc)[:500],
+                    stats_before=stats_before,
+                    stats_timeout=stats_timeout,
+                    counter_deltas=deltas,
+                )
             raise
         finally:
             if acquired_at is not None:
+                # This runs after ConnectionPool.connection().__exit__(), so hold
+                # time includes transaction cleanup and the actual return to pool.
+                hold_ms = (time.perf_counter() - acquired_at) * 1000.0
                 stats_after = self._pool_stats()
                 deltas = self._pool_telemetry.observe_counter_deltas(stats_after)
 
-                if hold_ms is not None and hold_ms >= self._SLOW_HOLD_MS:
+                if hold_ms >= self._SLOW_HOLD_MS:
                     self._pool_telemetry.record(
                         "hold_slow",
                         **context,
@@ -145,7 +148,7 @@ class DatabaseService:
                         "counter_delta",
                         **context,
                         wait_ms=round(wait_ms or 0.0, 3),
-                        hold_ms=round(hold_ms or 0.0, 3),
+                        hold_ms=round(hold_ms, 3),
                         deltas=deltas,
                         stats=stats_after,
                     )
@@ -155,6 +158,6 @@ class DatabaseService:
                         "sample",
                         **context,
                         wait_ms=round(wait_ms or 0.0, 3),
-                        hold_ms=round(hold_ms or 0.0, 3),
+                        hold_ms=round(hold_ms, 3),
                         stats=stats_after,
                     )
