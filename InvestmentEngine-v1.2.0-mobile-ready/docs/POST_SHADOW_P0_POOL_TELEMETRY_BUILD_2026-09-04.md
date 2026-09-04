@@ -91,20 +91,93 @@ The cold launch remains comfortably below the Windows SCM startup window, and th
 
 **Startup preflight: PASS**
 
+## Controlled production installation
+
+Before installation:
+
+```text
+SERVICE_NAME: RosaInvestmentEngine
+STATE: 1 STOPPED
+PID: 0
+```
+
+No `InvestmentEngine.exe` process remained after the controlled stop, so the prior orphan-OneFile file-lock condition was not present.
+
+The approved installer fingerprint was rechecked immediately before installation:
+
+```text
+SHA256 ECD41D8045E5A6E5E35A245F57EA78AB70DAD2EA8141BB6CE768012F9B5D9B7D
+```
+
+The installer completed successfully.
+
+Post-install executable fingerprint:
+
+```text
+SHA256 020F46B8823ADCED3B9C935059D9037800321C3C23A513926E99173C96EE5E2D
+```
+
+Runtime layout and preserved state:
+
+```text
+_internal   True
+settings    True
+rosalock    True
+```
+
+Windows Service after installation:
+
+```text
+SERVICE_NAME: RosaInvestmentEngine
+STATE: 4 RUNNING
+WIN32_EXIT_CODE: 0
+SERVICE_EXIT_CODE: 0
+ProcessId: 11496
+PathName: "C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe" --service
+```
+
+**Telemetry production installation: PASS**
+
+## Initial production telemetry evidence
+
+The service created the expected process-local telemetry file:
+
+```text
+C:\Program Files\Rosa\InvestmentEngine\logs\connection-pool-telemetry-11496.jsonl
+```
+
+The first checkout after service startup recorded:
+
+```text
+wait_ms          1519.237
+pool_size before 1
+pool_available   0
+requests_queued  1
+pool_size after  2
+connections_num  2
+connections_ms   1486
+requests_errors  0
+returns_bad      0
+connections_errors 0
+connections_lost   0
+```
+
+The following sample showed both connections available again. A later `notification_dispatcher` DB checkout waited only `0.049 ms` with no connection-health errors.
+
+This first sample does not demonstrate pool-capacity exhaustion. It shows that a request can queue while the pool creates/warms an additional connection, and that connection creation itself took roughly 1.5 seconds on this startup. Historical 10-second checkout failures therefore remain compatible with connection-establishment / database-network health problems and must not be attributed to `max_size=6` without further evidence.
+
+The first frozen-runtime records also exposed an instrumentation-only issue: `callsite` was emitted as `unknown`. Root job and run-kind remained available, but repository-method attribution must be fixed before long-duration RCA collection. This does not affect engine/database behavior.
+
 ## Production rollout status
 
 Build gate: **PASS**
 
 Startup preflight: **PASS**
 
-Production installation: **OPEN**
+Production installation: **PASS**
 
-Next perform a controlled service stop and explicitly verify no stale/orphan `InvestmentEngine.exe --service` process remains before running the approved telemetry-enabled installer.
+Telemetry file creation: **PASS**
 
-After installation verify:
+Callsite attribution: **FIX REQUIRED BEFORE LONG-DURATION COLLECTION**
 
-1. installed executable SHA256 matches `020F46B8823ADCED3B9C935059D9037800321C3C23A513926E99173C96EE5E2D`,
-2. `_internal`, `settings`, and `rosalock` are preserved,
-3. Windows Service returns to `RUNNING / exit 0`,
-4. a process-local `connection-pool-telemetry-<PID>.jsonl` file is created by the new service,
-5. telemetry records are local-only and do not change pool sizing, timeout, retry, scheduler or model semantics.
+No pool sizing, timeout, retry, scheduler or model behavior change has been made.
