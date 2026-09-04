@@ -139,7 +139,14 @@ def main() -> int:
     )
     _require_markers(
         "investmentengine_setup.iss",
-        ['#define MyAppVersion "1.2.0"', 'Source: "InvestmentEngineCLI.cmd"', 'Source: "InvestmentEngineCLI.ps1"'],
+        [
+            '#define MyAppVersion "1.2.0"',
+            'Source: "dist\\InvestmentEngine\\{#MyAppExeName}"',
+            'Source: "dist\\InvestmentEngine\\_internal\\*"',
+            'DestDir: "{app}\\_internal"',
+            'Source: "InvestmentEngineCLI.cmd"',
+            'Source: "InvestmentEngineCLI.ps1"',
+        ],
         "Installer v1.2.0",
     )
     _require_markers(
@@ -172,6 +179,20 @@ def main() -> int:
         ["replay_ethbtc_core", "calibrate_edge_thresholds", "classify_shadow_readiness"],
         "Point-in-time validation",
     )
+
+    build_text = (ROOT / "build.bat").read_text(encoding="utf-8")
+    for marker in [
+        "--onedir",
+        '--contents-directory "_internal"',
+        "--noupx",
+        "dist\\InvestmentEngine\\InvestmentEngine.exe",
+        "dist\\InvestmentEngine\\_internal",
+    ]:
+        if marker not in build_text:
+            raise SystemExit(f"Windows Service OneDir build sözleşmesi eksik: {marker}")
+    if "--onefile" in build_text:
+        raise SystemExit("Windows Service build tekrar --onefile kullanıyor; SCM startup timeout riski geri geldi.")
+
     cmd_text=(ROOT / "InvestmentEngineCLI.cmd").read_text(encoding="utf-8")
     ps1_text=(ROOT / "InvestmentEngineCLI.ps1").read_text(encoding="utf-8")
     if "\\n" in cmd_text or "\\n" in ps1_text:
