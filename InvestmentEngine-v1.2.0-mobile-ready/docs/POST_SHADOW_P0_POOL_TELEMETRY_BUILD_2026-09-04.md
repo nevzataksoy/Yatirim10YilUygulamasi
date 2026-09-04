@@ -66,14 +66,45 @@ Telemetry-enabled installer:
 SHA256 ECD41D8045E5A6E5E35A245F57EA78AB70DAD2EA8141BB6CE768012F9B5D9B7D
 ```
 
+## Startup-latency preflight
+
+The rebuilt telemetry-enabled OneDir executable was launched three times with the harmless `--service-status` command while the production Windows Service remained running.
+
+Observed timings:
+
+```text
+Run 1   7.047 s   exit 0
+Run 2   1.013 s   exit 0
+Run 3   1.014 s   exit 0
+```
+
+All three runs reported:
+
+```text
+SERVICE_NAME: RosaInvestmentEngine
+STATE: 4 RUNNING
+WIN32_EXIT_CODE: 0
+SERVICE_EXIT_CODE: 0
+```
+
+The cold launch remains comfortably below the Windows SCM startup window, and the telemetry instrumentation did not regress the OneDir startup remediation.
+
+**Startup preflight: PASS**
+
 ## Production rollout status
 
 Build gate: **PASS**
 
+Startup preflight: **PASS**
+
 Production installation: **OPEN**
 
-Before installation, perform a harmless OneDir startup-latency preflight with `--service-status`. The existing production service may remain running for this preflight because the command only queries SCM state and does not open the application DB pool.
+Next perform a controlled service stop and explicitly verify no stale/orphan `InvestmentEngine.exe --service` process remains before running the approved telemetry-enabled installer.
 
-Do not install if the new artifact unexpectedly approaches or exceeds the SCM startup window.
+After installation verify:
 
-After preflight passes, perform a controlled service stop / stale-process check / installer upgrade. Then verify that the new service creates local `connection-pool-telemetry-<PID>.jsonl` output without changing database/model behavior.
+1. installed executable SHA256 matches `020F46B8823ADCED3B9C935059D9037800321C3C23A513926E99173C96EE5E2D`,
+2. `_internal`, `settings`, and `rosalock` are preserved,
+3. Windows Service returns to `RUNNING / exit 0`,
+4. a process-local `connection-pool-telemetry-<PID>.jsonl` file is created by the new service,
+5. telemetry records are local-only and do not change pool sizing, timeout, retry, scheduler or model semantics.
