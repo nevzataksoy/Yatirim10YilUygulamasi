@@ -13,9 +13,24 @@ def _require_markers(path: str, markers: list[str], label: str) -> None:
             raise SystemExit(f"{label} eksik: {marker}")
 
 
+def _require_onedir_build(path: str, label: str) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    for marker in [
+        "--onedir",
+        "_internal",
+        "--noupx",
+        "dist\\InvestmentEngine\\InvestmentEngine.exe",
+    ]:
+        if marker not in text:
+            raise SystemExit(f"{label} OneDir sözleşmesi eksik: {marker}")
+    if "--onefile" in text:
+        raise SystemExit(f"{label} tekrar --onefile kullanıyor; SCM startup timeout riski geri geldi.")
+
+
 def main() -> int:
     required = [
         "build.bat",
+        "scripts/build_exe.ps1",
         "investmentengine_setup.iss",
         "InvestmentEngineCLI.cmd",
         "InvestmentEngineCLI.ps1",
@@ -180,18 +195,8 @@ def main() -> int:
         "Point-in-time validation",
     )
 
-    build_text = (ROOT / "build.bat").read_text(encoding="utf-8")
-    for marker in [
-        "--onedir",
-        '--contents-directory "_internal"',
-        "--noupx",
-        "dist\\InvestmentEngine\\InvestmentEngine.exe",
-        "dist\\InvestmentEngine\\_internal",
-    ]:
-        if marker not in build_text:
-            raise SystemExit(f"Windows Service OneDir build sözleşmesi eksik: {marker}")
-    if "--onefile" in build_text:
-        raise SystemExit("Windows Service build tekrar --onefile kullanıyor; SCM startup timeout riski geri geldi.")
+    _require_onedir_build("build.bat", "build.bat")
+    _require_onedir_build("scripts/build_exe.ps1", "scripts/build_exe.ps1")
 
     cmd_text=(ROOT / "InvestmentEngineCLI.cmd").read_text(encoding="utf-8")
     ps1_text=(ROOT / "InvestmentEngineCLI.ps1").read_text(encoding="utf-8")
