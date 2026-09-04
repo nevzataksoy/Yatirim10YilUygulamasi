@@ -325,26 +325,111 @@ Multiple hourly rows from ids 1974 through 1991 repeatedly completed `OK` with m
 
 ## Gate C — Post-rollout connection-pool root-cause analysis
 
-Status: **OPEN**
+Status: **OPEN — C1 BASELINE COMPLETE / C2 LOCAL TELEMETRY IMPLEMENTED, DEPLOYMENT OPEN**
 
-The next P0 task is the historical database connection-pool failure RCA, including errors such as:
+The P0 task is the historical database connection-pool failure RCA, including errors such as:
 
 ```text
 couldn't get a connection after 10.00 sec
 ```
 
-Do not increase `max_size=6` merely because these errors exist. First collect runtime evidence for:
+### Gate C1 — Historical baseline
 
-- connection checkout wait duration,
-- connection hold duration,
-- pool occupancy / saturation at checkout and release,
-- job/root-job/run-kind provenance,
-- overlapping scheduler jobs,
-- nested connection usage,
-- transaction duration,
-- provider/network calls while holding a DB connection,
-- database/network latency and timeout correlation.
+Read-only baseline queries found five recorded Psycopg pool checkout timeouts in the investigated period:
 
-Only after measurement should the RCA decide whether the cause is true pool capacity, nested connection acquisition, long transactions, external-provider work inside DB scopes, database/network latency, or another source.
+```text
+2026-08-06 hourly_job    112.107 s
+2026-08-15 hourly_job     35.058 s
+2026-08-19 hourly_job     47.726 s
+2026-08-29 sec_event_job  21.363 s
+2026-09-02 hourly_job     47.141 s
+```
+
+Four of the five recorded pool timeouts affected `hourly_job`; one affected `sec_event_job`.
+
+A separate `hourly_job` error on 28 August reported:
+
+```text
+server closed the connection unexpectedly
+```
+
+This is relevant because it provides evidence that connection health/database-network interruption must remain in the RCA candidate set; the failure cannot yet be reduced to pool capacity alone.
+
+The historical overlap query found no other persisted `system.job_runs` row overlapping the five pool-timeout windows. Recorded job concurrency over the wider period peaked at only `2` simultaneous rows. The current pool remains configured as:
+
+```text
+min_size=1
+max_size=6
+timeout=10
+```
+
+Therefore recorded scheduler-root concurrency alone does **not** explain exhaustion of six pool slots. This weakens, but does not eliminate, the simple scheduler-overlap hypothesis because maintenance/notification/CLI/execution activity is not fully represented by historical `system.job_runs` rows.
+
+Historical duration distributions also have significant long tails, especially in the pre-observability runtime:
+
+```text
+weekly_job OK               max ~127 s
+model_validation_job OK     max ~119 s
+sec_event_job DEGRADED      max ~157 s
+macro_job OK                max ~123 s
+hourly_job OK               max ~90 s
+```
+
+After the OneDir/new-runtime deployment, early scheduled samples were materially more stable (for example hourly around 10–13 s and SEC around 4–7 s), but the sample window is still too short to declare the historical pool fault resolved.
+
+**Gate C1 result: PASS — enough evidence to reject blind pool resizing and proceed to live local instrumentation.**
+
+### Gate C2 — Local pool telemetry
+
+Behavior-preserving source instrumentation has been added around `DatabaseService.connection()` without changing pool sizing, timeout, scheduler cadence, transaction semantics or model logic.
+
+Telemetry is deliberately local and never writes to PostgreSQL. Each process writes its own rotating JSONL file:
+
+```text
+logs\connection-pool-telemetry-<PID>.jsonl
+```
+
+The recorder captures:
+
+- checkout wait milliseconds,
+- connection hold milliseconds,
+- root job and run-kind context,
+- thread name,
+- application callsite,
+- `pool_size`, `pool_available`, `requests_waiting`,
+- cumulative `requests_queued`, `requests_errors`, `requests_wait_ms`,
+- `returns_bad`,
+- `connections_num`, `connections_errors`, `connections_lost`,
+- periodic one-minute samples,
+- explicit `checkout_timeout`, `checkout_pressure`, `hold_slow` and `counter_delta` events.
+
+Telemetry thresholds are diagnostic only:
+
+```text
+slow checkout >= 250 ms
+slow hold     >= 2000 ms
+periodic sample every ~60 s when DB activity exists
+```
+
+The writer is best-effort and suppresses its own file errors so telemetry cannot change engine/database behavior.
+
+A read-only PowerShell summary helper is included at:
+
+```text
+verification\summarize_connection_pool_telemetry.ps1
+```
+
+### Gate C2 deployment acceptance
+
+Before interpreting telemetry:
+
+1. build/test/release-check the instrumented source,
+2. deploy through the already-validated OneDir installer path,
+3. confirm installed EXE fingerprint and Windows Service RUNNING,
+4. confirm at least one service-process telemetry JSONL file is created,
+5. allow normal scheduler/notification activity to accumulate evidence,
+6. inspect telemetry before changing `max_size`, `timeout`, retry, connection checking, scheduler cadence or job concurrency.
+
+Do not increase `max_size=6`, increase `timeout=10`, enable retries, enable `ConnectionPool.check_connection`, serialize jobs or change scheduler timing until C2 evidence identifies which mechanism is actually occurring.
 
 No signal thresholds, factor weights, K1/K2/reversal/reset/sizing behavior, model version, SHADOW mode or Realtime Execution state may be changed as part of this RCA without separate explicit approval.
