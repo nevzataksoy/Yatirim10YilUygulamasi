@@ -100,15 +100,61 @@ WAIT_HINT: 0x0
 
 **OneDir production install + service start: PASS**
 
+## Post-deploy runtime verification
+
+Recent Service Control Manager events for the successful OneDir installation contained only service installation Event 7045. No new Event 7009 or 7000 was observed.
+
+The application log shows the new service successfully initialized APScheduler at 04:27:54 local time, registered the expected jobs, started the scheduler, and immediately executed the notification dispatcher successfully. No startup traceback was observed.
+
+Manual runtime observability verification:
+
+```text
+InvestmentEngineCLI.cmd --shadow-observability
+status: BLOCKED
+EXIT_CODE=0
+```
+
+The BLOCKED state is readiness/diagnostic evidence only. The command produced a complete report, connected to the production database, evaluated the active Shadow epoch, and persisted observability output. No released model semantics were changed.
+
+Supabase persistence verification confirms:
+
+```text
+SHADOW_OBSERVABILITY validation run id 26   status BLOCKED
+SHADOW_OBSERVABILITY snapshot               status BLOCKED
+SHADOW_READINESS snapshot                   status READY
+```
+
+Therefore SHADOW_OBSERVABILITY remains separate from the released SHADOW_READINESS result and does not overwrite it.
+
+Runtime CLI provenance also verified:
+
+```text
+job_name         shadow_observability
+run_kind         manual
+root_job_name    shadow_observability
+shadow_epoch_id  1
+status            OK
+```
+
+This confirms the new runtime can set and persist provenance GUCs and attach the active Shadow epoch.
+
+At the time BLOCK D was collected, the newly deployed service had not yet reached its first scheduled root execution after startup. The most recent scheduler rows were therefore still historical `scheduled_legacy` rows from before the OneDir deployment.
+
 ## Remaining Gate B verification
 
-Before Gate B is fully closed, still verify:
+Before Gate B is fully closed, one runtime provenance check remains:
 
-1. Recent Service Control Manager events contain no new 7009 / 7000 startup timeout for the successful OneDir install.
-2. `InvestmentEngineCLI.cmd --shadow-observability` returns a full report with exit code 0.
-3. Supabase runtime persistence keeps `SHADOW_OBSERVABILITY` separate from released `SHADOW_READINESS`.
-4. New scheduler root runs use `run_kind='scheduled'` and carry matching `root_job_name` runtime provenance.
-5. New runtime rows attach the active Shadow epoch where applicable.
-6. Mode remains `SHADOW` and Realtime Execution remains `OFF`.
+1. After the first post-deploy scheduled root run (expected `hourly_job` at 05:05 Europe/Istanbul), verify a new row with:
 
-Connection-pool RCA remains blocked until these final runtime/provenance checks complete.
+```text
+job_name         hourly_job
+run_kind         scheduled
+root_job_name    hourly_job
+shadow_epoch_id  1
+```
+
+2. Confirm that run completes with expected status and no new service-start error appears.
+
+All other Gate B runtime/deployment acceptance criteria are PASS.
+
+Connection-pool RCA remains blocked until this final scheduled-root provenance check completes.
