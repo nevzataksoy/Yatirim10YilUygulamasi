@@ -83,7 +83,7 @@ No synthetic epoch start date was introduced.
 
 ### Historical provenance classification
 
-The last verification window demonstrated the intended migration behavior:
+The migration verification demonstrated the intended historical behavior:
 
 - weekly child `macro_job` -> `maintenance`
 - weekly child `sec_event_job` -> `maintenance`
@@ -107,7 +107,7 @@ scheduled_legacy sec_event_job           DEGRADED   165
 scheduled_legacy sec_event_job           ERROR       1
 scheduled_legacy daily_crypto_job        OK          6
 scheduled_legacy daily_fx_job            OK          5
-scheduled_legacy daily_ura_job           OK          7
+scheduled_legacy daily_ura_job            OK          7
 scheduled_legacy weekly_job              OK          1
 scheduled_legacy monthly_audit_job       OK          1
 ```
@@ -118,9 +118,7 @@ Recent historical rows also received `shadow_epoch_id=1`. Historical rows natura
 
 ## Gate B — Windows build and binary rollout
 
-Status: **IN PROGRESS — ONEDIR REBUILD PASS / STARTUP + INSTALLER RUNTIME VALIDATION OPEN**
-
-Do not treat source-level observability as complete production runtime truth until the Windows Service sub-gate passes.
+Status: **PASS / CLOSED**
 
 ### Gate B1 — Initial Windows build evidence
 
@@ -153,32 +151,11 @@ installer\InvestmentEngineSetup-1.2.0.exe
 SHA256 73DFC9B081E7C82ED998D1AA094F3011A458F2697AA3ADB2FA6B0600DA36C176
 ```
 
-These hashes are retained only as evidence for the failed OneFile rollout and must not be treated as the final service artefacts after the OneDir remediation rebuild.
+These hashes are retained only as evidence for the failed OneFile rollout and must not be treated as final service artefacts.
 
-### Gate B2 — Controlled installer/runtime rollout of initial OneFile build
+### Gate B2 — Initial OneFile installer/runtime result
 
-Status: **PARTIAL PASS — INSTALLED BINARY + CLI PASS / SERVICE START FAILED**
-
-The exact initial installer was executed. Post-install evidence:
-
-```text
-Installed EXE SHA256:
-E81C8B8840492A055279348E107F59C7C6C64D7EF65CA8143A01C4A634C78892
-
-settings preserved: true
-rosalock preserved: true
-```
-
-The Windows Service registration was correct:
-
-```text
-SERVICE_NAME: RosaInvestmentEngine
-START_TYPE: AUTO_START
-BINARY_PATH_NAME: "C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe" --service
-SERVICE_START_NAME: LocalSystem
-```
-
-However installer service startup failed with Windows SCM error `1053`.
+The exact initial installer was executed. Installed binary integrity, settings/rosalock compatibility, migration compatibility, DB connectivity and manual observability CLI runtime all verified successfully, but Windows Service startup failed with SCM error `1053`.
 
 System Event Log evidence:
 
@@ -188,29 +165,11 @@ Event 7009 — timeout waiting for service connection after 30000 ms
 Event 7000 — service failed to start because it did not respond in time
 ```
 
-The application log contained no new startup/failure entry from this failed service attempt; its latest line was the intentional pre-upgrade scheduler shutdown. Therefore the failed service process had not reached the normal `SvcDoRun()` logging path before SCM timed out.
-
-At the same time the exact installed EXE successfully ran the new observability CLI path:
-
-```text
-InvestmentEngineCLI.cmd --shadow-observability
-EXIT_CODE=0
-```
-
-The command loaded preserved settings, connected to Supabase, read the recovered Shadow epoch, calculated scheduler diagnostics and returned/persisted a full observability result. Therefore:
-
-- installed binary integrity verified,
-- settings/rosalock compatibility verified,
-- migration 0010 compatibility verified,
-- DB connectivity verified,
-- observability CLI runtime verified,
-- service failure isolated to packaged Windows Service startup/bootstrap.
-
-Observed `SHADOW_OBSERVABILITY` status from the manual CLI run was `BLOCKED`, with `377/385` expected scheduler rows captured and `374/385` completed. This is diagnostic evidence and does not change mode, thresholds or released signal semantics.
+No new application log entry was reached before the timeout. The same installed EXE nevertheless completed `--shadow-observability` successfully with exit code 0.
 
 ### Gate B3 — OneFile startup latency confirmation
 
-The installed OneFile EXE was measured three times using the harmless `--service-status` CLI path while the service remained stopped:
+The installed OneFile EXE was measured three times using harmless `--service-status` launches while the service remained stopped:
 
 ```text
 Run 1: 62.741 s, exit 0
@@ -218,41 +177,31 @@ Run 2: 20.879 s, exit 0
 Run 3: 18.019 s, exit 0
 ```
 
-The first cold process launch exceeded the SCM connection timeout by more than 30 seconds. This directly explains the observed Event 7009 / service error 1053 during installer startup.
-
-Combined evidence:
-
-1. SCM waits 30,000 ms and times out.
-2. First OneFile process startup takes 62.741 s.
-3. No application log entry is reached before timeout.
-4. Once startup finishes, the same binary performs CLI/DB/observability work successfully.
+The first cold process launch exceeded the SCM 30,000 ms connection timeout.
 
 **Root cause: CONFIRMED — PyInstaller OneFile bootstrap/extraction startup latency is incompatible with the Windows Service SCM startup window on this deployment host.**
 
-Do not change the system-wide `ServicesPipeTimeout` registry value as the primary fix.
+No system-wide `ServicesPipeTimeout` registry change was approved or required.
 
-### Gate B4 — Approved behavior-preserving packaging remediation
+### Gate B4 — Behavior-preserving packaging remediation
 
-The release packaging has been changed without changing model/runtime semantics:
+The release packaging was changed without changing model/runtime semantics:
 
 - `build.bat`: `--onefile` -> `--onedir`
 - `scripts/build_exe.ps1`: `--onefile` -> `--onedir`
 - PyInstaller `--contents-directory "_internal"`
-- UPX disabled with `--noupx` to prioritize startup reliability
+- UPX disabled with `--noupx`
 - main EXE remains `C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe`
-- PyInstaller dependencies are installed under `{app}\_internal`
+- dependencies install under `{app}\_internal`
 - service binPath remains `"...\InvestmentEngine.exe" --service`
 - `settings`, `rosalock`, logs/runtime paths remain unchanged
-- Inno Setup recursively packages the `_internal` runtime tree
+- Inno Setup recursively packages the `_internal` tree
 - release-check rejects either Windows build path if `--onefile` is reintroduced
+- packaging contract tests are now source-controlled
 
-Status: **SOURCE REMEDIATION COMPLETE**
+### Gate B5 — OneDir rebuild and startup preflight
 
-### Gate B5 — OneDir Windows rebuild evidence
-
-The remediated `agent/portfolio-audit-reset` source at commit `3388fcc` was rebuilt on the Windows host. The source tree was clean before the build.
-
-Build validation:
+Rebuild validation:
 
 ```text
 Python compile control       PASS
@@ -262,46 +211,140 @@ PyInstaller OneDir COLLECT   PASS
 Inno Setup 6.4.0 compile     PASS
 ```
 
-Generated runtime layout:
+Final approved OneDir fingerprints:
 
 ```text
-dist\InvestmentEngine\InvestmentEngine.exe
-dist\InvestmentEngine\_internal\...
-installer\InvestmentEngineSetup-1.2.0.exe
+InvestmentEngine.exe
+SHA256 CBBAA56B5315535520BFB4BC1342FA9E4077C64929F5F40031428646B0B1C09B
+
+InvestmentEngineSetup-1.2.0.exe
+SHA256 B9F44962E8A4C5AAA8AC95FC8BDD98BFE4C07A52F3690F55D07AA8EE7F3D0C14
 ```
 
-PyInstaller emitted `Hidden import "sip" not found!` as a non-fatal warning, while the generated runtime contains `PyQt5\sip.cp314-win_amd64.pyd`. The warning therefore did not prevent the required PyQt5 SIP runtime binary from being collected. The OneDir build and installer compile both completed successfully.
+OneDir startup timings:
 
-**Gate B5 rebuild result: PASS**
+```text
+Run 1: 5.183 s, exit 0
+Run 2: 1.034 s, exit 0
+Run 3: 1.021 s, exit 0
+```
 
-Next required evidence before installation:
+**OneDir startup preflight: PASS**
 
-1. SHA256 of the rebuilt OneDir main EXE.
-2. SHA256 of the rebuilt installer.
-3. Confirmation that `dist\InvestmentEngine\_internal` exists.
-4. Three harmless `--service-status` process startup timings from the rebuilt OneDir EXE while the production service remains stopped.
+### Gate B6 — Production OneDir deployment
 
-Do not install the rebuilt package until this startup-latency preflight passes.
+The first upgrade attempt encountered a separate file-lock issue before service startup:
+
+```text
+DeleteFile failed; code 5
+Access denied
+```
+
+SCM reported `STOPPED / PID 0`, but an orphaned old OneFile `InvestmentEngine.exe --service` process remained alive and held the executable open. Its ACL was normal and the file was not read-only. The stale process was terminated and a reversible rename test returned `LOCK_TEST_OK`.
+
+The same approved installer was rerun and completed successfully.
+
+Post-install verification:
+
+```text
+Installed EXE SHA256:
+CBBAA56B5315535520BFB4BC1342FA9E4077C64929F5F40031428646B0B1C09B
+
+_internal   true
+settings    true
+rosalock    true
+
+SERVICE_NAME: RosaInvestmentEngine
+STATE: 4 RUNNING
+WIN32_EXIT_CODE: 0
+SERVICE_EXIT_CODE: 0
+```
+
+Recent SCM events for the successful OneDir install contained no new 7009/7000 timeout. The application log shows APScheduler startup and successful notification-dispatcher execution without startup traceback.
+
+Manual observability runtime verification:
+
+```text
+InvestmentEngineCLI.cmd --shadow-observability
+status: BLOCKED
+EXIT_CODE=0
+```
+
+The diagnostic BLOCKED result is due to the seven-day scheduler success gate and does not indicate deployment failure.
+
+Persistence separation verified:
+
+```text
+SHADOW_OBSERVABILITY snapshot   BLOCKED
+SHADOW_READINESS snapshot       READY
+```
+
+Manual runtime provenance verified:
+
+```text
+job_name         shadow_observability
+run_kind         manual
+root_job_name    shadow_observability
+shadow_epoch_id  1
+status           OK
+```
+
+### Gate B7 — Scheduled-root provenance verification
+
+A later production query collected at 04 September 2026 15:42 Europe/Istanbul showed repeated post-deploy scheduler roots with exact runtime provenance.
+
+Representative examples:
+
+```text
+hourly_job      run_kind=scheduled  root_job_name=hourly_job      shadow_epoch_id=1  status=OK
+macro_job       run_kind=scheduled  root_job_name=macro_job       shadow_epoch_id=1  status=OK
+sec_event_job   run_kind=scheduled  root_job_name=sec_event_job   shadow_epoch_id=1  status=DEGRADED
+```
+
+Multiple hourly rows from ids 1974 through 1991 repeatedly completed `OK` with matching root provenance and epoch attachment. SEC rows remained `DEGRADED` with approximately 19.4% direct fund-weight ticker coverage; that diagnostic state is preserved intentionally and is not a Windows runtime failure.
 
 ### Gate B final acceptance criteria
 
-- rebuilt OneDir Windows artefacts pass compile/pytest/release-check/installer compile, **PASS**
-- fresh OneDir `--service-status` startup is comfortably below 30 seconds, **OPEN**
-- installed EXE fingerprint equals rebuilt artefact fingerprint,
-- settings/rosalock remain preserved,
-- installer service-start step completes without 1053/7009,
-- Windows Service becomes `RUNNING`, exit code `0`,
-- `--shadow-observability` remains non-empty and exit code `0`,
-- a `SHADOW_OBSERVABILITY` validation record/snapshot is persisted,
-- new scheduler root rows classify as `scheduled`,
-- child/dependency rows classify as `maintenance` / `dependency` as applicable,
-- active `shadow_epoch_id=1` is attached to new rows,
-- existing released `SHADOW_READINESS` semantics are not overwritten,
-- mode remains `SHADOW`,
-- Realtime Execution remains `OFF`.
+- rebuilt OneDir Windows artefacts pass compile/pytest/release-check/installer compile: **PASS**
+- OneDir startup comfortably below SCM timeout: **PASS**
+- installed EXE fingerprint equals rebuilt artefact fingerprint: **PASS**
+- settings/rosalock preserved and `_internal` present: **PASS**
+- installer service start completes without 1053/7009: **PASS**
+- Windows Service `RUNNING`, exit code 0: **PASS**
+- `--shadow-observability` non-empty, exit code 0: **PASS**
+- `SHADOW_OBSERVABILITY` validation record/snapshot persisted: **PASS**
+- `SHADOW_READINESS` remains a separate released snapshot: **PASS**
+- manual runtime provenance and active epoch attachment: **PASS**
+- new scheduler roots classify as `scheduled`: **PASS**
+- matching `root_job_name` on scheduler roots: **PASS**
+- active `shadow_epoch_id=1` on new runtime rows: **PASS**
+- mode remains `SHADOW`: **PASS**
+- Realtime Execution remains `OFF`: **PASS**
 
-## Gate C — Post-rollout reliability investigation
+**Gate B — PASS / CLOSED**
 
-Status: **BLOCKED BY WINDOWS SERVICE ONEDIR RUNTIME VALIDATION**
+## Gate C — Post-rollout connection-pool root-cause analysis
 
-After Gate B passes, the next P0 task is connection-pool root-cause analysis. Pool sizing must not be changed merely because historical errors exist. First collect runtime evidence for checkout wait, connection hold duration, saturation and job provenance; then decide whether the cause is pool capacity, nested connection usage, long transactions, network/database latency or another source.
+Status: **OPEN**
+
+The next P0 task is the historical database connection-pool failure RCA, including errors such as:
+
+```text
+couldn't get a connection after 10.00 sec
+```
+
+Do not increase `max_size=6` merely because these errors exist. First collect runtime evidence for:
+
+- connection checkout wait duration,
+- connection hold duration,
+- pool occupancy / saturation at checkout and release,
+- job/root-job/run-kind provenance,
+- overlapping scheduler jobs,
+- nested connection usage,
+- transaction duration,
+- provider/network calls while holding a DB connection,
+- database/network latency and timeout correlation.
+
+Only after measurement should the RCA decide whether the cause is true pool capacity, nested connection acquisition, long transactions, external-provider work inside DB scopes, database/network latency, or another source.
+
+No signal thresholds, factor weights, K1/K2/reversal/reset/sizing behavior, model version, SHADOW mode or Realtime Execution state may be changed as part of this RCA without separate explicit approval.
