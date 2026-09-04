@@ -33,6 +33,8 @@ The scheduler sets `max_instances=1` per job. This prevents duplicate concurrent
 
 The engine code inspected in this gate generally performs external provider fetches before or between repository calls rather than deliberately holding one repository connection across the provider request. Therefore the current source does not by itself prove a long-held connection or prove that `max_size=6` is undersized.
 
+The pool constructor does not override psycopg pool lifecycle defaults such as `max_idle` or `max_lifetime`. The project dependency accepts `psycopg[binary,pool]>=3.2,<4`; psycopg 3.x documents a default `max_idle` of 600 seconds and `max_lifetime` of 3600 seconds, with lifetime shortened by a small random amount to avoid synchronized retirement. This is relevant to lifecycle correlation below, but it is not itself proof of the historical timeout mechanism.
+
 ## RCA rules
 
 Until runtime evidence identifies a cause:
@@ -110,7 +112,76 @@ connections_lost   0
 
 A following sample returned both connections to the available pool and recorded a sub-second hold. This first production sample shows pool growth/connection creation during startup pressure, not pool-capacity saturation: pool size reached only `2` of `6`, while connection-health error/loss counters remained zero.
 
-This single startup observation is not a root-cause finding. Historical 10-second failures still require longer production evidence that correlates `checkout_pressure`, `checkout_timeout`, `hold_slow`, `counter_delta` and `sample` events with pool occupancy, connection-establishment timing, callsite, root job and background database consumers.
+### C2 lifecycle / connection-establishment evidence
+
+A second pressured checkout was captured by the previous telemetry process (`PID 11496`) under the `notification_dispatcher` maintenance root context:
+
+```text
+ts                  2026-09-04T16:31:03.330853+00:00
+root_job_name       notification_dispatcher
+run_kind            maintenance
+wait_ms             2231.766
+
+stats_before:
+pool_size           1
+pool_available      0
+requests_queued     1
+requests_wait_ms    1519
+connections_num     2
+connections_ms      3030
+requests_errors     0
+returns_bad         0
+connections_errors  0
+connections_lost    0
+
+stats_acquired:
+pool_size           2
+pool_available      0
+requests_queued     2
+requests_wait_ms    3750
+connections_num     4
+connections_ms      5221
+requests_errors     0
+returns_bad         0
+connections_errors  0
+connections_lost    0
+```
+
+When that connection was returned approximately 1.26 seconds later, pool state was:
+
+```text
+pool_size           2
+pool_available      2
+connections_num     4
+connections_ms      7388
+requests_errors     0
+returns_bad         0
+connections_errors  0
+connections_lost    0
+```
+
+This event is important because pressure occurred with `pool_size=1`, not with the pool near the configured `max_size=6`. During the request, `connections_num` increased from `2` to `4`, while cumulative connection-establishment time increased materially. The request was served after about 2.23 seconds and the pool then returned to two available connections.
+
+The same structural pattern was present in the initial startup event: `pool_size=1`, `pool_available=0`, queueing while connection attempts were in progress, and pool growth to `2` after roughly 1.5 seconds. Together these events directly demonstrate that this runtime can queue requests while substantial pool-capacity headroom exists because connections are being prepared / established / replaced. They do **not** demonstrate six-slot capacity exhaustion.
+
+The second pressure event occurred about 3485 seconds (58.1 minutes) after the initial startup pressure. Because the application leaves psycopg's connection-lifetime settings at their defaults, this timing falls inside the documented randomized one-hour lifetime-retirement window. A lifecycle replacement occurring near `max_lifetime`, combined with demand-triggered growth, is therefore a plausible and testable explanation for why two new connection attempts appeared around this event. This timing correlation is **not yet proof** that lifetime retirement caused the checkout wait; a repeat event with the fixed concrete callsite/process telemetry is required before promoting it to a root-cause finding.
+
+A separate `notification_dispatcher` event recorded a `2441.983 ms` connection hold with only `0.017 ms` checkout wait. This confirms that ~2.4-second hold durations can occur, but this hold was not correlated with checkout pressure or a timeout in the observed sample and therefore does not currently establish long-hold contention as the cause.
+
+Across the collected telemetry so far:
+
+```text
+checkout_timeout    0
+requests_errors     0
+returns_bad         0
+connections_errors  0
+connections_lost    0
+max observed pool_size during pressure  2 of 6
+```
+
+Current evidence therefore weakens real pool-capacity saturation and strengthens connection establishment / lifecycle replacement / database-network latency as the mechanism to investigate next. It still does not explain why historical failures reached the full 10-second checkout timeout. C2 must capture either a future `checkout_timeout` or a materially slower pressure event and correlate it with connection-attempt counters, pool occupancy, callsite, root job, lifecycle timing, and connection-health counters.
+
+The currently deployed callsite-fix process (`PID 15180`) has so far shown the startup `publish_health` pressure event followed by normal `notification_dispatcher` callsites with sub-millisecond checkout waits. A future lifecycle-turnover event from this process is especially valuable because concrete callsite attribution is now available.
 
 ## Decision gate after evidence
 
@@ -120,6 +191,7 @@ Only after sufficient C2 production evidence should remediation be selected. Cau
 - long SQL/transaction hold times,
 - nested connection acquisition,
 - scheduler/background-consumer overlap,
+- connection establishment or replacement latency while capacity headroom exists,
 - database/network latency while opening or using PostgreSQL connections,
 - stale/bad connection discard or replacement behavior,
 - database/server connection reset or loss,
