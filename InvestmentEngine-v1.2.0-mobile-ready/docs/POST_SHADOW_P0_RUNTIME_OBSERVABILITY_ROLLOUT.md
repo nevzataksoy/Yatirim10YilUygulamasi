@@ -118,7 +118,7 @@ Recent historical rows also received `shadow_epoch_id=1`. Historical rows natura
 
 ## Gate B — Windows build and binary rollout
 
-Status: **IN PROGRESS — OBSERVABILITY CLI PASS / SERVICE PACKAGING REMEDIATION READY FOR REBUILD**
+Status: **IN PROGRESS — ONEDIR REBUILD PASS / STARTUP + INSTALLER RUNTIME VALIDATION OPEN**
 
 Do not treat source-level observability as complete production runtime truth until the Windows Service sub-gate passes.
 
@@ -246,12 +246,47 @@ The release packaging has been changed without changing model/runtime semantics:
 - Inno Setup recursively packages the `_internal` runtime tree
 - release-check rejects either Windows build path if `--onefile` is reintroduced
 
-Status: **SOURCE REMEDIATION COMPLETE / WINDOWS REBUILD AND RUNTIME VALIDATION OPEN**
+Status: **SOURCE REMEDIATION COMPLETE**
+
+### Gate B5 — OneDir Windows rebuild evidence
+
+The remediated `agent/portfolio-audit-reset` source at commit `3388fcc` was rebuilt on the Windows host. The source tree was clean before the build.
+
+Build validation:
+
+```text
+Python compile control       PASS
+pytest                       38 passed in 2.87s
+release_check                OK
+PyInstaller OneDir COLLECT   PASS
+Inno Setup 6.4.0 compile     PASS
+```
+
+Generated runtime layout:
+
+```text
+dist\InvestmentEngine\InvestmentEngine.exe
+dist\InvestmentEngine\_internal\...
+installer\InvestmentEngineSetup-1.2.0.exe
+```
+
+PyInstaller emitted `Hidden import "sip" not found!` as a non-fatal warning, while the generated runtime contains `PyQt5\sip.cp314-win_amd64.pyd`. The warning therefore did not prevent the required PyQt5 SIP runtime binary from being collected. The OneDir build and installer compile both completed successfully.
+
+**Gate B5 rebuild result: PASS**
+
+Next required evidence before installation:
+
+1. SHA256 of the rebuilt OneDir main EXE.
+2. SHA256 of the rebuilt installer.
+3. Confirmation that `dist\InvestmentEngine\_internal` exists.
+4. Three harmless `--service-status` process startup timings from the rebuilt OneDir EXE while the production service remains stopped.
+
+Do not install the rebuilt package until this startup-latency preflight passes.
 
 ### Gate B final acceptance criteria
 
-- rebuilt OneDir Windows artefacts pass compile/pytest/release-check/installer compile,
-- fresh OneDir `--service-status` startup is comfortably below 30 seconds,
+- rebuilt OneDir Windows artefacts pass compile/pytest/release-check/installer compile, **PASS**
+- fresh OneDir `--service-status` startup is comfortably below 30 seconds, **OPEN**
 - installed EXE fingerprint equals rebuilt artefact fingerprint,
 - settings/rosalock remain preserved,
 - installer service-start step completes without 1053/7009,
