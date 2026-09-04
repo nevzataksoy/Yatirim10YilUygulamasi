@@ -6,10 +6,85 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from psycopg_pool import PoolTimeout
+
+from app.database.db import DatabaseService
 from app.database.pool_telemetry import PoolTelemetryRecorder, compact_pool_stats, pool_counter_deltas
 
 
+class _FakeCursor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def execute(self, *_args, **_kwargs) -> None:
+        return None
+
+
+class _FakeConnection:
+    def cursor(self) -> _FakeCursor:
+        return _FakeCursor()
+
+
+class _FakeConnectionContext:
+    def __init__(self, enter_error: Exception | None = None) -> None:
+        self.enter_error = enter_error
+        self.connection = _FakeConnection()
+
+    def __enter__(self):
+        if self.enter_error is not None:
+            raise self.enter_error
+        return self.connection
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakePool:
+    def __init__(self, enter_error: Exception | None = None) -> None:
+        self.enter_error = enter_error
+
+    def connection(self) -> _FakeConnectionContext:
+        return _FakeConnectionContext(self.enter_error)
+
+    def get_stats(self) -> dict[str, int]:
+        return {
+            "pool_min": 1,
+            "pool_max": 6,
+            "pool_size": 1,
+            "pool_available": 1,
+            "requests_waiting": 0,
+        }
+
+
+class _RecordingTelemetry:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+
+    def infer_callsite(self) -> str:
+        return "tests.fake_callsite"
+
+    def observe_counter_deltas(self, _stats: dict[str, int]) -> dict[str, int]:
+        return {}
+
+    def sample_due(self) -> bool:
+        return False
+
+    def record(self, event: str, **fields) -> None:
+        self.events.append({"event": event, **fields})
+
+
 class PoolTelemetryTests(unittest.TestCase):
+    def _database_service(self, pool: _FakePool) -> tuple[DatabaseService, _RecordingTelemetry]:
+        service = DatabaseService.__new__(DatabaseService)
+        service.settings = None
+        service.pool = pool
+        telemetry = _RecordingTelemetry()
+        service._pool_telemetry = telemetry
+        return service, telemetry
+
     def test_compact_pool_stats_fills_optional_zero_keys(self) -> None:
         stats = compact_pool_stats({"pool_min": 1, "pool_max": 6, "requests_num": 4})
         self.assertEqual(stats["pool_min"], 1)
@@ -53,6 +128,29 @@ class PoolTelemetryTests(unittest.TestCase):
             self.assertEqual(payload["event"], "sample")
             self.assertEqual(payload["root_job_name"], "hourly_job")
             self.assertEqual(payload["pid"], os.getpid())
+
+    def test_database_service_records_checkout_timeout_only_before_acquisition(self) -> None:
+        service, telemetry = self._database_service(_FakePool(PoolTimeout("pool checkout timeout")))
+        with self.assertRaises(PoolTimeout):
+            with service.connection():
+                pass
+        self.assertEqual([event["event"] for event in telemetry.events], ["checkout_timeout"])
+
+    def test_nested_pool_timeout_is_not_misclassified_as_outer_checkout_timeout(self) -> None:
+        service, telemetry = self._database_service(_FakePool())
+        with self.assertRaises(PoolTimeout):
+            with service.connection():
+                raise PoolTimeout("nested timeout")
+        self.assertNotIn("checkout_timeout", [event["event"] for event in telemetry.events])
+
+    def test_hold_timing_is_recorded_after_pool_context_exit(self) -> None:
+        service, telemetry = self._database_service(_FakePool())
+        service._SLOW_HOLD_MS = -1.0
+        with service.connection():
+            pass
+        events = [event for event in telemetry.events if event["event"] == "hold_slow"]
+        self.assertEqual(len(events), 1)
+        self.assertGreaterEqual(float(events[0]["hold_ms"]), 0.0)
 
 
 if __name__ == "__main__":
