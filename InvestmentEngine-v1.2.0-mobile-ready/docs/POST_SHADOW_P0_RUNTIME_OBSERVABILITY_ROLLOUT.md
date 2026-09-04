@@ -118,9 +118,9 @@ Recent historical rows also received `shadow_epoch_id=1`. Historical rows natura
 
 ## Gate B — Windows build and binary rollout
 
-Status: **IN PROGRESS — BUILD SUB-GATE PASS / INSTALLER ROLLOUT OPEN**
+Status: **IN PROGRESS — BUILD PASS / CLI RUNTIME PASS / WINDOWS SERVICE START BLOCKED**
 
-Do not treat source-level observability as production runtime truth until the installer/runtime sub-gate passes.
+Do not treat source-level observability as complete production runtime truth until the Windows Service sub-gate passes.
 
 ### Gate B1 — Windows build evidence
 
@@ -155,43 +155,88 @@ installer\InvestmentEngineSetup-1.2.0.exe
 SHA256 73DFC9B081E7C82ED998D1AA094F3011A458F2697AA3ADB2FA6B0600DA36C176
 ```
 
-PyInstaller emitted non-fatal warnings while UPX attempted to compress already non-compressible binaries (`_uuid.pyd`, `python3.dll`) and also reported `Hidden import "sip" not found!`. The build continued to successful EXE creation and installer compilation. These warnings are not treated as runtime proof; Gate B2 must verify the actual installed CLI and Windows Service behavior.
+PyInstaller emitted non-fatal warnings while UPX attempted to compress already non-compressible binaries (`_uuid.pyd`, `python3.dll`) and also reported `Hidden import "sip" not found!`. The build continued to successful EXE creation and installer compilation. These warnings are not treated as runtime proof; Gate B2 verifies the actual installed CLI and Windows Service behavior.
 
 **Gate B1 build result: PASS**
 
 ### Gate B2 — Controlled installer/runtime rollout
 
-Status: **OPEN**
+Status: **PARTIAL PASS — INSTALLED BINARY + CLI PASS / SERVICE START BLOCKED**
 
-Required sequence:
+The exact validated installer was executed. Post-install evidence:
 
-1. Keep the production service stopped during the controlled upgrade.
-2. Install exactly the generated `InvestmentEngineSetup-1.2.0.exe` identified above.
-3. Existing `settings` and `rosalock` must remain preserved.
-4. Confirm the service starts successfully.
-5. Run:
+```text
+Installed EXE SHA256:
+E81C8B8840492A055279348E107F59C7C6C64D7EF65CA8143A01C4A634C78892
 
-```bat
-InvestmentEngineCLI.cmd --service-status
-InvestmentEngineCLI.cmd --shadow-observability
+settings preserved: true
+rosalock preserved: true
 ```
 
-6. Re-run verification SQL BLOCK C/D after at least one new scheduled root run if practical, and confirm newly written scheduler rows use `run_kind='scheduled'` with runtime provenance rather than `scheduled_legacy`.
+The Windows Service registration is correct:
+
+```text
+SERVICE_NAME: RosaInvestmentEngine
+START_TYPE: AUTO_START
+BINARY_PATH_NAME: "C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe" --service
+SERVICE_START_NAME: LocalSystem
+```
+
+However installer service startup failed with Windows SCM error `1053`.
+
+System Event Log evidence:
+
+```text
+Event 7045 — service installed successfully
+Event 7009 — timeout waiting for service connection after 30000 ms
+Event 7000 — service failed to start because it did not respond in time
+```
+
+The application log contains no new startup/failure entry from this failed service attempt; its latest line is the intentional pre-upgrade scheduler shutdown. This means the failed service process did not reach the normal `SvcDoRun()` logging path before SCM timed out.
+
+At the same time the exact installed EXE successfully runs the new CLI observability path:
+
+```text
+InvestmentEngineCLI.cmd --shadow-observability
+EXIT_CODE=0
+```
+
+The command loaded the preserved settings, connected to Supabase, read the recovered Shadow epoch, calculated scheduler diagnostics and persisted/returned a full observability result. Therefore:
+
+- installed binary integrity is verified,
+- settings/rosalock compatibility is verified,
+- migration 0010 compatibility is verified,
+- DB connectivity is verified,
+- observability CLI runtime is verified,
+- the remaining deployment failure is isolated to the Windows Service startup/bootstrap path.
+
+Observed `SHADOW_OBSERVABILITY` status from this manual CLI run was `BLOCKED`, with `377/385` expected scheduler rows captured and `374/385` completed. This is diagnostic evidence, not an automatic model-mode change. It does not alter released thresholds or signal semantics.
+
+### Current service-start root-cause hypothesis
+
+The strongest current hypothesis is PyInstaller `--onefile` startup/extraction latency before Python reaches `run_service_dispatcher()` / `StartServiceCtrlDispatcher()`. Supporting evidence:
+
+1. SCM timeout is exactly the Windows service connection timeout: 30,000 ms.
+2. No new application log entry exists from the failed service process, so failure occurs before normal `SvcDoRun()` logging.
+3. The same installed EXE works normally once launched as CLI.
+4. The release binary is a large PyInstaller one-file bundle containing PyQt5, Firebase Admin, Google libraries, psycopg, NumPy, APScheduler, cryptography and related native binaries.
+
+This remains a hypothesis until startup latency is measured directly. Do not work around it by increasing the system-wide `ServicesPipeTimeout` registry value unless packaging alternatives are exhausted; that would hide the service-host startup problem instead of fixing it.
 
 ### Gate B acceptance criteria
 
 - Windows Service: `RUNNING`, exit code `0`.
-- `--shadow-observability` prints a non-empty explicit report.
-- A `SHADOW_OBSERVABILITY` validation record/snapshot is persisted.
-- New scheduler root rows are classified `scheduled`.
-- Nested/dependency work is classified `maintenance` / `dependency` as applicable.
-- Active `shadow_epoch_id=1` is attached to new rows.
-- Existing released `SHADOW_READINESS` semantics are not silently overwritten.
+- `--shadow-observability` prints a non-empty explicit report. **PASS**
+- A `SHADOW_OBSERVABILITY` validation record/snapshot is persisted. **TO VERIFY WITH SQL BLOCK F**
+- New scheduler root rows are classified `scheduled`. **BLOCKED UNTIL SERVICE STARTS**
+- Nested/dependency work is classified `maintenance` / `dependency` as applicable. **BLOCKED UNTIL SERVICE STARTS**
+- Active `shadow_epoch_id=1` is attached to new rows. **PARTIAL — CLI PATH VERIFIED; SCHEDULER PATH OPEN**
+- Existing released `SHADOW_READINESS` semantics are not silently overwritten. **TO VERIFY WITH SQL BLOCK F**
 - Mode remains `SHADOW`.
 - Realtime Execution remains `OFF`.
 
 ## Gate C — Post-rollout reliability investigation
 
-Status: **BLOCKED BY GATE B**
+Status: **BLOCKED BY WINDOWS SERVICE STARTUP FIX**
 
 After Gate B passes, the next P0 task is connection-pool root-cause analysis. Pool sizing must not be changed merely because historical errors exist. First collect runtime evidence for checkout wait, connection hold duration, saturation and job provenance; then decide whether the cause is pool capacity, nested connection usage, long transactions, network/database latency or another source.
