@@ -118,15 +118,13 @@ Recent historical rows also received `shadow_epoch_id=1`. Historical rows natura
 
 ## Gate B — Windows build and binary rollout
 
-Status: **IN PROGRESS — BUILD PASS / CLI RUNTIME PASS / WINDOWS SERVICE START BLOCKED**
+Status: **IN PROGRESS — OBSERVABILITY CLI PASS / SERVICE PACKAGING REMEDIATION READY FOR REBUILD**
 
 Do not treat source-level observability as complete production runtime truth until the Windows Service sub-gate passes.
 
-### Gate B1 — Windows build evidence
+### Gate B1 — Initial Windows build evidence
 
-The latest `agent/portfolio-audit-reset` source was built in the normal Windows build environment while the production service remained stopped.
-
-Build validation:
+The first observability rollout build passed source/test/release validation:
 
 ```text
 Python compile control       PASS
@@ -136,7 +134,7 @@ PyInstaller EXE build        PASS
 Inno Setup 6.4.0 compile     PASS
 ```
 
-Build environment observed in the supplied output:
+Initial build environment:
 
 ```text
 OS                            Windows 10 10.0.19045
@@ -145,7 +143,7 @@ PyInstaller                   6.21.0
 Inno Setup                    6.4.0
 ```
 
-Generated artifacts and SHA256 fingerprints:
+Initial OneFile artifacts:
 
 ```text
 dist\InvestmentEngine.exe
@@ -155,15 +153,13 @@ installer\InvestmentEngineSetup-1.2.0.exe
 SHA256 73DFC9B081E7C82ED998D1AA094F3011A458F2697AA3ADB2FA6B0600DA36C176
 ```
 
-PyInstaller emitted non-fatal warnings while UPX attempted to compress already non-compressible binaries (`_uuid.pyd`, `python3.dll`) and also reported `Hidden import "sip" not found!`. The build continued to successful EXE creation and installer compilation. These warnings are not treated as runtime proof; Gate B2 verifies the actual installed CLI and Windows Service behavior.
+These hashes are retained only as evidence for the failed OneFile rollout and must not be treated as the final service artefacts after the OneDir remediation rebuild.
 
-**Gate B1 build result: PASS**
+### Gate B2 — Controlled installer/runtime rollout of initial OneFile build
 
-### Gate B2 — Controlled installer/runtime rollout
+Status: **PARTIAL PASS — INSTALLED BINARY + CLI PASS / SERVICE START FAILED**
 
-Status: **PARTIAL PASS — INSTALLED BINARY + CLI PASS / SERVICE START BLOCKED**
-
-The exact validated installer was executed. Post-install evidence:
+The exact initial installer was executed. Post-install evidence:
 
 ```text
 Installed EXE SHA256:
@@ -173,7 +169,7 @@ settings preserved: true
 rosalock preserved: true
 ```
 
-The Windows Service registration is correct:
+The Windows Service registration was correct:
 
 ```text
 SERVICE_NAME: RosaInvestmentEngine
@@ -192,51 +188,85 @@ Event 7009 — timeout waiting for service connection after 30000 ms
 Event 7000 — service failed to start because it did not respond in time
 ```
 
-The application log contains no new startup/failure entry from this failed service attempt; its latest line is the intentional pre-upgrade scheduler shutdown. This means the failed service process did not reach the normal `SvcDoRun()` logging path before SCM timed out.
+The application log contained no new startup/failure entry from this failed service attempt; its latest line was the intentional pre-upgrade scheduler shutdown. Therefore the failed service process had not reached the normal `SvcDoRun()` logging path before SCM timed out.
 
-At the same time the exact installed EXE successfully runs the new CLI observability path:
+At the same time the exact installed EXE successfully ran the new observability CLI path:
 
 ```text
 InvestmentEngineCLI.cmd --shadow-observability
 EXIT_CODE=0
 ```
 
-The command loaded the preserved settings, connected to Supabase, read the recovered Shadow epoch, calculated scheduler diagnostics and persisted/returned a full observability result. Therefore:
+The command loaded preserved settings, connected to Supabase, read the recovered Shadow epoch, calculated scheduler diagnostics and returned/persisted a full observability result. Therefore:
 
-- installed binary integrity is verified,
-- settings/rosalock compatibility is verified,
-- migration 0010 compatibility is verified,
-- DB connectivity is verified,
-- observability CLI runtime is verified,
-- the remaining deployment failure is isolated to the Windows Service startup/bootstrap path.
+- installed binary integrity verified,
+- settings/rosalock compatibility verified,
+- migration 0010 compatibility verified,
+- DB connectivity verified,
+- observability CLI runtime verified,
+- service failure isolated to packaged Windows Service startup/bootstrap.
 
-Observed `SHADOW_OBSERVABILITY` status from this manual CLI run was `BLOCKED`, with `377/385` expected scheduler rows captured and `374/385` completed. This is diagnostic evidence, not an automatic model-mode change. It does not alter released thresholds or signal semantics.
+Observed `SHADOW_OBSERVABILITY` status from the manual CLI run was `BLOCKED`, with `377/385` expected scheduler rows captured and `374/385` completed. This is diagnostic evidence and does not change mode, thresholds or released signal semantics.
 
-### Current service-start root-cause hypothesis
+### Gate B3 — OneFile startup latency confirmation
 
-The strongest current hypothesis is PyInstaller `--onefile` startup/extraction latency before Python reaches `run_service_dispatcher()` / `StartServiceCtrlDispatcher()`. Supporting evidence:
+The installed OneFile EXE was measured three times using the harmless `--service-status` CLI path while the service remained stopped:
 
-1. SCM timeout is exactly the Windows service connection timeout: 30,000 ms.
-2. No new application log entry exists from the failed service process, so failure occurs before normal `SvcDoRun()` logging.
-3. The same installed EXE works normally once launched as CLI.
-4. The release binary is a large PyInstaller one-file bundle containing PyQt5, Firebase Admin, Google libraries, psycopg, NumPy, APScheduler, cryptography and related native binaries.
+```text
+Run 1: 62.741 s, exit 0
+Run 2: 20.879 s, exit 0
+Run 3: 18.019 s, exit 0
+```
 
-This remains a hypothesis until startup latency is measured directly. Do not work around it by increasing the system-wide `ServicesPipeTimeout` registry value unless packaging alternatives are exhausted; that would hide the service-host startup problem instead of fixing it.
+The first cold process launch exceeded the SCM connection timeout by more than 30 seconds. This directly explains the observed Event 7009 / service error 1053 during installer startup.
 
-### Gate B acceptance criteria
+Combined evidence:
 
-- Windows Service: `RUNNING`, exit code `0`.
-- `--shadow-observability` prints a non-empty explicit report. **PASS**
-- A `SHADOW_OBSERVABILITY` validation record/snapshot is persisted. **TO VERIFY WITH SQL BLOCK F**
-- New scheduler root rows are classified `scheduled`. **BLOCKED UNTIL SERVICE STARTS**
-- Nested/dependency work is classified `maintenance` / `dependency` as applicable. **BLOCKED UNTIL SERVICE STARTS**
-- Active `shadow_epoch_id=1` is attached to new rows. **PARTIAL — CLI PATH VERIFIED; SCHEDULER PATH OPEN**
-- Existing released `SHADOW_READINESS` semantics are not silently overwritten. **TO VERIFY WITH SQL BLOCK F**
-- Mode remains `SHADOW`.
+1. SCM waits 30,000 ms and times out.
+2. First OneFile process startup takes 62.741 s.
+3. No application log entry is reached before timeout.
+4. Once startup finishes, the same binary performs CLI/DB/observability work successfully.
+
+**Root cause: CONFIRMED — PyInstaller OneFile bootstrap/extraction startup latency is incompatible with the Windows Service SCM startup window on this deployment host.**
+
+Do not change the system-wide `ServicesPipeTimeout` registry value as the primary fix.
+
+### Gate B4 — Approved behavior-preserving packaging remediation
+
+The release packaging has been changed without changing model/runtime semantics:
+
+- `build.bat`: `--onefile` -> `--onedir`
+- `scripts/build_exe.ps1`: `--onefile` -> `--onedir`
+- PyInstaller `--contents-directory "_internal"`
+- UPX disabled with `--noupx` to prioritize startup reliability
+- main EXE remains `C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe`
+- PyInstaller dependencies are installed under `{app}\_internal`
+- service binPath remains `"...\InvestmentEngine.exe" --service`
+- `settings`, `rosalock`, logs/runtime paths remain unchanged
+- Inno Setup recursively packages the `_internal` runtime tree
+- release-check rejects either Windows build path if `--onefile` is reintroduced
+
+Status: **SOURCE REMEDIATION COMPLETE / WINDOWS REBUILD AND RUNTIME VALIDATION OPEN**
+
+### Gate B final acceptance criteria
+
+- rebuilt OneDir Windows artefacts pass compile/pytest/release-check/installer compile,
+- fresh OneDir `--service-status` startup is comfortably below 30 seconds,
+- installed EXE fingerprint equals rebuilt artefact fingerprint,
+- settings/rosalock remain preserved,
+- installer service-start step completes without 1053/7009,
+- Windows Service becomes `RUNNING`, exit code `0`,
+- `--shadow-observability` remains non-empty and exit code `0`,
+- a `SHADOW_OBSERVABILITY` validation record/snapshot is persisted,
+- new scheduler root rows classify as `scheduled`,
+- child/dependency rows classify as `maintenance` / `dependency` as applicable,
+- active `shadow_epoch_id=1` is attached to new rows,
+- existing released `SHADOW_READINESS` semantics are not overwritten,
+- mode remains `SHADOW`,
 - Realtime Execution remains `OFF`.
 
 ## Gate C — Post-rollout reliability investigation
 
-Status: **BLOCKED BY WINDOWS SERVICE STARTUP FIX**
+Status: **BLOCKED BY WINDOWS SERVICE ONEDIR RUNTIME VALIDATION**
 
 After Gate B passes, the next P0 task is connection-pool root-cause analysis. Pool sizing must not be changed merely because historical errors exist. First collect runtime evidence for checkout wait, connection hold duration, saturation and job provenance; then decide whether the cause is pool capacity, nested connection usage, long transactions, network/database latency or another source.
