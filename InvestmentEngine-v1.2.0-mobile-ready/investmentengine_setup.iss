@@ -1,5 +1,5 @@
 ; Rosa Investment Engine v1.2.0
-; Single-file PyInstaller EXE + Windows Service installation
+; PyInstaller one-dir runtime + Windows Service installation
 
 #define MyAppName "Rosa Investment Engine"
 #define MyAppVersion "1.2.0"
@@ -52,12 +52,16 @@ Name: "{app}\logs"
 Name: "{app}\runtime"
 Name: "{app}\migrations"
 Name: "{app}\docs"
+; PyInstaller one-dir bağımlılıkları burada önceden kurulur. Ana EXE {app} kökünde
+; kalır; böylece CLI ve Windows Service binPath sözleşmesi değişmez.
+Name: "{app}\_internal"
 ; Firebase service-account JSON installer'a dahil edilmez. Yalnız sunucuya özel
 ; credential dizini oluşturulur ve uninstall/upgrade sırasında korunur.
 Name: "{commonappdata}\Rosa\InvestmentEngine\secrets"; Permissions: admins-full system-full; Flags: uninsneveruninstall
 
 [Files]
-Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\InvestmentEngine\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\InvestmentEngine\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "InvestmentEngineCLI.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "InvestmentEngineCLI.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "migrations\*.sql"; DestDir: "{app}\migrations"; Flags: ignoreversion
@@ -73,7 +77,7 @@ Name: "{autodesktop}\Investment Engine Ayarları"; Filename: "{app}\{#MyAppExeNa
 ; İlk kurulumda settings yoksa ayar ekranını aç. EXE UAC manifesti nedeniyle yönetici olarak çalışır.
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--configure"; WorkingDir: "{app}"; StatusMsg: "Investment Engine ilk ayarları açılıyor..."; Flags: waituntilterminated; Check: NeedInitialConfiguration
 
-; Tek EXE Windows Service olarak kaydedilir. Kurulum idempotenttir: eski service kaydı silinip yeniden oluşturulur.
+; Aynı ana EXE Windows Service olarak kaydedilir. Kurulum idempotenttir: eski service kaydı silinip yeniden oluşturulur.
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--install-service"; WorkingDir: "{app}"; StatusMsg: "Windows Service kuruluyor..."; Flags: runhidden waituntilterminated
 
 ; Ayarlar başarıyla oluşturulduysa servisi başlat.
