@@ -62,6 +62,22 @@ def pool_counter_deltas(previous: dict[str, int] | None, current: dict[str, int]
     return deltas
 
 
+def application_module_from_filename(filename: str) -> str | None:
+    """Resolve an app module from source or PyInstaller frozen co_filename forms."""
+    normalized = str(filename or "").replace("\\", "/")
+    if "/app/" in normalized:
+        relative = normalized.split("/app/", 1)[1]
+    elif normalized.startswith("app/"):
+        relative = normalized[len("app/") :]
+    else:
+        return None
+
+    if relative.endswith(".py"):
+        relative = relative[:-3]
+    module = relative.replace("/", ".").strip(".")
+    return module or None
+
+
 class PoolTelemetryRecorder:
     """Best-effort local JSONL recorder for connection-pool RCA.
 
@@ -107,12 +123,8 @@ class PoolTelemetryRecorder:
         try:
             frame = frame.f_back if frame is not None else None
             while frame is not None:
-                filename = frame.f_code.co_filename.replace("\\", "/")
-                if "/app/" in filename and not filename.endswith("/app/database/db.py") and not filename.endswith(
-                    "/app/database/pool_telemetry.py"
-                ):
-                    relative = filename.split("/app/", 1)[1]
-                    module = relative[:-3].replace("/", ".") if relative.endswith(".py") else relative.replace("/", ".")
+                module = application_module_from_filename(frame.f_code.co_filename)
+                if module and module not in {"database.db", "database.pool_telemetry"}:
                     return f"{module}.{frame.f_code.co_name}"
                 frame = frame.f_back
         finally:
