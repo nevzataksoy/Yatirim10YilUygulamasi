@@ -9,7 +9,12 @@ from pathlib import Path
 from psycopg_pool import PoolTimeout
 
 from app.database.db import DatabaseService
-from app.database.pool_telemetry import PoolTelemetryRecorder, compact_pool_stats, pool_counter_deltas
+from app.database.pool_telemetry import (
+    PoolTelemetryRecorder,
+    application_module_from_filename,
+    compact_pool_stats,
+    pool_counter_deltas,
+)
 
 
 class _FakeCursor:
@@ -113,6 +118,17 @@ class PoolTelemetryTests(unittest.TestCase):
             {"requests_queued": 2, "returns_bad": 1, "connections_lost": 2},
         )
         self.assertEqual(pool_counter_deltas(None, current), {})
+
+    def test_application_module_from_filename_supports_source_and_frozen_paths(self) -> None:
+        self.assertEqual(
+            application_module_from_filename(r"D:\repo\InvestmentEngine\app\database\repository.py"),
+            "database.repository",
+        )
+        self.assertEqual(
+            application_module_from_filename(r"app\notifications\dispatcher.py"),
+            "notifications.dispatcher",
+        )
+        self.assertIsNone(application_module_from_filename(r"contextlib.py"))
 
     def test_recorder_writes_process_local_jsonl_and_throttles_samples(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
