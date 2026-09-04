@@ -133,28 +133,70 @@ job_name         shadow_observability
 run_kind         manual
 root_job_name    shadow_observability
 shadow_epoch_id  1
-status            OK
+status           OK
 ```
 
 This confirms the new runtime can set and persist provenance GUCs and attach the active Shadow epoch.
 
-At the time BLOCK D was collected, the newly deployed service had not yet reached its first scheduled root execution after startup. The most recent scheduler rows were therefore still historical `scheduled_legacy` rows from before the OneDir deployment.
+## Post-deploy scheduled-root provenance verification
 
-## Remaining Gate B verification
+A later production query, collected at 04 September 2026 15:42 Europe/Istanbul, contains repeated scheduler-root rows written by the deployed OneDir runtime.
 
-Before Gate B is fully closed, one runtime provenance check remains:
-
-1. After the first post-deploy scheduled root run (expected `hourly_job` at 05:05 Europe/Istanbul), verify a new row with:
+Representative `hourly_job` rows:
 
 ```text
-job_name         hourly_job
-run_kind         scheduled
-root_job_name    hourly_job
-shadow_epoch_id  1
+id     job_name     run_kind    status  shadow_epoch_id  root_job_name
+1974   hourly_job   scheduled   OK      1                hourly_job
+1976   hourly_job   scheduled   OK      1                hourly_job
+1978   hourly_job   scheduled   OK      1                hourly_job
+1980   hourly_job   scheduled   OK      1                hourly_job
+1982   hourly_job   scheduled   OK      1                hourly_job
+1984   hourly_job   scheduled   OK      1                hourly_job
+1987   hourly_job   scheduled   OK      1                hourly_job
+1989   hourly_job   scheduled   OK      1                hourly_job
+1991   hourly_job   scheduled   OK      1                hourly_job
 ```
 
-2. Confirm that run completes with expected status and no new service-start error appears.
+The same runtime provenance is visible for other scheduler roots:
 
-All other Gate B runtime/deployment acceptance criteria are PASS.
+```text
+sec_event_job   run_kind=scheduled   root_job_name=sec_event_job   shadow_epoch_id=1
+macro_job       run_kind=scheduled   root_job_name=macro_job       shadow_epoch_id=1
+```
 
-Connection-pool RCA remains blocked until this final scheduled-root provenance check completes.
+`sec_event_job` remains `DEGRADED` because current direct SEC ticker coverage is about 19.4% of fund weight; this is preserved diagnostic evidence and is not a packaging/runtime failure.
+
+These rows prove that after deployment:
+
+- new scheduler roots are classified as `scheduled`, not `scheduled_legacy`,
+- `root_job_name` matches the scheduler root,
+- the active Shadow epoch is attached as `shadow_epoch_id=1`,
+- repeated `hourly_job` runs complete `OK`,
+- scheduler provenance remains stable across multiple hours and job types.
+
+## Gate B conclusion
+
+All Gate B acceptance criteria are now satisfied:
+
+- OneDir build / tests / release-check / installer compile: PASS
+- cold startup latency comfortably below SCM timeout: PASS
+- installed EXE fingerprint matches approved artefact: PASS
+- `_internal`, `settings`, and `rosalock` present: PASS
+- installer service start without 1053 / 7009: PASS
+- Windows Service `RUNNING`, exit code 0: PASS
+- manual `--shadow-observability` full report, exit code 0: PASS
+- SHADOW_OBSERVABILITY persistence separate from SHADOW_READINESS: PASS
+- manual runtime provenance + active Shadow epoch attachment: PASS
+- scheduled-root runtime provenance + active Shadow epoch attachment: PASS
+- mode remains `SHADOW`: PASS
+- Realtime Execution remains `OFF`: PASS
+
+**Gate B — PASS / CLOSED**
+
+The OneFile-to-OneDir packaging remediation is complete. No system-wide `ServicesPipeTimeout` change was required.
+
+## Next P0 step
+
+Connection-pool root-cause analysis is now **OPEN**.
+
+Historical `couldn't get a connection after 10.00 sec` errors must be investigated with runtime evidence before any pool-size change. Instrument and correlate connection checkout wait, connection hold duration, pool occupancy/saturation, root job/run kind, overlap, nested connection usage, long transactions/provider calls, and database/network latency. Do not blindly increase `max_size=6` and do not change released model semantics as part of this RCA.
