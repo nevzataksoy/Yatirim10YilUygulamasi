@@ -13,9 +13,24 @@ def _require_markers(path: str, markers: list[str], label: str) -> None:
             raise SystemExit(f"{label} eksik: {marker}")
 
 
+def _require_onedir_build(path: str, label: str) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    for marker in [
+        "--onedir",
+        "_internal",
+        "--noupx",
+        "dist\\InvestmentEngine\\InvestmentEngine.exe",
+    ]:
+        if marker not in text:
+            raise SystemExit(f"{label} OneDir sözleşmesi eksik: {marker}")
+    if "--onefile" in text:
+        raise SystemExit(f"{label} tekrar --onefile kullanıyor; SCM startup timeout riski geri geldi.")
+
+
 def main() -> int:
     required = [
         "build.bat",
+        "scripts/build_exe.ps1",
         "investmentengine_setup.iss",
         "InvestmentEngineCLI.cmd",
         "InvestmentEngineCLI.ps1",
@@ -27,6 +42,8 @@ def main() -> int:
         "migrations/0005_v1_1_2_macro_derivatives.sql",
         "migrations/0006_v1_1_3_hardening_realtime_ura.sql",
         "migrations/0007_v1_2_model_validation.sql",
+        "migrations/0008_portfolio_audit_hardening.sql",
+        "migrations/0009_portfolio_self_service_reset.sql",
         "app/collectors/globalx_ura.py",
         "app/collectors/sec.py",
         "app/engines/ura.py",
@@ -137,7 +154,14 @@ def main() -> int:
     )
     _require_markers(
         "investmentengine_setup.iss",
-        ['#define MyAppVersion "1.2.0"', 'Source: "InvestmentEngineCLI.cmd"', 'Source: "InvestmentEngineCLI.ps1"'],
+        [
+            '#define MyAppVersion "1.2.0"',
+            'Source: "dist\\InvestmentEngine\\{#MyAppExeName}"',
+            'Source: "dist\\InvestmentEngine\\_internal\\*"',
+            'DestDir: "{app}\\_internal"',
+            'Source: "InvestmentEngineCLI.cmd"',
+            'Source: "InvestmentEngineCLI.ps1"',
+        ],
         "Installer v1.2.0",
     )
     _require_markers(
@@ -146,10 +170,34 @@ def main() -> int:
         "Model validation migration",
     )
     _require_markers(
+        "migrations/0008_portfolio_audit_hardening.sql",
+        [
+            "ux_portfolio_transactions_single_successor",
+            "validate_portfolio_revision_reference",
+            "revoke update, delete on public.portfolio_transactions",
+            "btc_eth_conversion_pct",
+        ],
+        "Portföy audit hardening migration",
+    )
+    _require_markers(
+        "migrations/0009_portfolio_self_service_reset.sql",
+        [
+            "reset_portfolio_transaction_history",
+            "authenticated_user_id uuid := auth.uid()",
+            "transaction_row.user_id = authenticated_user_id",
+            "grant execute on function",
+        ],
+        "Kullanıcı portföy sıfırlama migration",
+    )
+    _require_markers(
         "app/backtest/validation.py",
         ["replay_ethbtc_core", "calibrate_edge_thresholds", "classify_shadow_readiness"],
         "Point-in-time validation",
     )
+
+    _require_onedir_build("build.bat", "build.bat")
+    _require_onedir_build("scripts/build_exe.ps1", "scripts/build_exe.ps1")
+
     cmd_text=(ROOT / "InvestmentEngineCLI.cmd").read_text(encoding="utf-8")
     ps1_text=(ROOT / "InvestmentEngineCLI.ps1").read_text(encoding="utf-8")
     if "\\n" in cmd_text or "\\n" in ps1_text:
