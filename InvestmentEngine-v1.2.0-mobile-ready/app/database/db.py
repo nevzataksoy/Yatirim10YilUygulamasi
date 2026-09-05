@@ -9,7 +9,11 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
 
-from app.database.pool_telemetry import PoolTelemetryRecorder, compact_pool_stats
+from app.database.pool_telemetry import (
+    PoolTelemetryRecorder,
+    compact_pool_stats,
+    connection_lifecycle_snapshot,
+)
 from app.models import AppSettings
 from app.run_context import current_job_context
 
@@ -45,6 +49,8 @@ class DatabaseService:
             max_size=6,
             timeout=10,
             kwargs={"row_factory": dict_row},
+            configure=self._configure_pool_connection,
+            reset=self._reset_pool_connection,
             open=True,
         )
 
@@ -60,6 +66,36 @@ class DatabaseService:
             return compact_pool_stats(self.pool.get_stats())
         except Exception:
             return compact_pool_stats({})
+
+    def _configure_pool_connection(self, conn: psycopg.Connection) -> None:
+        """Record creation identity without changing connection state."""
+        try:
+            self._pool_telemetry.record(
+                "connection_created",
+                thread=threading.current_thread().name,
+                **connection_lifecycle_snapshot(conn),
+            )
+        except Exception:
+            # Pool callbacks must remain behavior-preserving even if telemetry fails.
+            return
+
+    def _reset_pool_connection(self, conn: psycopg.Connection) -> None:
+        """Record a connection that has reached its pool expiry before return.
+
+        psycopg_pool invokes ``reset`` before its own broken/expiry decision.
+        The snapshot reads best-effort lifecycle metadata only; it never changes
+        transaction state or connection attributes.
+        """
+        try:
+            lifecycle = connection_lifecycle_snapshot(conn)
+            if lifecycle.get("expired"):
+                self._pool_telemetry.record(
+                    "connection_expired_on_return",
+                    thread=threading.current_thread().name,
+                    **lifecycle,
+                )
+        except Exception:
+            return
 
     def _telemetry_context(self) -> dict:
         root_job_name, run_kind = current_job_context()

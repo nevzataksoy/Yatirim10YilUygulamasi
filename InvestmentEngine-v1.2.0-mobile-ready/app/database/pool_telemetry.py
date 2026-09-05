@@ -62,6 +62,46 @@ def pool_counter_deltas(previous: dict[str, int] | None, current: dict[str, int]
     return deltas
 
 
+def connection_lifecycle_snapshot(
+    conn: Any,
+    *,
+    now_monotonic: float | None = None,
+) -> dict[str, Any]:
+    """Read best-effort psycopg-pool lifecycle metadata without mutating the connection.
+
+    ``_created_at`` and ``_expire_at`` are private psycopg-pool attributes used
+    only for RCA attribution. Missing or changed internals degrade telemetry to
+    connection identity/backend PID instead of affecting runtime behavior.
+    """
+    now = time.monotonic() if now_monotonic is None else float(now_monotonic)
+    snapshot: dict[str, Any] = {"connection_id": hex(id(conn))}
+
+    try:
+        snapshot["backend_pid"] = int(getattr(conn.info, "backend_pid", 0) or 0)
+    except Exception:
+        snapshot["backend_pid"] = 0
+
+    created_at = getattr(conn, "_created_at", None)
+    expire_at = getattr(conn, "_expire_at", None)
+
+    try:
+        if created_at is not None:
+            created = float(created_at)
+            snapshot["age_ms"] = round(max(0.0, now - created) * 1000.0, 3)
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        if expire_at is not None:
+            expires = float(expire_at)
+            snapshot["expires_in_ms"] = round((expires - now) * 1000.0, 3)
+            snapshot["expired"] = expires <= now
+    except (TypeError, ValueError):
+        pass
+
+    return snapshot
+
+
 def application_module_from_filename(filename: str) -> str | None:
     """Resolve an app module from source or PyInstaller frozen co_filename forms."""
     normalized = str(filename or "").replace("\\", "/")

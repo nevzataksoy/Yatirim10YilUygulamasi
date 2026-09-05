@@ -42,6 +42,13 @@ $rows |
     Select-Object Name, Count |
     Format-Table -AutoSize
 
+Write-Host "`n=== CONNECTION LIFECYCLE ==="
+$rows |
+    Where-Object { $_.event -in @('connection_created', 'connection_expired_on_return') } |
+    Sort-Object ts -Descending |
+    Select-Object -First $Top ts, event, connection_id, backend_pid, age_ms, expires_in_ms, expired, thread, source_file |
+    Format-Table -AutoSize
+
 Write-Host "`n=== CHECKOUT TIMEOUTS ==="
 $rows |
     Where-Object event -eq 'checkout_timeout' |

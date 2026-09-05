@@ -13,6 +13,7 @@ from app.database.pool_telemetry import (
     PoolTelemetryRecorder,
     application_module_from_filename,
     compact_pool_stats,
+    connection_lifecycle_snapshot,
     pool_counter_deltas,
 )
 
@@ -28,7 +29,16 @@ class _FakeCursor:
         return None
 
 
+class _FakeInfo:
+    backend_pid = 4242
+
+
 class _FakeConnection:
+    def __init__(self) -> None:
+        self.info = _FakeInfo()
+        self._created_at = 40.0
+        self._expire_at = 90.0
+
     def cursor(self) -> _FakeCursor:
         return _FakeCursor()
 
@@ -119,6 +129,16 @@ class PoolTelemetryTests(unittest.TestCase):
         )
         self.assertEqual(pool_counter_deltas(None, current), {})
 
+    def test_connection_lifecycle_snapshot_reports_expiry_without_mutation(self) -> None:
+        conn = _FakeConnection()
+        snapshot = connection_lifecycle_snapshot(conn, now_monotonic=100.0)
+        self.assertEqual(snapshot["backend_pid"], 4242)
+        self.assertEqual(snapshot["age_ms"], 60_000.0)
+        self.assertEqual(snapshot["expires_in_ms"], -10_000.0)
+        self.assertTrue(snapshot["expired"])
+        self.assertEqual(conn._created_at, 40.0)
+        self.assertEqual(conn._expire_at, 90.0)
+
     def test_application_module_from_filename_supports_source_and_frozen_paths(self) -> None:
         self.assertEqual(
             application_module_from_filename(r"D:\repo\InvestmentEngine\app\database\repository.py"),
@@ -144,6 +164,21 @@ class PoolTelemetryTests(unittest.TestCase):
             self.assertEqual(payload["event"], "sample")
             self.assertEqual(payload["root_job_name"], "hourly_job")
             self.assertEqual(payload["pid"], os.getpid())
+
+    def test_database_service_lifecycle_callbacks_record_creation_and_expiry(self) -> None:
+        service, telemetry = self._database_service(_FakePool())
+        conn = _FakeConnection()
+
+        service._configure_pool_connection(conn)
+        conn._expire_at = 0.0
+        service._reset_pool_connection(conn)
+
+        self.assertEqual(
+            [event["event"] for event in telemetry.events],
+            ["connection_created", "connection_expired_on_return"],
+        )
+        self.assertEqual(telemetry.events[0]["backend_pid"], 4242)
+        self.assertTrue(telemetry.events[1]["expired"])
 
     def test_database_service_records_checkout_timeout_only_before_acquisition(self) -> None:
         service, telemetry = self._database_service(_FakePool(PoolTimeout("pool checkout timeout")))
