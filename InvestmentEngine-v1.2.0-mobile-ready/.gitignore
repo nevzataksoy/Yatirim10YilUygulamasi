@@ -8,5 +8,5 @@ installer/
 runtime/
 logs/
 *.log
-walk_forward_output.json
-walk_forward_stderr.txt
+walk_forward_*.json
+walk_forward_*.txt
