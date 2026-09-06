@@ -39,6 +39,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--step-sessions", type=int, default=90, help="Fold step in sessions.")
     parser.add_argument("--horizon", type=int, default=20, help="Primary forward-return horizon in sessions.")
     parser.add_argument("--min-train-signals", type=int, default=8, help="Minimum train signals before candidate selection.")
+    parser.add_argument(
+        "--min-oos-signals",
+        type=int,
+        default=8,
+        help=(
+            "Minimum aggregate selected-candidate holdout signals before the report "
+            "is classified as EVIDENCE_AVAILABLE. Validation-only; never changes production settings."
+        ),
+    )
     return parser
 
 
@@ -88,6 +97,42 @@ def _load_settings(explicit_dir: Path | None):
     return None, None, searched, load_errors
 
 
+def _aggregate_selected_oos(result: dict) -> dict:
+    signals = 0
+    weighted_hits = 0.0
+    weighted_return = 0.0
+    folds_with_signals = 0
+
+    for fold in result.get("folds") or []:
+        candidate = fold.get("selected_candidate") or {}
+        holdout = candidate.get("holdout") or {}
+        count = int(holdout.get("signals") or 0)
+        if count <= 0:
+            continue
+        folds_with_signals += 1
+        signals += count
+        weighted_hits += float(holdout.get("hit_rate") or 0.0) * count
+        weighted_return += float(holdout.get("avg_signed_return") or 0.0) * count
+
+    return {
+        "signals": signals,
+        "folds_with_signals": folds_with_signals,
+        "hit_rate": (weighted_hits / signals) if signals else 0.0,
+        "avg_signed_return": (weighted_return / signals) if signals else 0.0,
+    }
+
+
+def _classify_evidence(result: dict, min_oos_signals: int) -> str:
+    if min_oos_signals <= 0:
+        raise ValueError("min_oos_signals pozitif olmalıdır.")
+    if int(result.get("selected_candidate_folds") or 0) <= 0:
+        return "LIMITED_TRAIN_SIGNAL_COUNT"
+    summary = _aggregate_selected_oos(result)
+    if int(summary["signals"]) < min_oos_signals:
+        return "LIMITED_OOS_SIGNAL_COUNT"
+    return "EVIDENCE_AVAILABLE"
+
+
 def main() -> int:
     args = _parser().parse_args()
     settings, settings_dir, searched, load_errors = _load_settings(args.settings_dir)
@@ -106,8 +151,6 @@ def main() -> int:
                 file=sys.stderr,
             )
         return 2
-
-    print(f"SETTINGS_DIR: {settings_dir}", file=sys.stderr)
 
     engine = InvestmentEngine(settings, ROOT)
     started = datetime.now(timezone.utc)
@@ -133,7 +176,12 @@ def main() -> int:
             min_train_signals=args.min_train_signals,
         )
 
-        print(json.dumps(result, ensure_ascii=False, indent=2))
+        result["selection_status"] = str(result.get("status") or "UNKNOWN")
+        result["selected_candidate_oos_summary"] = _aggregate_selected_oos(result)
+        result["min_oos_signals"] = args.min_oos_signals
+        result["status"] = _classify_evidence(result, args.min_oos_signals)
+        result["settings_dir"] = str(settings_dir)
+        result["persistence"] = {"persisted": False}
 
         if args.persist:
             status = str(result.get("status") or "UNKNOWN")
@@ -142,6 +190,7 @@ def main() -> int:
             details = {
                 "auto_apply": False,
                 "method": result.get("method"),
+                "selection_status": result.get("selection_status"),
                 "source": "verification/run_walk_forward_validation.py",
             }
             run_id = engine.repo.insert_validation_run(
@@ -156,6 +205,10 @@ def main() -> int:
                 metrics=result,
                 details=details,
             )
+            result["persistence"] = {
+                "persisted": True,
+                "validation_run_id": run_id,
+            }
             engine.repo.publish_validation_snapshot(
                 validation_type="WALK_FORWARD_CORE",
                 system="ETH/BTC",
@@ -165,10 +218,8 @@ def main() -> int:
                 metrics=result,
                 details={**details, "validation_run_id": run_id},
             )
-            print(f"PERSISTED validation_run_id={run_id}", file=sys.stderr)
-        else:
-            print("DRY-RUN: Supabase validation tablolarına yazılmadı.", file=sys.stderr)
 
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     finally:
         engine.db.close()
