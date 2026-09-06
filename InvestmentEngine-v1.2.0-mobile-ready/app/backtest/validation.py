@@ -176,11 +176,25 @@ def _select_signal_indices(
 
 
 def _signed_forward_returns(
-    points: list[ReplayPoint], indices: Iterable[int], horizon: int
+    points: list[ReplayPoint],
+    indices: Iterable[int],
+    horizon: int,
+    *,
+    max_index_exclusive: int | None = None,
 ) -> list[float]:
+    """Return signed forward returns without crossing an evaluation boundary.
+
+    `max_index_exclusive` is essential for train/fold metrics: a training
+    signal near the boundary must not use a price from the future holdout
+    window merely because that price exists later in `points`.
+    """
+    limit = len(points)
+    if max_index_exclusive is not None:
+        limit = max(0, min(limit, max_index_exclusive))
+
     out: list[float] = []
     for i in indices:
-        if i + horizon >= len(points):
+        if i < 0 or i >= limit or i + horizon >= limit:
             continue
         base = points[i].ratio
         future = points[i + horizon].ratio
@@ -191,14 +205,32 @@ def _signed_forward_returns(
     return out
 
 
-def _metrics(points: list[ReplayPoint], indices: list[int], horizon: int) -> HorizonMetrics:
-    returns = _signed_forward_returns(points, indices, horizon)
+def _metrics(
+    points: list[ReplayPoint],
+    indices: list[int],
+    horizon: int,
+    *,
+    max_index_exclusive: int | None = None,
+) -> HorizonMetrics:
+    returns = _signed_forward_returns(
+        points,
+        indices,
+        horizon,
+        max_index_exclusive=max_index_exclusive,
+    )
     return HorizonMetrics(
         horizon_sessions=horizon,
         signals=len(returns),
         hit_rate=(sum(x > 0 for x in returns) / len(returns)) if returns else 0.0,
         avg_signed_return=(sum(returns) / len(returns)) if returns else 0.0,
         median_signed_return=median(returns) if returns else 0.0,
+    )
+
+
+def _ranking_score(metrics: HorizonMetrics) -> float:
+    return (
+        metrics.avg_signed_return * sqrt(max(metrics.signals, 1))
+        + max(0.0, metrics.hit_rate - 0.5) * 0.02
     )
 
 
@@ -209,7 +241,11 @@ def calibrate_edge_thresholds(
     primary_horizon: int = 20,
     train_fraction: float = 0.70,
 ) -> dict:
-    """Exploratory walk-forward threshold report; never mutates settings."""
+    """Exploratory single-split threshold report; never mutates settings.
+
+    The train metrics are boundary-safe: forward returns are not allowed to
+    leak across the train/holdout split.
+    """
     if len(points) < 80:
         return {
             "status": "INSUFFICIENT_HISTORY",
@@ -222,18 +258,24 @@ def calibrate_edge_thresholds(
     for threshold in thresholds:
         train_idx = _select_signal_indices(points, threshold, start=0, end=split)
         test_idx = _select_signal_indices(points, threshold, start=split, end=len(points))
-        train = _metrics(points, train_idx, primary_horizon)
-        test = _metrics(points, test_idx, primary_horizon)
-        ranking_score = (
-            train.avg_signed_return * sqrt(max(train.signals, 1))
-            + max(0.0, train.hit_rate - 0.5) * 0.02
+        train = _metrics(
+            points,
+            train_idx,
+            primary_horizon,
+            max_index_exclusive=split,
+        )
+        test = _metrics(
+            points,
+            test_idx,
+            primary_horizon,
+            max_index_exclusive=len(points),
         )
         candidates.append(
             {
                 "edge_threshold": threshold,
                 "train": asdict(train),
                 "holdout": asdict(test),
-                "ranking_score": ranking_score,
+                "ranking_score": _ranking_score(train),
             }
         )
     candidates.sort(key=lambda x: x["ranking_score"], reverse=True)
@@ -249,9 +291,215 @@ def calibrate_edge_thresholds(
         "best_candidate": eligible[0] if eligible else None,
         "candidates": candidates,
         "note": (
-            "Exploratory only. Derivatives/event point-in-time history eksik olduğu için "
-            "bu rapor production threshold'u otomatik değiştirmez."
+            "Exploratory single-split report only. Derivatives/event point-in-time history "
+            "eksik olduğu için bu rapor production threshold'u otomatik değiştirmez."
         ),
+    }
+
+
+def walk_forward_edge_thresholds(
+    points: list[ReplayPoint],
+    *,
+    configured_edge: float,
+    thresholds: tuple[int, ...] = (50, 55, 60, 65, 70, 75, 80),
+    primary_horizon: int = 20,
+    min_train_sessions: int = 365,
+    test_sessions: int = 90,
+    step_sessions: int = 90,
+    min_train_signals: int = 8,
+) -> dict:
+    """Run expanding-window, strictly past-only threshold validation.
+
+    For every fold, candidate ranking uses only the expanding training window.
+    The chosen candidate, when one has enough train signals, is then evaluated
+    on the immediately following holdout window. No parameter is auto-applied.
+
+    The released configured threshold is also evaluated fold-by-fold even when
+    candidate selection is signal-starved; this keeps the report useful when
+    the model intentionally produces few or no actions.
+    """
+    if primary_horizon <= 0:
+        raise ValueError("primary_horizon pozitif olmalıdır.")
+    if min_train_sessions <= primary_horizon:
+        raise ValueError("min_train_sessions primary_horizon değerinden büyük olmalıdır.")
+    if test_sessions <= primary_horizon:
+        raise ValueError("test_sessions primary_horizon değerinden büyük olmalıdır.")
+    if step_sessions <= 0:
+        raise ValueError("step_sessions pozitif olmalıdır.")
+    if min_train_signals <= 0:
+        raise ValueError("min_train_signals pozitif olmalıdır.")
+
+    minimum_points = min_train_sessions + test_sessions
+    if len(points) < minimum_points:
+        return {
+            "status": "INSUFFICIENT_HISTORY",
+            "reason": (
+                "Expanding walk-forward için en az "
+                f"{minimum_points} core replay noktası gerekir."
+            ),
+            "observations": len(points),
+            "folds": [],
+            "auto_apply": False,
+        }
+
+    folds: list[dict] = []
+    test_start = min_train_sessions
+    fold_number = 1
+
+    while test_start + primary_horizon < len(points):
+        test_end = min(len(points), test_start + test_sessions)
+        if test_end - test_start <= primary_horizon:
+            break
+
+        train_candidates: list[dict] = []
+        for threshold in thresholds:
+            train_idx = _select_signal_indices(
+                points,
+                threshold,
+                start=0,
+                end=test_start,
+            )
+            train_metrics = _metrics(
+                points,
+                train_idx,
+                primary_horizon,
+                max_index_exclusive=test_start,
+            )
+            train_candidates.append(
+                {
+                    "edge_threshold": threshold,
+                    "train": asdict(train_metrics),
+                    "ranking_score": _ranking_score(train_metrics),
+                }
+            )
+
+        train_candidates.sort(key=lambda x: x["ranking_score"], reverse=True)
+        eligible = [
+            item
+            for item in train_candidates
+            if item["train"]["signals"] >= min_train_signals
+        ]
+        selected = eligible[0] if eligible else None
+
+        configured_train_idx = _select_signal_indices(
+            points,
+            configured_edge,
+            start=0,
+            end=test_start,
+        )
+        configured_test_idx = _select_signal_indices(
+            points,
+            configured_edge,
+            start=test_start,
+            end=test_end,
+        )
+        configured_train = _metrics(
+            points,
+            configured_train_idx,
+            primary_horizon,
+            max_index_exclusive=test_start,
+        )
+        configured_test = _metrics(
+            points,
+            configured_test_idx,
+            primary_horizon,
+            max_index_exclusive=test_end,
+        )
+
+        selected_test = None
+        if selected is not None:
+            selected_threshold = float(selected["edge_threshold"])
+            selected_test_idx = _select_signal_indices(
+                points,
+                selected_threshold,
+                start=test_start,
+                end=test_end,
+            )
+            selected_test = asdict(
+                _metrics(
+                    points,
+                    selected_test_idx,
+                    primary_horizon,
+                    max_index_exclusive=test_end,
+                )
+            )
+
+        folds.append(
+            {
+                "fold": fold_number,
+                "train_start": points[0].as_of,
+                "train_end": points[test_start - 1].as_of,
+                "train_observations": test_start,
+                "test_start": points[test_start].as_of,
+                "test_end": points[test_end - 1].as_of,
+                "test_observations": test_end - test_start,
+                "configured_edge_threshold": configured_edge,
+                "configured_train": asdict(configured_train),
+                "configured_holdout": asdict(configured_test),
+                "selected_candidate": (
+                    {
+                        "edge_threshold": selected["edge_threshold"],
+                        "train": selected["train"],
+                        "ranking_score": selected["ranking_score"],
+                        "holdout": selected_test,
+                    }
+                    if selected is not None
+                    else None
+                ),
+                "candidate_train_rankings": train_candidates,
+            }
+        )
+
+        fold_number += 1
+        test_start += step_sessions
+
+    if not folds:
+        return {
+            "status": "INSUFFICIENT_HISTORY",
+            "reason": "Primary horizon sonrasında değerlendirilebilir holdout fold'u oluşmadı.",
+            "observations": len(points),
+            "folds": [],
+            "auto_apply": False,
+        }
+
+    configured_signals = sum(
+        int(fold["configured_holdout"]["signals"]) for fold in folds
+    )
+    selected_folds = [
+        fold for fold in folds if fold["selected_candidate"] is not None
+    ]
+    selected_signals = sum(
+        int(fold["selected_candidate"]["holdout"]["signals"])
+        for fold in selected_folds
+        if fold["selected_candidate"]["holdout"] is not None
+    )
+
+    status = "OK" if selected_folds and selected_signals > 0 else "LIMITED_SIGNAL_COUNT"
+    return {
+        "status": status,
+        "model_version": MODEL_VERSION,
+        "method": "EXPANDING_WINDOW",
+        "observations": len(points),
+        "start_date": points[0].as_of,
+        "end_date": points[-1].as_of,
+        "primary_horizon_sessions": primary_horizon,
+        "min_train_sessions": min_train_sessions,
+        "test_sessions": test_sessions,
+        "step_sessions": step_sessions,
+        "min_train_signals": min_train_signals,
+        "configured_edge_threshold": configured_edge,
+        "fold_count": len(folds),
+        "configured_holdout_signals": configured_signals,
+        "selected_candidate_folds": len(selected_folds),
+        "selected_candidate_holdout_signals": selected_signals,
+        "folds": folds,
+        "auto_apply": False,
+        "limitations": [
+            "Historical derivatives factor excluded: trustworthy point-in-time history unavailable.",
+            "Historical event/sentiment factor excluded: trustworthy point-in-time history unavailable.",
+            "Candidate selection is exploratory and never changes the released threshold automatically.",
+            "This validates directional core, not historical production ACTION decisions.",
+        ],
     }
 
 
