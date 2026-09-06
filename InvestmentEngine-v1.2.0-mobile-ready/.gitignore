@@ -7,3 +7,5 @@ installer/
 *.spec
 runtime/
 *.log
+walk_forward_output.json
+walk_forward_stderr.txt
