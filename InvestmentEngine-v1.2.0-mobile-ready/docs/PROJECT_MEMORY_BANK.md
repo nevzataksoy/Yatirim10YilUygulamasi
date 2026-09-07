@@ -1,10 +1,10 @@
 # BTC / ETH / URA 10 Yıllık Yatırım — Proje Memory Bank
 
-Son güncelleme: 01 Ağustos 2026
+Son güncelleme: 08 Eylül 2026
 
-Bu belge `BTC_ETH_URA_10YIL` projesinin kalıcı bağlamıdır. Projenin neden var olduğunu, Google Sheets fikrinden Python + Supabase + Quasar mimarisine neden geçildiğini, Investment Engine v1.2.0'a hangi gerçek smoke-test sorunları üzerinden gelindiğini, bugün hangi davranışın yayımlanmış olduğunu ve Shadow görevlerinden sonra hangi geliştirme kapılarının açılacağını anlatır.
+Bu belge `BTC_ETH_URA_10YIL` projesinin kalıcı bağlamıdır. Projenin neden var olduğunu, Python + Supabase + Quasar mimarisinin sınırlarını, yayımlanmış v1.2.0 davranışını, tamamlanan Shadow/Post-Shadow kanıtlarını ve hâlâ açık araştırma alanlarını özetler.
 
-Normatif motor davranışı için `SIGNAL_ENGINE_DECISION_CONTRACT.md`, son aktif çalışma için `SESSION_HANDOFF.md`, operasyon kanıtı için görev takvimi ve `SHADOW_CHECKPOINT_LOG.md` birlikte okunur.
+Normatif motor davranışı için `SIGNAL_ENGINE_DECISION_CONTRACT.md`, son aktif çalışma için `SESSION_HANDOFF.md`, operasyon kanıtı için görev takvimi ve `SHADOW_CHECKPOINT_LOG.md`, ayrıntılı Post-Shadow kanıtı için ilgili `POST_SHADOW_*.md` belgeleri birlikte okunur.
 
 ## 1. Proje amacı
 
@@ -12,188 +12,190 @@ Normatif motor davranışı için `SIGNAL_ENGINE_DECISION_CONTRACT.md`, son akti
 - Süre: **120 ay / 10 yıl**; hedef bitiş **25.07.2036**.
 - Spot yatırım varlıkları: **BTC, ETH, URA**.
 - Nakit bacakları: **TRY ve USD**. İlk ürün sürümünde USDT ayrı varlık değildir.
-- Aylık sermaye ayırma ve DCA ana disiplindir. Sinyal motoru, aylık yatırım yapılıp yapılmayacağına karar veren bir robot değildir.
+- Aylık sermaye ayırma ve DCA ana disiplindir. Sinyal motoru aylık yatırım yapılıp yapılmayacağına karar veren bir robot değildir.
 - Kullanıcı gerçek sermaye girişini, alımı, satışı, dönüşümü ve sermaye çıkışını Quasar'da kendisi kaydeder.
-- Python motorunun görevi, iki global göreli sistemi ölçmektir:
+- Python motoru yalnız iki global göreli sistemi ölçer:
   - `ETH/BTC`: BTC ile ETH arasında göreli güç ve rejim değişimi.
   - `URA/USD`: USD nakit ile URA arasında göreli rejim değişimi.
-- Motor sık işlem üretmek için değil; veri kalitesi, yön avantajı, güven, geç kalma, olay vetosu ve risk koşulları birlikte yeterliyse ölçülebilir bir kademe olayı üretmek için vardır.
-- Otomatik borsa emri yoktur. LIVE modu bile yalnız bildirim ve isteğe bağlı execution/order-book gözlemi üretir.
+- Motor sık işlem üretmek için değil; veri kalitesi, yön avantajı, güven, olay vetosu ve risk koşulları birlikte yeterliyse ölçülebilir kademe olayı üretmek için vardır.
+- Otomatik borsa emri yoktur. LIVE modu bile bildirim ve isteğe bağlı execution/order-book gözlemidir.
 
 ## 2. Katmanların sorumluluk sınırı
 
-| Katman                   | Sorumluluk                                                                                                                                              | Yapmadığı şey                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Python Investment Engine | Piyasa/FX/makro/derivatives/URA holdings-breadth/event verisi; feature, regime, factor, decision, signal state, validation, health, scheduler, Telegram | Kullanıcının portföy bakiyesini okumaz; işlem emri göndermez       |
-| Supabase PostgreSQL      | Auth, RLS, portföy ledger'ı, motor audit tabloları, global public snapshot'lar                                                                          | Frontend'e service-role, DB password veya provider secret açmaz    |
-| Quasar / Capacitor       | Login, çoklu portföy hesabı, manuel işlem girişi, append-only düzeltme/iptal, maliyet/KZ, raporlama, motor görünümü                                     | Factor weight/threshold/mode değiştirmez; Telegram secret yönetmez |
+| Katman | Sorumluluk | Yapmadığı şey |
+| --- | --- | --- |
+| Python Investment Engine | Piyasa/FX/makro/derivatives/URA holdings-breadth-event verisi; feature, regime, factor, decision, signal state, validation, health, scheduler | Kullanıcının portföy bakiyesini okumaz; işlem emri göndermez |
+| Supabase PostgreSQL | Auth, RLS, portföy ledger'ı, motor audit tabloları, global public snapshot'lar | Frontend'e service-role, DB password veya provider secret açmaz |
+| Quasar / Capacitor | Login, çoklu portföy hesabı, manuel işlem girişi, append-only düzeltme/iptal, maliyet/KZ, raporlama, motor görünümü | Factor weight/threshold/mode değiştirmez; Telegram secret yönetmez |
 
-Sinyaller globaldir; Dashboard/Portföy/İşlemler/Raporlar ise seçili `account_id` bazlıdır.
+Sinyaller globaldir; Dashboard/Portföy/İşlemler/Raporlar seçili `account_id` bazlıdır.
 
-## 3. İlk fikirden kalıcı mimariye geçiş
+## 3. Mimari dönüşüm
 
-### 3.1 Google Sheets keşif dönemi
+İlk keşif Google Sheets + Apps Script ile aylık BTC/ETH DCA ve ETH/BTC dönüşüm senaryoları üzerinden başladı. URA, USD/TRY, maliyet ve dashboard ihtiyaçları eklendikçe 10 yıllık audit, kullanıcı oturumu, çoklu hesap, güvenli secret, scheduler, provider fallback, model provenance, mobile kullanım ve append-only işlem geçmişi için Sheets yetersiz kaldı.
 
-Başlangıçta 2020–2026 örnek DCA hesabı, her ayın 25'inde BTC/ETH alımı ve ETH/BTC oranına göre toplam varlığın `%50`siyle dönüşüm senaryosu incelendi. Sonra URA, USD/TRY, maliyet, alım/satım/dönüşüm ve dashboard sekmeleri eklendi.
+Kesin mimari:
 
-Bu dönem ürün ihtiyacını ortaya çıkardı; ancak 10 yıllık audit, kullanıcı oturumu, çoklu hesap, güvenli secret, scheduler, provider fallback, model provenance, mobile kullanım ve append-only işlem geçmişi için Sheets yeterli değildi.
-
-### 3.2 Kesin mimari dönüşüm
-
-- Google Sheets ve Apps Script production zincirinden çıkarıldı.
+- Google Sheets/Apps Script production zincirinden çıkarıldı.
 - Supabase PostgreSQL ana veri/audit katmanı oldu.
-- Python Engine Windows Server 2019 üzerinde 7/24 Windows Service olarak konumlandı.
-- Quasar + Pinia + Supabase + Capacitor kullanıcı uygulaması olarak seçildi.
-- E-posta yerine Telegram bildirimi seçildi.
-- Basit 36 aylık oran kuralı, çoklu factor + regime + quality + veto + risk + persistent state modeline dönüştü.
+- Python Engine Windows üzerinde 7/24 Windows Service olarak konumlandı.
+- Quasar + Pinia + Supabase + Capacitor kullanıcı uygulaması oldu.
+- Basit oran kuralı çoklu factor + regime + quality + veto + risk + persistent state modeline dönüştü.
 
-## 4. Sürüm tarihçesi: v1.2.0'a neden ve nasıl gelindi?
+## 4. Sürüm tarihçesi
 
-### v1.0.0 — ilk uçtan uca prototip
+### v1.0.0
 
-Windows üzerinde veri toplama, Supabase'e yazma, ilk BTC/ETH ve URA karar zinciri, ayar ekranı ve Telegram fikri bir araya getirildi. Bu sürüm mimari prototipti; production smoke test, provider dayanıklılığı ve validation katmanı henüz olgun değildi.
+İlk uçtan uca Python/Supabase prototipi. Production smoke test ve validation katmanı olgun değildi.
 
-### v1.1.0 — mobile-ready temel paket
+### v1.1.0
 
-Önceki memory bank bu adımı atlayıp mobile-ready kapsamını v1.1.1'e yazıyordu. Doğru sıra şudur:
+Mobile-ready temel paket:
 
-- Google Sheets production akışından çıkarıldı.
-- Supabase mobile backend ve Quasar hedefi kesinleşti.
-- Tek PyInstaller `InvestmentEngine.exe`, Windows Service ve Inno Setup kurulumu kuruldu.
-- `settings` DPAPI `LocalMachine` ile şifrelendi; `rosalock` salted PBKDF2 doğrulayıcısı ve atomik dosya yazımı kullanıldı.
-- Local SQLite spool, scheduler, health ve mobile public snapshot yüzeyleri oluşturuldu.
+- Supabase/Quasar hedefi kesinleşti,
+- PyInstaller OneDir/tek EXE + Windows Service + Inno Setup,
+- DPAPI LocalMachine encrypted settings,
+- `rosalock` PBKDF2 doğrulayıcısı,
+- scheduler/health/public snapshot temeli.
 
-Bu sürüm “tasarımın mobile-ready temeli”ydi; gerçek Windows/Supabase smoke testi sonraki hataları görünür yaptı.
+### v1.1.1
 
-### v1.1.1 — gerçek smoke-test hotfix'i
+Gerçek smoke-test hotfix'leri:
 
-v1.1.0'ın ilk gerçek testlerinde dört önemli sorun bulundu:
+- `as_of` metadata'nın numeric feature kolonuna yazılma hatası,
+- Alpha Vantage pacing/retry,
+- Deribit timeout fail-safe,
+- inverse perpetual OI normalization,
+- windowed EXE CLI görünürlüğü.
 
-1. `as_of=2026-07-29` metadata değeri yanlışlıkla `model.features.value` numeric kolonuna yazılmaya çalışıyor, zincir `features → regimes → factor_scores → decisions` başlamadan kırılıyordu.
-2. Alpha Vantage'ın daily/weekly/monthly URA çağrıları free-plan burst limitine çarpabiliyordu; pacing ve sınırlı retry eklendi.
-3. Deribit bağlantı timeout'u motor hatası gibi davranmamalıydı; fail-safe health ve eksik derivatives için `quality=0` davranışı eklendi.
-4. Deribit inverse perpetual OI tekrar fiyatla çarpılarak yanlış normalize ediliyordu; USD OI semantiği düzeltildi.
-5. Windowed tek EXE CLI çıktısını konsola taşımıyordu; service-status ve `--once` görünür hale getirildi.
+### v1.1.2
 
-Bu sürümün amacı yeni sinyal mantığı değil, çalışan pipeline'ın gerçek ortamda kırılmasını önlemekti.
+Freshness/provider hardening:
 
-### v1.1.2 — freshness ve provider sürekliliği
+- FRED son observation'ları doğru yönde çekildi,
+- quality observation yaşına bağlandı,
+- BTC/ETH derivatives provider karışımı yasaklandı,
+- Deribit başarısızlığında atomik OKX fallback.
 
-v1.1.1 smoke testinde FRED'in `sort_order=asc` ve sınırlı kayıtla çağrılması nedeniyle DGS/VIX gibi serilerin 1981/1995/2009 verilerinde kaldığı görüldü. API çağrısı başarılı olduğu için eski veri yanlışlıkla kaliteli sayılabiliyordu.
+### v1.1.3
 
-- FRED son observation'ları descending aldı, DB'ye kronolojik yazdı.
-- Quality API başarısına değil `observation_date` yaşına bağlandı.
-- Günlük ve haftalık serilere ayrı freshness bantları verildi.
-- Kullanıcı ağında Deribit erişilemediği için `auto` modda BTC veya ETH'den biri başarısızsa iki varlık birlikte OKX'e geçirildi.
-- BTC ve ETH derivatives verisinin farklı provider'lardan karıştırılması yasaklandı.
+URA/realtime veri semantiği:
 
-### v1.1.3 — veri semantiği ve URA/realtime hardening
+- sahte q50 placeholder kaldırıldı,
+- q0 eksik veri semantiği,
+- Global X holdings + flow proxy,
+- constituent breadth,
+- SEC EDGAR monitor,
+- Coinbase realtime smoke,
+- decision provenance/performance audit.
 
-Core pipeline çalışsa da modelin bazı boşlukları sahte güven üretiyordu:
+### v1.1.4
 
-- URA `fundamentals/breadth/event` placeholder'larında `score=0, quality=50` kaldırıldı; kaynak/history yoksa `quality=0` oldu.
-- `score=0`, directional agreement içinde pozitif oy sayılmaktan çıkarıldı.
-- Resmî Global X URA full-holdings CSV keşfi ve saklama eklendi.
-- İki holdings snapshot'ından sonra hesaplanabilen price-adjusted AUM flow proxy eklendi. Bu fiziksel uranyum arz-talep modeli değildir.
-- Holdings constituent fiyatlarından zamanla biriken breadth katmanı eklendi; geçmiş sentetik olarak doldurulmadı.
-- SEC EDGAR filing monitörü eklendi. Semantic classifier olmadığı için filing'lere sahte bullish/bearish severity verilmedi; yön `0` kaldı.
-- Gerçek ACTION gerekmeden Coinbase websocket/order-book smoke testi eklendi.
-- Decision provenance, weekly gerçek bakım ve 5/20/60 seans realized-performance audit eklendi.
+Dependency/coverage hardening:
 
-URA quality'nin ilk gün düşmesi hata değil, sahte q50'nin kaldırılmasının doğru sonucuydu.
+- derivatives preflight,
+- SEC quality fund-weight coverage'a bağlandı,
+- CLI wrapper görünürlüğü düzeltildi.
 
-### v1.1.4 — dependency preflight ve coverage hardening
+### v1.2.0
 
-- Daily crypto kararı öncesi BTC+ETH derivatives çifti eksik veya 3 saatten eskiyse bir kez best-effort hourly refresh eklendi.
-- Refresh başarısız olsa bile motor uydurma derivatives üretmez; q0 ve normal quality gate ile fail-safe kalır.
-- SEC quality, kontrol edilen entity sayısına göre yapay `60+5*n` yerine exact eşleşen URA fon ağırlığına bağlandı.
-- SEC yalnız tek event kaynağı olduğu için quality `70` ile sınırlandı.
-- CLI wrapper'ın yeni log satırlarını terminale geri basma davranışı düzeltildi.
+Doğrulanabilir Shadow milestone:
 
-### v1.2.0 — doğrulanabilir Shadow milestone
+- `model_version` provenance,
+- Coinbase 2500 günlük history,
+- historical as-of directional-core replay,
+- calibration/validation raporu,
+- `model.validation_runs` ve public validation snapshot,
+- Shadow Readiness,
+- manuel LIVE graduation kapısı,
+- monthly audit.
 
-v1.2.0 daha fazla sinyal üretmek için çıkarılmadı. Önceki sürümlerde veri semantiği ve operasyon güvenliği düzeltildikten sonra motorun nasıl ölçüleceği sorusuna cevap verdi:
+v1.2.0 daha fazla sinyal üretmek için çıkarılmadı; davranışın ölçülebilir ve audit edilebilir olması için çıkarıldı.
 
-- `model_version` provenance eklendi; eski kararlar `legacy-pre-1.2.0`, yeniler `1.2.0` olarak ayrıldı.
-- Coinbase üzerinden 2500 ortak günlük BTC/ETH history backfill eklendi.
-- ETH/BTC için historical as-of directional-core replay eklendi.
-- Aday edge eşikleri için tek kronolojik `%70 train / %30 holdout` keşif raporu eklendi.
-- Sonuçların settings/weight/threshold'a otomatik uygulanması açıkça yasaklandı.
-- `model.validation_runs` ve authenticated `public.model_validation_snapshot` eklendi.
-- Shadow Readiness kriterleri ve manuel LIVE review kapısı eklendi.
-- URA full replay, holdings/breadth/event point-in-time geçmişi yeterli olmadığı için bilinçli `NOT_READY` bırakıldı.
-- Monthly audit, realized performance + validation + readiness'i birlikte raporlar; parametre değiştirmez.
+## 5. v1.2.0 terminoloji ve değişmez motor sınırları
 
-### v1.2.0 terminoloji düzeltmesi
+DB/code validation type `PIT_CORE_REPLAY` adını kullanır; fakat released replay strict FRED-vintage PIT değildir.
 
-DB/code validation type hâlâ `PIT_CORE_REPLAY` adını kullanır. Ancak bu sonuç strict PIT değildir:
-
-- Fiyat geçmişi yalnız ilgili tarihe kadar kesilir.
+- Fiyat geçmişi ilgili tarihe kadar kesilir.
 - Makroda `observation_date <= as_of` seçilir.
-- FRED revision/vintage (`realtime_start/realtime_end`) geçmişi birebir replay edilmez.
-- Derivatives ve event geçmişte güvenilir PIT history olmadığı için q0 ile dışarıda kalır.
-- Production quality/confidence/event kapıları ve persistent K1/K2 state machine replay'de birebir çalışmaz.
+- Historical FRED revision/vintage production DB'de birebir saklanmaz.
+- Derivatives/event historical PIT coverage sınırlıdır.
+- Production quality/confidence/event kapıları ve persistent state replay'de birebir değildir.
 
-Bu nedenle doğru ürün adı/yorumu: **historical as-of directional-core replay**. Strict macro-vintage PIT ve production parity sonraki hardening işidir.
+Doğru ürün yorumu: **historical as-of directional-core replay**.
 
-## 5. Sinyal motorunun değişmez sınırları
+Değişmez davranış:
 
 - `direction`, signed edge yönüdür; emir değildir.
-- `WAIT` veya `NO_ACTION_DATA` satırındaki yön kullanıcıya dönüşüm önerisi sayılmaz.
-- `ACTION`, günlük model koşuludur; yeni Telegram/kademe olayı için `action_event=true` gerekir.
-- Python `action_size`, global model kademe yüzdesidir; kullanıcı bakiyesinden çevrilecek adet değildir.
-- v1.2.0'daki `max_regime_pct=%50`, Python'un kendi global öneri state'inin kümülatif tavanıdır; gerçek portföyün `%50`si için bağlayıcı Quasar limiti değildir.
-- Quasar'ın kayıtlı dönüşüm yüzdeleri ve `%25/%50/%75/%100` butonları hesaplama yardımcılarıdır; Python yüzdesiyle `min(...)` uygulanmaz ve gerçek işlem oranını zorlamaz.
-- Realtime Execution order-book gözlemidir; emir göndermez.
-- Validation ve calibration hiçbir parametreyi otomatik değiştirmez.
-- Eksik veri q0'dır; quality yükselsin diye sentetik history/score eklenmez.
+- `WAIT`/`NO_ACTION_DATA` yönü dönüşüm önerisi değildir.
+- `ACTION` günlük model koşuludur; yeni kademe için ayrıca `action_event=true` gerekir.
+- Python `action_size` global model yüzdesidir; kullanıcı portföy adedi değildir.
+- `max_regime_pct=%50` Python state tavanıdır; Quasar gerçek portföy limiti değildir.
+- Realtime Execution emir göndermez.
+- Validation/calibration hiçbir ayarı otomatik değiştirmez.
+- Eksik veri q0'dır; quality yükseltmek için sentetik history/score eklenmez.
 
-## 6. Bugünkü karar zinciri
+Released parametreler:
+
+```text
+minimum data quality 80
+edge threshold       70
+confidence threshold 70
+strong edge          80
+strong confidence    80
+WATCH edge           55
+reset edge           45
+reset days           5
+base tranche         25%
+max regime           50%
+```
+
+Factor weights, K1/K2, reversal, reset ve sizing semantiği model-version değişikliği olmadan değiştirilmez.
+
+## 6. Karar zinciri
 
 ```text
 Raw data
-→ freshness ve source quality
+→ freshness/source quality
 → technical/features
-→ market/trend regime
-→ factor scores ve factor quality
-→ rejime göre ağırlık
+→ regime
+→ factor scores + factor quality
+→ regime weights
 → quality-adjusted signed edge
 → edge + data quality + directional agreement
 → confidence / uncertainty
 → event veto + late-entry
 → volatility risk / recommended size
 → decision status
-→ persistent K1/K2 state
+→ persistent K1/K2 signal state
 → private audit + public snapshots
 → SHADOW kayıt veya LIVE bildirim/order-book gözlemi
 ```
 
-Ayrıntılı formüller ve tablo sözleşmesi `SIGNAL_ENGINE_DECISION_CONTRACT.md` içindedir.
-
 ## 7. Veri ve tablo haritası
 
-### Ham/girdi tabloları
+Ham/girdi:
 
-- `market.daily_prices`: BTC, ETH ve URA OHLCV geçmişi.
-- `market.derivatives_snapshots`: aynı provider'dan BTC/ETH OI, funding, basis, bid/ask.
-- `macro.observations`: FRED observation ve realtime alanları.
-- `fundamentals.ura_holdings`: Global X dated holdings.
-- `fundamentals.ura_breadth`: constituent breadth geçmişi ve quality.
-- `events.events`: SEC/event metadata; severity/surprise yalnız kanıt varsa yönlüdür.
-- `market.execution_snapshots`: test veya action sonrası order-book gözlemleri; işlem emri değildir.
+- `market.daily_prices`
+- `market.derivatives_snapshots`
+- `macro.observations`
+- `fundamentals.ura_holdings`
+- `fundamentals.ura_breadth`
+- `events.events`
+- `market.execution_snapshots`
 
-### Model/audit tabloları
+Model/audit:
 
-- `model.features`: tarih/sistem/feature/value/quality.
-- `model.regimes`: primary regime, sabit gösterim olasılıkları ve market/trend axes.
-- `model.factor_scores`: factor score, quality, kullanılan weight ve weighted score.
-- `model.decisions`: yön, edge, confidence, quality, risk, status ve action alanları.
-- `model.signal_state`: K1/K2 persistent aktif yön/stage/cumulative/reset state.
-- `model.performance`: mature kararların 5/20/60 seans sonuçları.
-- `model.validation_runs`: validation geçmişi.
-- `system.job_runs`: scheduler/manuel job audit'i.
+- `model.features`
+- `model.regimes`
+- `model.factor_scores`
+- `model.decisions`
+- `model.signal_state`
+- `model.performance`
+- `model.validation_runs`
+- `system.job_runs`
 
-### Public Quasar yüzeyi
+Public Quasar yüzeyi:
 
 - `public.market_snapshot`
 - `public.decision_snapshot`
@@ -201,23 +203,37 @@ Ayrıntılı formüller ve tablo sözleşmesi `SIGNAL_ENGINE_DECISION_CONTRACT.m
 - `public.engine_health_snapshot`
 - `public.model_validation_snapshot`
 
-### Kaynak otoritesi uyarısı
+Kaynak otoritesi uyarısı:
 
-- v1.2.0 runtime factor ağırlıkları `config/defaults.json`dan okunur. `model.factor_weights` tablosunun varlığı runtime'ın onu okuduğu anlamına gelmez.
-- Migration 0007 Shadow kriterlerini `model.parameters`a seed eder; fakat v1.2.0 readiness sınıflandırıcısı DB'den bu değerleri çekmez, kod varsayımlarını kullanır.
-- Bu iki tutarsızlık dokümantasyonla gizlenmez; sonraki observability/config-authority hardening için `OPEN`dır.
+- v1.2.0 factor weights runtime'da `config/defaults.json`dan okunur; `model.factor_weights` tablosunun varlığı runtime'ın onu kullandığı anlamına gelmez.
+- Shadow kriterlerinin bazı DB seed'leri olsa da released readiness kod otoritesi ayrıca kontrol edilmelidir.
 
-## 8. Güncel deployment ve doğrulanmış durum
+## 8. Güncel Windows deployment
 
-- Windows Server 2019, 7/24.
-- Service: `RosaInvestmentEngine`, Automatic, Local System.
-- Son doğrulama: `STATE : 4 RUNNING`, exit code `0`.
-- Mode: `SHADOW`.
-- Realtime Execution: `OFF`.
-- Crypto history: Coinbase, 2500 ortak gün, `OK`.
-- Validation: 1383 replay observation; core `OK`; configured edge 70'te sinyal yok.
-- Calibration: düşük eşiklerde bile sınırlı signal count; exploratory; hiçbir ayar uygulanmadı.
-- URA full replay: `NOT_READY`.
+Bu projede development makinesi aynı zamanda çalışan Shadow service host'udur.
+
+```text
+Service                 RosaInvestmentEngine
+State                   RUNNING
+StartMode               Auto
+Mode                    SHADOW
+Realtime Execution      OFF
+Model version           1.2.0
+```
+
+08.09.2026 provenance hardening build/deploy kabulü:
+
+```text
+full Python tests       68 passed
+release check           OK
+PyInstaller OneDir      PASS
+Inno Setup              PASS
+build EXE SHA256        91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
+installed EXE SHA256    same / PASS
+settings preservation   PASS
+rosalock preservation   PASS
+CLI service-status      RUNNING / exit 0
+```
 
 Scheduler — Europe/Istanbul:
 
@@ -232,247 +248,285 @@ xx:35                         SEC event
 09:00 month day 1             monthly audit
 ```
 
-## 9. Shadow görev takvimi
+## 9. Shadow görev takvimi — TAMAMLANDI
 
-- Görev 1 — ilk otomatik günlük döngü: `PASS`.
-- Görev 2 — TCMB/FX: `PASS`.
-- Görev 3 — 01.08.2026 09:30 TRT weekly + monthly audit: `PASS`; iki job planlanan
-  saatte `OK` tamamlandı, audit threshold/weight değiştirmedi.
-- Görev 4 — 07.08.2026: 7 günlük güvenilirlik.
-- Görev 5 — 14.08.2026: 14 günlük stabilite.
-- Görev 6 — 20.08.2026: URA quality/history değerlendirmesi.
-- Görev 7 — 29.08.2026: 30 günlük Shadow Graduation Review.
+Görev 1–7 tamamlandı.
 
-Görev 1 sonucu, motorun gece boyunca veri topladığını, Deribit timeout'ta atomik OKX fallback kullandığını, ETH/BTC için `WAIT`, URA için q70.4 nedeniyle `NO_ACTION_DATA` ürettiğini ve çökmeyip scheduler'a devam ettiğini kanıtladı. Görev 2 TCMB data date/rate, market snapshot, health ve job audit uyumunu doğruladı. Görev 3 weekly/monthly scheduler zamanlamasını, `1383` gözlemli core replay'i ve aylık audit'in threshold/weight değiştirmeyen güvenli davranışını doğruladı.
+```text
+30 günlük görev takvimi  TAMAMLANDI
+SHADOW_READINESS         READY
+LIVE                     NO-GO / açılmadı
+Mode                     SHADOW
+Realtime Execution       OFF
+```
 
-## 10. Görevlerden sonraki kilometre taşları
+Readiness kanıtının ana özeti:
 
-### Görev 1–3: operasyon gerçeği
+```text
+Shadow calendar days       36
+ETH/BTC decision days      35
+URA/USD decision days      25
+ETH/BTC median quality     90.83
+URA/USD median quality     87.71
+URA holdings dates         24
+URA breadth dates          24
+Recent job success         99.2126%
+Realtime test              OK
+waiting_reasons            []
+blockers                   []
+```
 
-Yalnız scheduler, provider, freshness, snapshot, health ve job-audit sapmaları düzeltilir. Factor/weight/threshold/K1/K2 davranışı değiştirilmez.
+READY otomatik LIVE değildir.
 
-### Görev 4 sonrası: v1.2.x davranış değiştirmeyen hardening
+## 10. Post-Shadow P0 — CLOSED
 
-- Açık `shadow_epoch_id` / `shadow_started_at`.
-- `scheduled/manual/backfill/development` run-kind ayrımı.
-- Beklenen/gerçekleşen scheduler run sayıları.
-- `OK rate` ve `completed rate` ayrımı.
-- Edge/confidence/quality/status/direction bucket diagnostics.
-- Mevcut v1.2.0 K1/K2/reversal/reset davranışını değiştirmeden karakterize eden unit testler.
-- Runtime config authority'nin JSON/DB ayrımını görünür hale getirme.
+Development/runtime reliability alt aşaması kapandı.
 
-### Görev 5–6 sonrası: validation kanıtını güçlendirme
+- 10s historical pool timeout development ortamında yeniden üretilemedi.
+- Pool lifecycle/replacement doğrulandı.
+- Generic DB retry veya scheduler serialization eklenmedi.
+- Historical production gözlem borcu GitHub Issue #2'de tutuldu.
+- SEC `DEGRADED` kayıtlarının çoğu crash değil fund-weight coverage semantiğidir.
 
-- Gerçek expanding/rolling walk-forward tasarımı.
-- Strict macro vintage PIT (`realtime_start/realtime_end`) desteği.
-- Production ve replay arasındaki kapı/state farklarının raporu.
-- URA fundamentals/breadth/event quality katkılarını ayrı ayrı inceleme.
-- Sentetik quality/history eklemeden kaynak/freshness/history iyileştirmesi.
+Ayrıntı:
 
-### Görev 7: manuel graduation review
+- `POST_SHADOW_P0_CONNECTION_POOL_RCA.md`
+- `POST_SHADOW_P0_RUNTIME_RELIABILITY_CLOSURE.md`
 
-Birlikte değerlendirilir:
+## 11. Post-Shadow P1 — walk-forward ve FRED strict PIT doğrulaması
 
-- scheduler güvenilirliği,
-- Shadow edge/confidence/quality/status dağılımı,
-- K1/K2 olayları,
-- realtime smoke güncelliği,
-- historical as-of replay,
-- walk-forward,
-- monthly realized performance,
-- URA history/coverage.
+### Walk-forward
 
-`READY` görülse bile otomatik LIVE yoktur. Kanıt zayıfsa Shadow devam eder. Factor, weight, threshold, K1/K2, reversal, cooldown veya action-size otoritesi değişecekse yeni model version ve yeni Shadow Epoch gerekir; mevcut 30 günlük kanıt otomatik devredilmez.
+```text
+observations                   1420
+folds                          12
+configured edge=70 OOS signal 0
+```
 
-### Görev takvimi sonrası: veri yaşam döngüsü ve FRED tekilleştirme araştırması
+Düşük keşif eşiklerinde sınırlı sinyal bulundu; kanıt sinyal-kıt kaldı.
 
-Veri büyümesini ölçme ve güvenli bir FRED tekilleştirme politikası seçme yönü
-`APPROVED`dır. Buna karşılık `(series_id, observation_date)` başına tek current kayıt,
-ayrı revision tablosu veya başka bir şema **henüz onaylanmış çözüm değildir**;
-adayların gerçek FRED akışı ve geçmiş veriyle karşılaştırılması `OPEN`dır. Mevcut
-v1.2.0 Supabase tablolarında yaşa göre çalışan otomatik retention/cleanup yoktur ve
-Görev 3 dahil Shadow kanıtı toplanırken veri yazma davranışı değiştirilmez.
+```text
+implementation  VERIFIED / CLOSED
+threshold change NOT SUPPORTED
+LIVE            NO-GO
+```
 
-Görev 7 sonrasında Python tarafında iki bağlı çalışma ele alınacaktır:
+### FRED/ALFRED strict verification
 
-1. Sinyal penceresinden çıkan ham ve operasyonel veriler için tablo bazlı yaşam
-   döngüsü araştırılacak. Portföy ledger'ı, karar/sinyal bağı, fiyat geçmişi,
-   validation/performance ve gerekli PIT/revision kanıtı kalıcı korunacak; yalnız
-   tekrar eden veya özetlendikten sonra ham ayrıntısı atıl hale gelen derivatives,
-   execution-test ve scheduler/job verileri temizlik adayı olacaktır.
-2. FRED ingest davranışı önce ölçülecek, sonra tekilleştirme politikası seçilecektir.
-   Doğrudan `UNIQUE (series_id, observation_date)` eklenmeyecek; bu yaklaşımın güncel
-   değer, gerçek revision, strict PIT/replay ve audit üzerindeki etkisi kanıtlanmadan
-   current/revision şeması production kararı sayılmayacaktır.
+Production collector değiştirilmeden verification-only ALFRED yolu kuruldu.
 
-#### Doğrulanmış başlangıç bulgusu — nihai karar değildir
+```text
+configured series            8
+ALFRED available             7
+ALFRED unavailable           SP500
+replay days                  1420
+complete days                1397
+excluded incomplete days     23
+mean abs edge delta          0.5222834646
+max abs edge delta           14.27
+regime changes               19
+direction-sign changes       5
+edge=70 qualification change 0
+```
 
-`macro_job` günde `00:15`, `06:15`, `12:15` ve `18:15` olmak üzere dört kez çalışır;
-sekiz serinin her biri için son `1500` observation yeniden alınır. Bu, tur başına
-yaklaşık `12.000`, günde yaklaşık `48.000` gelen observation ve bulk upsert denemesi
-demektir.
-Collector `realtime_start/realtime_end` göndermediği için FRED bunları kendi “today”
-değerine varsayar. Aynı `realtime_start` dönen turlar mevcut
-`(series_id, observation_date, realtime_start)` constraint'ine çarparak yeni mantıksal
-satır üretmez; fakat `value`, `realtime_end` ve `fetched_at` tekrar update edildiğinden
-WAL/dead-tuple, I/O ve job süresi etkisi ayrıca ölçülmelidir. FRED'in “today” için
-kullandığı saat dilimi belgede açık değildir; TRT'deki dört tur provider tarih
-sınırını aşarsa aynı TRT gününde bile farklı `realtime_start` ve yeni satır oluşabilir.
-Bu nedenle analiz yerel takvim gününe değil, her response içindeki gerçek
-`realtime_start/realtime_end` değerine dayanacaktır.
+Tam kapsamalı strict walk-forward yine yeterli OOS sinyal üretmedi. FRED revision farkı bazı günlerde edge/rejimi değiştirir ama released edge=70 sinyal kıtlığını açıklamaz.
 
-29–30.07.2026 örneğinde `14.513` satırın `4.343`ü aynı seri/tarih/değerin yalnız yeni
-`realtime_start` altında tekrarıdır; karşılaştırılabilen ortak satırlarda gerçek değer
-değişimi `0`dır. Bu iki günlük örnek çoğalma riskini kanıtlar, fakat bütün serilerin
-revision karakterini veya uzun vadede doğru şemayı tek başına kanıtlamaz.
+```text
+FRED strict-PIT substage  CLOSED
+threshold/model change    NONE
+LIVE impact               NONE
+```
 
-FRED'in resmî sözleşmesinde varsayılan real-time period bugündür; bu, “geçmiş hakkında
-bugün bilinen bilgi” görünümüdür. `fred/series/vintagedates` ise yalnız yeni değer
-yayınlanan veya seri değerleri gerçekten revize edilen tarihleri döndürür. Araştırma
-bu iki semantiği günlük polling alanlarıyla karıştırmayacaktır:
+Ayrıntı:
 
-- <https://fred.stlouisfed.org/docs/api/fred/realtime_period.html>
-- <https://fred.stlouisfed.org/docs/api/fred/series_observations.html>
-- <https://fred.stlouisfed.org/docs/api/fred/series_vintagedates.html>
+- `POST_SHADOW_P1_FRED_PIT_BASELINE.md`
+- `POST_SHADOW_P1_FRED_STRICT_PIT_COMPARISON.md`
 
-#### Zorunlu araştırma ve geçmiş-veri backtest kapısı
+## 12. Post-Shadow P1 — same-market-date signal-state idempotency — CLOSED
 
-Herhangi bir migration/dedup öncesinde şu sıra tamamlanacaktır:
+Production baseline URA/USD için aynı market `as_of` tarihinde tekrar değerlendirmeler olduğunu kanıtladı; bu tekrarlar körlemesine duplicate sayılmaz.
 
-1. Sekiz serinin her biri için frekans, yayın takvimi, gerçek revision/vintage
-   davranışı ve FRED parametreleri belgelenecek. Dört TRT turunun döndürdüğü provider
-   real-time tarihleri kaydedilecek; aynı `realtime_start` içi upsert'ler ile değişen
-   `realtime_start` kaynaklı yeni satırlar ayrı ölçülecek.
-2. Mevcut DB'de `series_id + observation_date + value`, `realtime_start`,
-   `realtime_end`, `fetched_at` ve `system.job_runs` birlikte analiz edilecek.
-   `received/inserted/unchanged/revised/skipped`, satır/indeks büyümesi,
-   WAL/dead-tuple ve job süresi için ölçülebilir baseline oluşturulacak.
-3. En az şu adaylar karşılaştırılacak:
-   - mevcut `(series_id, observation_date, realtime_start)` yapısı,
-   - yalnız current değer saklayan `(series_id, observation_date)` yapısı,
-   - current + sıralı append-only change-point/revision yapısı,
-   - FRED/ALFRED resmî vintage tarihleriyle beslenen PIT yapısı,
-   - seri bazında farklı revision riskine izin veren hibrit yapı.
-4. Geçmiş veri replay/backtest'inde aynı `as_of` tarihleri için latest değer, macro
-   score/quality, regime, ETH/BTC ve URA/USD karar çıktıları karşılaştırılacak. Revision
-   günleri, hafta sonu/tatil, yeni observation, eksik `.` değer, A→B→A geçişi ve geç
-   gelen düzeltmeler özellikle test edilecek. Look-ahead bias oluşmaması ve replay'in
-   deterministik kalması zorunludur.
-5. Aynı backtest her aday için mantıksal satır sayısı, günlük write/upsert hacmi,
-   tahmini 10 yıllık kapasite, API/job süresi ve rollback maliyetini de raporlayacak.
-   Sinyal sonucu kadar uzun vadeli işletim maliyeti de karar ölçütüdür.
-6. Son karar yalnız bu rapordan sonra verilecektir. Dört günlük çekimin tek bir
-   değişmeyen observation üretmesi idempotent olmalı; gerçek revision kaybolmamalı;
-   latest ve PIT okuyucularının hangi katmanı kullandığı açık olmalı; mevcut veriye
-   uygulanacak işlem önce dry-run ve geri alınabilir backfill ile doğrulanmalıdır.
+```text
+ETH/BTC decisions              39
+ETH/BTC repeated market dates  0
+URA/USD decisions              38
+URA/USD repeated market dates  7
+max URA decisions/date         3
+```
 
-Pure watermark/yalnız son observation tarihinden devam etmek de önceden doğru kabul
-edilmez; eski tarihli revision'ları kaçırabilir. Resmî `vintagedates`/`output_type=3`,
-değişen-response hash'i, kayan backfill penceresi ve current + event seçenekleri bu
-sebeple ölçülecek adaylardır. `unique(series_id, observation_date, value)` de tek
-başına yeterli değildir; A→B→A sırasındaki son A olayını ilk A ile çakıştırabilir.
+Historical production state corruption görülmedi. Ancak kod RCA'sında aktif rejimde aynı `as_of` tekrarının `reset_counter`ı tekrar artırabileceği latent risk doğrulandı.
 
-Mevcut polling ile görülen bir değişimin zamanı yalnız “motorun farklı değeri ilk
-gördüğü an”dır; resmî yayın/vintage zamanı olduğu iddia edilmez. Uygulanmış `0001`
-migration'ı değiştirilmeyecek; araştırma bir çözüm seçerse yeni numaralı migration,
-transaction/idempotency testleri ve kontrollü backfill/dedup kullanılacaktır.
+Hardening:
 
-## 11. Quasar kilometre taşları
+- `model.signal_state.last_evaluated_as_of`,
+- migration `0013_signal_state_market_date_idempotency.sql`,
+- reset counter yalnız yeni market as_of'ta ilerler.
 
-1. Otomatik `100.000 TRY` finans regression'ı; ara/final bakiyeler, maliyet/KZ,
-   kronolojik replay, hesap izolasyonu, revizyon/iptal ve idempotent retry ile birlikte
-   `PASS` durumundadır.
-2. `docs/DEMO_TEST_SCENARIO_100K_TRY.md` içindeki aynı senaryoyu gerçek Supabase test
-   hesabında ekranlardan uygula; Dashboard/Portföy/İşlemler/Raporlar toplamlarını
-   ekran görüntüsü ve beklenen matematikle doğrula.
-3. Gerçek Supabase bağlantı sağlık testi, Auth/RLS yaşam döngüsü ve web callback kodu
-   tamamlandı; `yarn test:acceptance` ile gerçek proje health/login/RLS/refresh/sign-out
-   zincirini, manuel olarak e-posta ve native Capacitor deep-link akışını doğrula.
-4. Çoklu hesap, append-only revision/cancellation ve reset RPC davranışını gerçek
-   Supabase üzerinde doğrula.
-5. Gerçek ortam kabulünden sonra Signal→Conversion bağını tek yönlü kur: dönüşüm
-   formunda global karar `AppPopupSelect` ile seçilsin, `decision_id` otomatik
-   kaydedilsin, sinyalin `action_size` değeri başlangıç oranı olarak getirilebilsin ve
-   kullanıcı bu oranı serbestçe değiştirebilsin.
-6. Capacitor aşamasında session/refresh secret'ı native secure storage'a taşı.
+Doğrulama:
 
-### Quasar Auth/connection revizyonu — kod tamamlandı, runtime kanıtı `OPEN`
+```text
+focused tests                           3 passed
+full tests                              65 passed
+release check                           OK
+state rows                              2
+rows matching latest decision as_of     2
+mismatches                              0
+```
 
-- Project URL/publishable key gerçek `/auth/v1/health` isteğiyle test edilir;
-  `service_role/sb_secret_` istemciye kaydedilmez.
-- Aktif oturum `getUser()` ile sunucudan doğrulanır; `profiles`,
-  `investment_accounts` ve `market_snapshot` authenticated RLS okumaları sınanır.
-- Bağlantı imzası değiştiğinde eski auth subscription, auto-refresh ve realtime
-  kanalları dispose edilir; eski oturum/account cache temizlenip yeni proje için
-  yeniden giriş istenir.
-- `INITIAL_SESSION`, `SIGNED_IN`, `TOKEN_REFRESHED`, `USER_UPDATED`,
-  `PASSWORD_RECOVERY` ve `SIGNED_OUT` tek store yaşam döngüsünde ele alınır.
-- PKCE, e-posta doğrulama ve şifre kurtarma için `/auth/callback` recovery ekranı;
-  hash SPA yönlendirmesi ve Capacitor `appUrlOpen`/cold-launch adaptörü eklendi.
-- Network, timeout, invalid key/credentials, email-not-confirmed, expired session ve
-  RLS reddi kullanıcıya ayrıştırılmış hata olarak gösterilir.
+K1/K2, thresholds, scheduler ve LIVE semantiği değişmedi.
 
-Otomatik service testleri, Prettier/ESLint ve SPA build geçmiştir. Gerçek Supabase
-URL/key/Auth e-postası bu çalışma ortamında bulunmadığından gerçek proje üzerinde
-health + login + RLS + recovery e-posta zinciri henüz `OPEN` runtime doğrulamasıdır.
-Capacitor native mode/plugin/custom-scheme üretildiğinde cold/warm deep-link ayrıca
-cihazda test edilmelidir. Bu kanıttan sonra çoklu hesap/reset RPC ve `100.000 TRY`
-regression tamamlanır; ardından Signal→Conversion frontend bağına geçilir.
+## 13. Post-Shadow P1 — URA evaluation-time provenance hardening — CLOSED
 
-Portföy çekirdeğinde istemci UUID'si transaction primary key olarak korunur; aynı
-isteğin belirsiz ağ sonucu sonrasında tekrar gönderilmesi çift kayıt üretmez, aynı
-kimliğin farklı içerikle kullanımı reddedilir. Store her yeni aday zinciri
-kronolojik bakiye replay'iyle doğrular. Başlangıç portföyünün çoklu OPENING satırları
-tek bulk insert ile atomik kaydedilir; dönüşüm zaten tek ledger satırında iki bacağı
-birlikte taşır. Bu davranışlar otomatik regression'da `PASS`, gerçek Supabase/RLS
-runtime kabulü ise `OPEN`dır.
+Ayrıntı:
 
-### Signal→Conversion için kesin ürün sınırı
+- `POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
+- `verification/verify_production_replay_provenance_reconstructibility.sql`
+- `verification/verify_production_replay_ura_provenance_forward.sql`
 
-- Python seçili hesabı, bakiyeyi veya Quasar'da gerçekleşen oranı okumaz.
-- Quasar sinyal kartları karar mekanizmasını zorlayan talimat değil, öngörü ve raporlama desteğidir.
-- Bir dönüşüm sinyale bağlanabilir fakat bağ isteğe bağlıdır; aynı global `decision_id` birden fazla portföy işlemiyle ilişkilendirilebilir.
-- Kullanıcıya ID yazdırılmaz. Sinyal listesi `AppPopupSelect` üzerinden seçilir.
-- Sinyal seçildiğinde Python önerisi ön doldurulabilir; kullanıcı gerçek risk kararına göre oranı veya miktarı değiştirebilir.
-- `btc_eth_conversion_pct` ve `ura_usd_conversion_pct` zorlayıcı üst sınır değil, Quasar hesaplama/varsayılan oran yardımcılarıdır.
+Historical baseline:
 
-## 12. Hâlâ onaylanmamış veya görev takvimi sonrasına bırakılmış model işleri
+```text
+ETH/BTC decisions                           39
+ETH/BTC persisted audit coverage            strong / 39 of 39
+URA/USD decisions                           38
+URA directional fundamentals complete       36/36 positive-quality rows
+URA positive-quality breadth rows            36
+breadth rows with numeric scoring inputs      0/36 before hardening
+event rows with exact event-set identity      0/38 before hardening
+```
 
-- Kademeler arasında en az 5 karar seansı.
-- Karşı yöne geçiş için iki ardışık qualified kapanış.
-- Production ve replay için tek versioned state machine.
-- Python ayar penceresinde `max_regime_pct` alanının yönetilmesi ve gelecek action-size formülünün hangi sinyal gücü/kalitesi bileşenlerini kullanacağının kesinleştirilmesi.
-- Beş zayıf değerlendirme sonrası resetin aynı `as_of` tekrarları ve örtüşen feature geçmişiyle davranışının incelenmesi. Mevcut kod reset sonrası yeniden aynı yön K1'e izin verir; önce ters rejim görülmesini zorunlu kılan ürün kuralı yoktur.
+Repeated URA market dates aynı evaluation input setini garanti etmiyordu:
 
-Reset eşiği veri penceresi değildir. Canlı ETH/BTC işi yaklaşık `1300` takvim
-günlük fiyat serisi üzerinde 36 ay/52 hafta/60 gün/20 gün ve daha kısa teknik
-pencereleri birlikte kullanır; derivatives son `3` saat, makro her serinin son
-geçerli observation'ıdır. URA günlük history uzunluğu kodda sabitlenmemiştir;
-provider yanıtı kullanılır, yalnız en az `60` günlük bar ile `52` haftalık ve `36`
-aylık history zorunludur. `5→30` reset değişikliği bu verileri veya yön hesabını
-uzatmaz; yalnız K1/K2 persistent state'ini daha uzun süre korur. Ayrıntılı pencere
-haritası signal contract bölüm 5.1'dedir.
+```text
+repeated decision rows                  19
+factor-payload peer differences         17/19
+regime peer differences                  0
+```
 
-Bunlar mantıklı adaylardır fakat `APPROVED` veya `RELEASED` değildir.
+Bu nedenle repeated decisions deduplicate edilmez.
 
-## 13. Güvenlik ve Git protokolü
+Audit-only hardening yeni URA decision payload'ına şunları ekledi:
+
+- breadth numeric scoring keys,
+- `breadth_date`,
+- breadth `created_at`,
+- exact `event_refs`,
+- event `health_checked_at`,
+- event `health_status`,
+- evaluated event count.
+
+Regression:
+
+```text
+focused provenance tests  3 passed
+full Python tests          68 passed
+release check              OK
+```
+
+Production forward acceptance, decision `85`:
+
+```text
+system                             URA/USD
+model_version                      1.2.0
+as_of                              2026-09-04
+created_at                         2026-09-07T22:30:02.725709+00:00
+decision_evaluated_at              2026-09-07T22:30:00.362158+00:00
+status                             WAIT
+direction                          USD→URA
+action_event                       false
+edge_score                         1.03
+confidence                         23.77
+data_quality                       90.51
+hardened_audit_payload_complete    true
+```
+
+Tüm required forward check'ler `true` çıktı. Breadth 50DMA/200DMA değerlerinin `null` olması history maturity durumudur; anahtarların korunması audit kontratıdır. Event `event_refs=[]` evaluated set'in gerçekten boş olduğunu gösterir.
+
+Sınıflandırma:
+
+```text
+audit-only hardening               VERIFIED
+runtime deployment                 VERIFIED
+forward new-decision persistence   VERIFIED
+URA provenance substage            CLOSED
+historical old rows                NOT BACKFILLED
+raw holdings immutable history     OPEN
+full production/replay parity      OPEN
+LIVE                               NO-GO
+```
+
+Bu kapanış threshold, factor weight, confidence, K1/K2, reset, sizing, scheduler cadence, model version veya SHADOW/LIVE davranışını değiştirmez.
+
+## 14. P2 veri yaşam döngüsü — OPEN
+
+FRED current/revision/dedup/retention ve uzun vadeli veri yaşam döngüsü ayrı araştırma başlığıdır.
+
+Kesin kurallar:
+
+- Doğrudan `(series_id, observation_date)` UNIQUE migration uygulanmaz.
+- Uygulanmış migration geriye dönük değiştirilmez.
+- Dedup/delete/backfill dry-run ve rollback planı olmadan çalıştırılmaz.
+- Gerçek revision kaybolmamalı ve PIT/look-ahead semantiği bozulmamalıdır.
+
+Mevcut collector aynı observation setlerini gün içinde tekrar upsert edebilir. FRED real-time/vintage semantiği ile local polling zamanı birbirine karıştırılmaz. Current-only, change-point/revision, ALFRED PIT ve hibrit adayları kapasite + replay doğruluğu birlikte ölçülmeden production kararı verilmez.
+
+## 15. Production/replay tarafında sıradaki iki açık RCA
+
+Bu konular ayrı ele alınmalıdır:
+
+1. **Raw holdings/source snapshot versioning:** `fundamentals.ura_holdings` aynı `(holding_date,ticker)` satırını overwrite eder. Persisted decision-input snapshot'larının validation kontratı için yeterli olup olmadığı veya immutable raw source snapshot store gerekip gerekmediği araştırılacak.
+2. **Transactional state-before-decision risk:** mevcut `_persist_decision` state'i decision insert'ten önce persist eder. State commit başarılı, decision insert başarısız senaryosunun retry etkisi analiz edilecek. Bunun production'da gerçekleştiğine dair DB kanıtı yoktur; production incident olarak sınıflandırılmaz.
+
+İki konu da threshold/model tuning gerekçesi değildir.
+
+## 16. Quasar kilometre taşları
+
+- Otomatik `100.000 TRY` finans regression'ı hesap izolasyonu, revizyon/iptal ve idempotent retry ile PASS.
+- Gerçek Supabase test hesabında ekran bazlı kabul, Auth/RLS/e-posta/deep-link akışı ve native secure-storage adımları kendi Quasar doğrulama planında sürer.
+- Signal→Conversion bağı gelecekte tek yönlü ve isteğe bağlıdır: `decision_id` seçilebilir, `action_size` başlangıç oranı olabilir, kullanıcı gerçek oranı değiştirebilir.
+- Python seçili hesabı veya gerçek portföy bakiyesini okumaz.
+
+## 17. Hâlâ onaylanmamış model işleri
+
+Aşağıdakiler `PROPOSED/OPEN` kalır:
+
+- kademeler arasında minimum 5 karar seansı,
+- reversal için iki ardışık qualified karşı-yön kapanışı,
+- production/replay için tek versioned state machine,
+- yeni `max_regime_pct` / sizing yaklaşımı,
+- reset sonrası same-direction K1 değişikliği,
+- threshold/factor-weight değişiklikleri.
+
+Bunlardan biri seçilirse açık kullanıcı onayı + yeni model version + test + deploy + yeni Shadow Epoch gerekir.
+
+## 18. Güvenlik, Git ve komut sunum protokolü
 
 - Secret'lar repo veya memory bank'e yazılmaz.
 - Uygulanmış migration geriye dönük değiştirilmez; yeni sıra numarası kullanılır.
 - Her değişiklikten önce remote HEAD ve dosya SHA yeniden okunur.
 - Asistan feature/agent branch'e push eder; kullanıcı pull/test eder.
+- Kullanıcının yerel repo clean/current durumu yalnız verdiği `git` çıktısıyla doğrulanır.
 - Draft PR'lar test döngüsü bitmeden merge edilmez.
-- Proje durumu değiştiğinde `SESSION_HANDOFF.md`; kalıcı motor kararı değiştiğinde bu memory bank veya contract aynı turda güncellenir.
+- Proje durumu değiştiğinde `SESSION_HANDOFF.md`; kalıcı motor kararı değiştiğinde memory bank veya contract güncellenir.
+- PowerShell'de birbirine bağlı komutlar doğrudan kopyala-yapıştır güvenli biçimde, mümkünse tek blok/tek satır ve açık `;` ayırıcılarıyla verilir.
+- `$LASTEXITCODE` ilgili komuttan hemen sonra yakalanır.
+- `PS ...>` / `>>` promptları kullanıcıya verilen komut bloğuna konmaz.
 
-## 14. En kısa devir özeti
+## 19. En kısa devir özeti
 
 ```text
 Amaç: 25.07.2026–25.07.2036 BTC/ETH/URA yatırımını audit edilebilir biçimde izlemek.
 DCA: aylık ana disiplin; sinyal motoru DCA'yı durdurmaz.
-Python: v1.2.0, global ETH/BTC + URA/USD karar desteği, SHADOW, Realtime OFF, otomatik emir yok.
-Quasar: seçili hesapta gerçek işlem ledger'ı ve raporlama.
-Signal→Conversion: gelecekte tek yönlü ve isteğe bağlı decision_id bağı; öneri oranı düzenlenebilir, bağlayıcı limit yok.
-Validation: historical as-of directional core; strict vintage PIT/production K1-K2 parity değil.
-Görevler: 1, 2 ve 3 PASS; sıradaki checkpoint Görev 4 (07.08.2026).
-Kural: test sonucu threshold/weight/mode/LIVE'ı otomatik değiştirmez.
+Python: v1.2.0; ETH/BTC + URA/USD; SHADOW; Realtime OFF; otomatik emir yok.
+Shadow: Görev 1–7 tamamlandı; SHADOW_READINESS READY; LIVE NO-GO.
+P0 reliability: CLOSED.
+P1 walk-forward: implementation VERIFIED, evidence signal-starved, threshold change unsupported.
+P1 FRED strict verification: CLOSED; edge70 qualification changes 0.
+P1 same-as-of state idempotency: CLOSED; migration 0013 verified.
+P1 URA provenance hardening: CLOSED; production decision 85 forward payload complete=true.
+Historical old URA provenance: geriye dönük backfill yok.
+Raw holdings immutable snapshot history: OPEN.
+Transactional state-before-decision RCA: OPEN / no production incident evidence.
+P2 FRED/data lifecycle: OPEN.
+LIVE: NO-GO; hiçbir doğrulama sonucu threshold/weight/mode'u otomatik değiştirmez.
 ```
