@@ -16,6 +16,7 @@ from app.backtest.fred_pit import (
     strict_macro_coverage,
 )
 from app.backtest.validation import replay_ethbtc_core, walk_forward_edge_thresholds
+from app.collectors.fred import FredRealtimeHistoryUnavailable
 from app.engine import InvestmentEngine
 from verification.run_walk_forward_validation import _load_settings
 
@@ -141,6 +142,30 @@ def _walk_forward_summary(result: dict) -> dict:
     }
 
 
+def _fetch_realtime_histories(
+    fred,
+    series_ids: list[str],
+    *,
+    observation_start: str,
+    observation_end: str,
+) -> tuple[dict[str, list[dict]], dict[str, str]]:
+    histories: dict[str, list[dict]] = {}
+    unavailable: dict[str, str] = {}
+
+    for series_id in series_ids:
+        try:
+            histories[series_id] = fred.fetch_realtime_history(
+                series_id,
+                observation_start=observation_start,
+                observation_end=observation_end,
+            )
+        except FredRealtimeHistoryUnavailable as exc:
+            histories[series_id] = []
+            unavailable[series_id] = str(exc)
+
+    return histories, unavailable
+
+
 def main() -> int:
     args = _parser().parse_args()
     if args.macro_lookback_days <= 0:
@@ -185,13 +210,12 @@ def main() -> int:
         observation_start = (first_replay - timedelta(days=args.macro_lookback_days)).isoformat()
         observation_end = last_replay.isoformat()
 
-        realtime_history: dict[str, list[dict]] = {}
-        for series_id in engine.fred_series:
-            realtime_history[series_id] = engine.fred.fetch_realtime_history(
-                series_id,
-                observation_start=observation_start,
-                observation_end=observation_end,
-            )
+        realtime_history, alfred_unavailable = _fetch_realtime_histories(
+            engine.fred,
+            list(engine.fred_series),
+            observation_start=observation_start,
+            observation_end=observation_end,
+        )
 
         strict_points = replay_ethbtc_core_strict_macro_pit(
             btc,
@@ -201,12 +225,51 @@ def main() -> int:
             engine.decision_engine,
         )
 
+        comparable_current_macro_history = {
+            series_id: (
+                []
+                if series_id in alfred_unavailable
+                else list(current_macro_history.get(series_id) or [])
+            )
+            for series_id in engine.fred_series
+        }
+        comparable_current_points = replay_ethbtc_core(
+            btc,
+            eth,
+            comparable_current_macro_history,
+            settings,
+            engine.decision_engine,
+        )
+
         prepared = prepare_realtime_history(realtime_history)
-        coverage_dates = [point.as_of for point in strict_points]
-        coverage = strict_macro_coverage(prepared, coverage_dates, list(engine.fred_series))
+        coverage_dates = [point.as_of for point in current_points]
+        available_series = [
+            series_id
+            for series_id in engine.fred_series
+            if series_id not in alfred_unavailable
+        ]
+        coverage_all = strict_macro_coverage(
+            prepared,
+            coverage_dates,
+            list(engine.fred_series),
+        )
+        coverage_available = strict_macro_coverage(
+            prepared,
+            coverage_dates,
+            available_series,
+        )
 
         current_walk = walk_forward_edge_thresholds(
             current_points,
+            configured_edge=settings.min_action_edge,
+            primary_horizon=args.horizon,
+            min_train_sessions=args.min_train,
+            test_sessions=args.test_sessions,
+            step_sessions=args.step_sessions,
+            min_train_signals=args.min_train_signals,
+        )
+        comparable_walk = walk_forward_edge_thresholds(
+            comparable_current_points,
             configured_edge=settings.min_action_edge,
             primary_horizon=args.horizon,
             min_train_sessions=args.min_train,
@@ -225,11 +288,17 @@ def main() -> int:
         )
 
         result = {
-            "status": "VERIFICATION_COMPLETE",
+            "status": (
+                "VERIFICATION_COMPLETE_WITH_SOURCE_GAP"
+                if alfred_unavailable
+                else "VERIFICATION_COMPLETE"
+            ),
             "method": "FRED_STRICT_MACRO_PIT_COMPARISON",
             "model_version": "1.2.0",
             "settings_dir": str(settings_dir),
             "configured_series": list(engine.fred_series),
+            "alfred_available_series": available_series,
+            "alfred_unavailable_series": alfred_unavailable,
             "observation_window": {
                 "start": observation_start,
                 "end": observation_end,
@@ -239,11 +308,21 @@ def main() -> int:
                 series_id: len(rows)
                 for series_id, rows in realtime_history.items()
             },
-            "strict_macro_coverage": coverage,
+            "strict_macro_coverage": coverage_all,
+            "strict_macro_coverage_available_series": coverage_available,
             "current_replay": {
                 "observations": len(current_points),
                 "start_date": current_points[0].as_of,
                 "end_date": current_points[-1].as_of,
+            },
+            "comparable_current_replay": {
+                "observations": len(comparable_current_points),
+                "start_date": comparable_current_points[0].as_of if comparable_current_points else None,
+                "end_date": comparable_current_points[-1].as_of if comparable_current_points else None,
+                "note": (
+                    "Current FRED values are used only for ALFRED-available series; "
+                    "ALFRED-unavailable series are treated as missing."
+                ),
             },
             "strict_replay": {
                 "observations": len(strict_points),
@@ -255,12 +334,26 @@ def main() -> int:
                 strict_points,
                 settings.min_action_edge,
             ),
+            "source_gap_comparison": _point_comparison(
+                current_points,
+                comparable_current_points,
+                settings.min_action_edge,
+            ),
+            "vintage_comparison": _point_comparison(
+                comparable_current_points,
+                strict_points,
+                settings.min_action_edge,
+            ),
             "current_walk_forward": _walk_forward_summary(current_walk),
+            "comparable_current_walk_forward": _walk_forward_summary(comparable_walk),
             "strict_walk_forward": _walk_forward_summary(strict_walk),
             "persistence": {"persisted": False},
             "auto_apply": False,
             "limitations": [
                 "Strict PIT applies to FRED macro only.",
+                "Any FRED series unavailable in ALFRED is treated as historically unprovable/missing in strict replay.",
+                "source_gap_comparison isolates the effect of those unavailable series.",
+                "vintage_comparison isolates vintage/revision timing among ALFRED-available series.",
                 "Derivatives and event PIT histories remain unavailable and neutral in core replay.",
                 "This is not a production ACTION/state-machine backtest.",
                 "No threshold, factor weight, mode or signal-state parameter is changed.",
