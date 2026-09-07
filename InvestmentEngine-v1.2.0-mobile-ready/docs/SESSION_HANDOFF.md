@@ -1,6 +1,6 @@
 # BTC_ETH_URA_10YIL — Oturum Devir Kaydı
 
-Son güncelleme: 07 Eylül 2026  
+Son güncelleme: 08 Eylül 2026  
 Amaç: Yeni sohbetin güncel proje durumunu konuşma geçmişini yeniden keşfetmeden devralması.
 
 Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları root `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, checkpoint kanıtları `SHADOW_CHECKPOINT_LOG.md`, Post-Shadow kanıtları ise ilgili `POST_SHADOW_*.md` belgelerindedir.
@@ -302,25 +302,116 @@ LIVE impact                     NONE / NO-GO unchanged
 
 FRED current/revision/dedup/retention veri yaşam döngüsü ise ayrı P2 başlığıdır; bu kapanış P2'yi kapatmaz.
 
-## 9. P1 — Aktif sıradaki aşama: production vs replay parity
+## 9. P1 — Production vs replay parity
 
-FRED strict-PIT alt aşaması kapandı. P1'in aktif ana sorusu artık şudur:
+### 9.1 Same-market-date signal-state idempotency — KAPANDI
 
-> Geçmiş replay ile üretimde çalışan gerçek karar zinciri aynı bilgiyi gördüğünde aynı factor, quality/confidence kapısı, rejim, persistent state ve ACTION davranışını üretiyor mu?
+İlgili belge:
 
-Bu aşamanın amacı model ayarı değiştirmek değil, geçmiş doğrulamanın production davranışına ne kadar benzediğini ölçmektir.
+- `docs/POST_SHADOW_P1_PRODUCTION_REPLAY_STATE_IDEMPOTENCY.md`
 
-Önce veri ve kod kabiliyeti çıkarılacak; doğrudan K1/K2 replay kodu yazılmayacaktır. Özellikle şu sorular doğrulanacaktır:
+Production read-only baseline ve tekrar-detail sorguları şunları kanıtladı:
 
-1. Üretim `daily_crypto_job` hangi veri kesim zamanını ve hangi factor'ları kullanıyor?
-2. Replay aynı factor/quality/confidence/regime hesabını mı kullanıyor?
-3. Aynı piyasa `as_of` tarihindeki tekrar scheduler koşuları nasıl saklanıyor ve state'i kaç kez ilerletiyor?
-4. K1/K2, reversal ve reset state'i hangi tablolarda/alanlarda tutuluyor?
-5. `ACTION` ile `action_event=true` ayrımını geçmiş kayıtlardan yeniden kurabiliyor muyuz?
-6. Derivatives/event geçmişi eksik olduğunda production ile replay karşılaştırmasının sınırı nedir?
-7. Market `as_of` ile kararın gerçek çalışma zamanı / o anda bilinen makro veri kesimi aynı kavram mı, ayrı mı tutulmalı?
+```text
+ETH/BTC decisions              39
+ETH/BTC unique market dates    39
+ETH/BTC repeated market dates  0
 
-Bu soruların cevabı alınmadan production state-machine'i taklit eden yeni replay yazılmaz.
+URA/USD decisions              38
+URA/USD unique market dates    26
+URA/USD repeated market dates  7
+max decisions / one URA date   3
+```
+
+Aynı `as_of` tekrarlarında production geçmişinde:
+
+```text
+same_asof_state_moves             []
+same_asof_reset_advances          []
+same_asof_multiple_action_events  []
+```
+
+Bu geçmişte state corruption görülmediğini gösterdi; fakat iki sistemde de `action_event=0` ve state pasif olduğu için aktif rejim reset dalı production geçmişinde egzersiz edilmemişti.
+
+Kod RCA'sında `reset_counter` market-günü kuralı olmasına rağmen aynı market `as_of` tekrarında yeniden artabilen latent risk doğrulandı. URA tekrar-detail kanıtı aynı market gününün farklı evaluation zamanlarında güncellenmiş `macro`, `fundamentals`, `breadth` ve `event` girdileriyle tekrar değerlendirilebildiğini gösterdi; bu nedenle scheduler tekrarlarını körlemesine engellemek doğru çözüm değildi.
+
+Uygulanan en küçük hardening:
+
+- `model.signal_state.last_evaluated_as_of` eklendi,
+- `reset_counter` yalnız yeni market `as_of` geldiğinde +1 ilerler,
+- aynı `as_of` tekrarında ikinci kez artmaz,
+- aynı gün aktif yön edge'i released `reset edge=45` üzerine geri çıkarsa sayaç yine 0'a dönebilir,
+- K1/K2, reversal, sizing, thresholds, scheduler cadence ve SHADOW/LIVE semantiği değişmedi.
+
+Migration:
+
+- `migrations/0013_signal_state_market_date_idempotency.sql`
+- `supabase-migrations/0013_signal_state_market_date_idempotency.sql`
+
+Doğrulama:
+
+```text
+focused signal-state tests  3 passed
+full Python tests           65 passed
+release check               OK
+```
+
+Production migration sonrası read-only DB doğrulaması:
+
+```text
+column_present                         true
+trigger.present                        true
+trigger.enabled                        true
+signal_state_rows                      2
+rows_with_last_evaluated_as_of         2
+rows_matching_latest_decision_as_of    2
+rows_not_matching_latest_decision_as_of 0
+```
+
+Doğrulama anındaki marker eşleşmeleri:
+
+```text
+ETH/BTC latest decision 83  as_of=2026-09-06  marker=2026-09-06
+URA/USD latest decision 82  as_of=2026-09-04  marker=2026-09-04
+```
+
+Kapanış sınıflandırması:
+
+```text
+Historical production corruption observed  NO
+Repeated same-as-of evaluations             CONFIRMED
+Latent reset idempotency risk                CONFIRMED
+Hardening                                    VERIFIED
+Migration                                    VERIFIED
+Same-as-of state idempotency substage        CLOSED
+```
+
+### 9.2 Aktif sıradaki alt aşama: evaluation-time provenance parity
+
+Full production/replay parity **henüz kapanmadı**.
+
+Artık ana soru şudur:
+
+> Aynı market `as_of` tekrar değerlendirildiğinde production'ın o gerçek evaluation anında bildiği source snapshot'ları replay tarafından yeniden kurulabiliyor mu?
+
+Market `as_of` tek başına production bilgi setini tanımlamıyor. En az şu zaman kavramları ayrılmalıdır:
+
+1. market `as_of`,
+2. gerçek decision evaluation zamanı,
+3. source-specific observation/fetch zamanları,
+4. o evaluation anında eligibility taşıyan macro/fundamentals/breadth/event/derivatives snapshot'ları.
+
+Özellikle:
+
+- production `daily_crypto_job` / `daily_ura_job` veri kesim semantiği,
+- replay factor/quality/confidence/regime hesapları,
+- `ACTION` ile `action_event=true` ayrımının replay'de korunması,
+- derivatives/event historical coverage boşlukları,
+- decision provenance içindeki gerçek timestamp coverage
+
+ölçülmeden production state-machine'i taklit eden yeni geniş replay yazılmaz.
+
+Bu aşama threshold düşürme veya model tuning gerekçesi değildir.
 
 ## 10. P2 veri yaşam döngüsü — AÇIK
 
@@ -358,33 +449,3 @@ External data
 Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir. Tek Auth kullanıcısı + çoklu portföy mimarisi korunur. Quasar gerçek kullanıcı ledger'ını taşır; Python global sistem değerlendirmesini yapar.
 
 Windows hedefi 24/7 servis çalışmasıdır. Production kurulum/ayar dizinleri ve encrypted settings çözümlemesi verification komutlarında korunur.
-
-## 13. Yeni oturum başlangıç sırası
-
-Yeni oturumda:
-
-1. bu `SESSION_HANDOFF.md` dosyasını oku,
-2. `PROJECT_MEMORY_BANK.md` dosyasını oku,
-3. `SIGNAL_ENGINE_DECISION_CONTRACT.md` dosyasını oku,
-4. aktif branch HEAD'ini doğrula,
-5. kullanıcı yerel HEAD/status verdiyse remote ile karşılaştır,
-6. FRED strict-PIT'i yeniden keşfetme; alt aşama `CLOSED`,
-7. aktif P1 konusu olarak production-vs-replay parity veri/kod gap analizinden devam et,
-8. production davranışını değiştirmeden önce verification-only/read-only kanıt üret.
-
-## 14. Son karar özeti
-
-```text
-Tasks 1-7 / Shadow calendar          PASS / COMPLETE
-SHADOW_READINESS                     READY
-LIVE                                 NO-GO
-P0 runtime reliability development   CLOSED
-P1 walk-forward implementation       CLOSED / evidence limited
-P1 FRED strict-PIT                    CLOSED / evidence limited
-P1 production-vs-replay parity       ACTIVE / NEXT
-P2 FRED lifecycle                    OPEN
-P3 model changes                     NOT AUTHORIZED
-Model                                1.2.0 unchanged
-Mode                                 SHADOW
-Realtime execution                   OFF
-```
