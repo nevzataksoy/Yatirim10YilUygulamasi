@@ -167,3 +167,19 @@ Bağlayıcı kurallar:
 ```
 
 Bu kural yeni sohbetlerde de bağlayıcıdır ve proje çalışma standardının parçasıdır.
+
+## 13. Vazgeçilmez GitHub commit dili ve Türkçe teknik anlatım kuralı
+
+Bu proje için GitHub geçmişi ve kullanıcıya verilen teknik sonuç özetleri Türkçe öncelikli tutulur.
+
+Bağlayıcı kurallar:
+
+1. Bundan sonraki GitHub commit mesajları **Türkçe** yazılır. Commit mesajı kısa, yaptığı değişikliği açıkça anlatan ve mümkünse emir kipinde olmayan doğal bir Türkçe ifade olur.
+2. Dosya adı, kod sembolü, sınıf/fonksiyon adı, SQL alanı, model etiketi veya yerleşik ürün terimi gibi teknik kimlikler gerekiyorsa commit mesajında özgün biçimi korunabilir; ancak cümlenin geri kalanı Türkçe olur.
+3. Sonuç özetlerindeki sınıflandırma adları ilk kullanımda İngilizce/kanonik ad + parantez içinde Türkçe karşılığıyla yazılır. Örnek: `VERIFIED (Doğrulandı)`, `CLOSED (Kapandı)`, `OPEN (Açık)`, `NO EVIDENCE (Kanıt yok)`, `NO-GO (Canlıya geçiş yok)`.
+4. Kullanıcıya açıklanan teknik terimler de ilk anlamlı kullanımda parantez içinde Türkçeleştirilir. Örnek: `runtime (çalışma zamanı)`, `provenance (kaynak/izlenebilirlik bilgisi)`, `idempotency (tekrarlı çalıştırmada tek etkili davranış)`, `forward verification (ileri yönlü doğrulama)`.
+5. Kod, SQL, dosya yolu, CLI argümanı, tablo/kolon adı ve literal çıktı içindeki teknik ifadeler çevrilmez; çeviri yalnız açıklama metninde verilir. Böylece çalıştırılabilirlik ve kanonik isimler bozulmaz.
+6. Aynı terim aynı cevap içinde tekrar tekrar çevrilerek metin şişirilmez; ilk kullanımda Türkçe karşılık verildikten sonra kanonik terim kullanılabilir.
+7. Türkçe karşılık teknik anlamı daraltıyor veya yanlış yönlendiriyorsa özgün terim korunur ve parantez içindeki Türkçe açıklama kısa fakat anlamı koruyacak şekilde yazılır.
+
+Bu kural yeni sohbetlerde de bağlayıcıdır ve proje iletişim/Git geçmişi standardının parçasıdır.
