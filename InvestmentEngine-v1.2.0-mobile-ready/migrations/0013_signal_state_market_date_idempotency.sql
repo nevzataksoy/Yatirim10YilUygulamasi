@@ -16,6 +16,10 @@ begin;
 -- This migration does NOT change thresholds, weights, K1/K2 sizing, reversal
 -- semantics, scheduler cadence, SHADOW/LIVE mode, or decision history retention.
 
+-- Prevent a decision insert from landing between the state backfill and trigger
+-- installation while the SHADOW scheduler is running.
+lock table model.decisions in share row exclusive mode;
+
 alter table model.signal_state
   add column if not exists last_evaluated_as_of date;
 
