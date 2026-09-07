@@ -3,6 +3,10 @@ from __future__ import annotations
 from app.http import build_session
 
 
+class FredRealtimeHistoryUnavailable(RuntimeError):
+    """Raised when a FRED series has no historical ALFRED representation."""
+
+
 class FredCollector:
     BASE = "https://api.stlouisfed.org/fred/series/observations"
 
@@ -32,7 +36,12 @@ class FredCollector:
         return out
 
     @staticmethod
-    def _raise_for_status_safe(response, series_id: str) -> None:
+    def _raise_for_status_safe(
+        response,
+        series_id: str,
+        *,
+        realtime_history: bool = False,
+    ) -> None:
         """Raise an error without exposing the API key embedded in request URLs."""
         try:
             response.raise_for_status()
@@ -51,9 +60,14 @@ class FredCollector:
             status = getattr(response, "status_code", None)
             prefix = f"HTTP {status}" if status is not None else "HTTP request"
             detail = f": {message}" if message else ""
-            raise RuntimeError(
-                f"FRED {series_id} isteği başarısız ({prefix}){detail}"
-            ) from None
+            safe_message = f"FRED {series_id} isteği başarısız ({prefix}){detail}"
+            if (
+                realtime_history
+                and status == 400
+                and "does not exist in ALFRED" in message
+            ):
+                raise FredRealtimeHistoryUnavailable(safe_message) from None
+            raise RuntimeError(safe_message) from None
 
     def fetch_series(self, series_id: str, limit: int = 1500) -> list[dict]:
         """Fetch the latest observations and return them oldest -> newest.
@@ -103,6 +117,11 @@ class FredCollector:
         real-time boundaries, which is sufficient for replay dates inside those
         same boundaries.
 
+        Some FRED series have no ALFRED historical representation. That case is
+        reported with ``FredRealtimeHistoryUnavailable`` so verification can mark
+        the series as historically unprovable instead of substituting today's
+        value into the past.
+
         The production macro job does not call this method. It exists for
         Post-Shadow PIT verification and performs no database writes.
         """
@@ -127,7 +146,11 @@ class FredCollector:
                 "offset": offset,
             }
             response = self.session.get(self.BASE, params=params, timeout=30)
-            self._raise_for_status_safe(response, series_id)
+            self._raise_for_status_safe(
+                response,
+                series_id,
+                realtime_history=True,
+            )
             data = response.json()
             page = list(data.get("observations", []))
             raw_rows.extend(page)
