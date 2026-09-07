@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 from app.backtest.fred_pit import (
     prepare_realtime_history,
     replay_ethbtc_core_strict_macro_pit,
+    strict_macro_asof,
     strict_macro_coverage,
 )
 from app.backtest.validation import replay_ethbtc_core, walk_forward_edge_thresholds
@@ -114,6 +115,32 @@ def _point_comparison(current_points, strict_points, edge_threshold: float) -> d
         "configured_qualification_change_dates": qualification_changes,
         "largest_changes": changed_rows[:20],
     }
+
+
+def _macro_coverage_partition(
+    prepared,
+    as_of_dates: list[str],
+    expected_series: list[str],
+) -> tuple[set[str], list[dict]]:
+    """Split replay dates into complete and incomplete strict-macro coverage.
+
+    This is used only by the verification report. It prevents missing historical
+    source rows from being mislabeled as a vintage/revision effect.
+    """
+    complete: set[str] = set()
+    incomplete: list[dict] = []
+    for as_of in as_of_dates:
+        selected = strict_macro_asof(prepared, as_of)
+        missing = [series_id for series_id in expected_series if series_id not in selected]
+        if missing:
+            incomplete.append({"as_of": as_of, "missing_series": missing})
+        else:
+            complete.add(as_of)
+    return complete, incomplete
+
+
+def _filter_points(points, allowed_dates: set[str]):
+    return [point for point in points if point.as_of in allowed_dates]
 
 
 def _walk_forward_summary(result: dict) -> dict:
@@ -258,6 +285,19 @@ def main() -> int:
             coverage_dates,
             available_series,
         )
+        complete_available_dates, incomplete_available_dates = _macro_coverage_partition(
+            prepared,
+            coverage_dates,
+            available_series,
+        )
+        comparable_complete_points = _filter_points(
+            comparable_current_points,
+            complete_available_dates,
+        )
+        strict_complete_points = _filter_points(
+            strict_points,
+            complete_available_dates,
+        )
 
         current_walk = walk_forward_edge_thresholds(
             current_points,
@@ -310,6 +350,7 @@ def main() -> int:
             },
             "strict_macro_coverage": coverage_all,
             "strict_macro_coverage_available_series": coverage_available,
+            "strict_macro_incomplete_dates_available_series": incomplete_available_dates,
             "current_replay": {
                 "observations": len(current_points),
                 "start_date": current_points[0].as_of,
@@ -344,6 +385,17 @@ def main() -> int:
                 strict_points,
                 settings.min_action_edge,
             ),
+            "vintage_comparison_complete_coverage": _point_comparison(
+                comparable_complete_points,
+                strict_complete_points,
+                settings.min_action_edge,
+            ),
+            "vintage_complete_coverage_scope": {
+                "dates": len(complete_available_dates),
+                "first_date": min(complete_available_dates) if complete_available_dates else None,
+                "last_date": max(complete_available_dates) if complete_available_dates else None,
+                "excluded_incomplete_dates": len(incomplete_available_dates),
+            },
             "current_walk_forward": _walk_forward_summary(current_walk),
             "comparable_current_walk_forward": _walk_forward_summary(comparable_walk),
             "strict_walk_forward": _walk_forward_summary(strict_walk),
@@ -353,7 +405,8 @@ def main() -> int:
                 "Strict PIT applies to FRED macro only.",
                 "Any FRED series unavailable in ALFRED is treated as historically unprovable/missing in strict replay.",
                 "source_gap_comparison isolates the effect of those unavailable series.",
-                "vintage_comparison isolates vintage/revision timing among ALFRED-available series.",
+                "vintage_comparison includes dates with incomplete ALFRED coverage among available series.",
+                "vintage_comparison_complete_coverage isolates vintage/revision timing only on dates where every ALFRED-available series is present.",
                 "Derivatives and event PIT histories remain unavailable and neutral in core replay.",
                 "This is not a production ACTION/state-machine backtest.",
                 "No threshold, factor weight, mode or signal-state parameter is changed.",
