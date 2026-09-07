@@ -545,3 +545,68 @@ External data
 Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir. Tek Auth kullanıcısı + çoklu portföy mimarisi korunur. Quasar gerçek kullanıcı ledger'ını taşır; Python global sistem değerlendirmesini yapar.
 
 Windows hedefi 24/7 servis çalışmasıdır. Bu projede development makinesi aynı zamanda çalışan Shadow service host'udur. Production kurulum/ayar dizinleri ve encrypted settings çözümlemesi verification komutlarında korunur.
+
+## 13. Oturum11 kapanışı ve Oturum12 başlangıç noktası
+
+Kullanıcı Oturum11'in son turunda kendisine verilen pull/yerel eşitleme komutlarının hiçbirini çalıştırmadığını açıkça belirtti. Bu nedenle kullanıcının yerel worktree'si için son kanıtlanan durum şudur:
+
+```text
+local HEAD                  e67ffaf
+local git status --short    boş / temiz
+```
+
+Bundan sonraki dokümantasyon commit'leri remote branch'i yerelin önüne taşımıştır. Yeni sohbet local'in güncel olduğunu varsaymamalıdır.
+
+Oturum11 sonunda tamamlanan ana teknik kilometre taşı:
+
+```text
+URA provenance hardening                 VERIFIED (Doğrulandı)
+Production runtime deployment            VERIFIED (Doğrulandı)
+Forward new-decision persistence          VERIFIED (Doğrulandı) / decision 85
+URA provenance hardening substage         CLOSED (Kapandı)
+Historical pre-hardening URA rows         NOT BACKFILLED (Geriye dönük doldurulmadı)
+Raw holdings immutable snapshot history   OPEN (Açık)
+Full production/replay parity             OPEN (Açık)
+LIVE                                      NO-GO (Canlıya geçiş yok)
+```
+
+Decision 85 forward verification (ileri yönlü doğrulama) içinde `hardened_audit_payload_complete=true` ve tüm alt kontroller `true` çıkmıştır. Bu kapanış model threshold/weight/K1/K2/reset/sizing/mode/version davranışını değiştirmemiştir.
+
+### Oturum12'nin ilk adımı
+
+Yeni sohbet önce remote branch'in gerçek HEAD'ini ve aşağıdaki bağlam dosyalarının güncel halini okumalıdır:
+
+1. `CHATGPT_PROJECT_START_HERE.md`
+2. `InvestmentEngine-v1.2.0-mobile-ready/docs/PROJECT_MEMORY_BANK.md`
+3. `InvestmentEngine-v1.2.0-mobile-ready/docs/SIGNAL_ENGINE_DECISION_CONTRACT.md`
+4. `InvestmentEngine-v1.2.0-mobile-ready/docs/SESSION_HANDOFF.md`
+5. `InvestmentEngine-v1.2.0-mobile-ready/docs/POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
+6. Production/replay işi devam edecekse `InvestmentEngine-v1.2.0-mobile-ready/app/engine.py`, ilgili repository transaction/commit kodu ve testler.
+
+Bunları okuduktan sonra kullanıcıya ilk çalıştırılacak komut olarak tek, kopyala-yapıştır güvenli PowerShell satırı verilmelidir:
+
+```powershell
+cd D:\wamp64\www\Yatirim10YilUygulamasi; git pull --ff-only; git rev-parse --short HEAD; git status --short
+```
+
+Yeni sohbet, kullanıcı bu çıktıyı vermeden yerel repo için `güncel/clean` iddiasında bulunmamalıdır. Pull sonucu incelendikten sonra teknik RCA'ya geçilmelidir.
+
+### Sonraki teknik araştırma yönü
+
+Oturum11 sonunda sıradaki teknik inceleme olarak **transactional state-before-decision risk analizi (işlemsel olarak state'in decision'dan önce yazılması riski)** önerilmiştir. Bu henüz başlanmış bir düzeltme değildir.
+
+Mevcut kodda `_persist_decision` içinde signal state önce upsert/commit edilmekte, decision insert daha sonra gerçekleşmektedir. Teorik pencere şudur: state commit başarılı olur, decision insert başarısız olur, retry aynı state'i yeniden ilerletebilir. Bunun production'da gerçekleştiğine dair `NO EVIDENCE (Kanıt yok)` vardır; konu production incident (üretim olayı) diye sunulmamalıdır.
+
+Oturum12 bu konuya geçerse ilk teknik iş kod değiştirmek değil; remote kodu okuyup transaction boundary (işlem sınırı), commit sırası, retry davranışı ve mevcut production DB kanıtını ayrı ayrı doğrulamaktır. Raw holdings immutable snapshot/versioning (değişmez ham kaynak anlık görüntü sürümleme) konusu bundan ayrı `OPEN (Açık)` araştırma olarak tutulmalıdır.
+
+### GitHub çalışma biçimi
+
+Oturum12 ve sonraki sohbetlerde:
+
+- Her teknik aksiyon öncesi remote HEAD ve değiştirilecek dosyanın güncel SHA'sı okunur.
+- Her mantıksal değişiklik ayrı commit edilir ve mevcut `agent/portfolio-audit-reset` branch'ine hemen push edilir.
+- **Tüm yeni GitHub commit mesajları Türkçe yazılır.** Dosya/kod sembolleri özgün kalabilir, cümle Türkçe olur.
+- Commit/push sonrası kullanıcıya short SHA, full SHA ve Türkçe commit mesajı bildirilir.
+- Asistan push ettikten sonra kullanıcı pull/test eder; kullanıcı çıktısı olmadan local repo'nun clean/güncel olduğu varsayılmaz.
+- Sonuç sınıflandırmaları ve teknik terimler ilk anlamlı kullanımda kanonik terim + parantez içinde Türkçe karşılığıyla verilir; kod/SQL/literal alan adları çevrilmez.
+- PowerShell komutları tek seferde yapıştırılabilir, sözdizimsel olarak güvenli biçimde sunulur.
