@@ -28,7 +28,7 @@ class _PagedSession:
         if int(params["offset"]) == 0:
             return _Response(
                 {
-                    "count": 100001,
+                    "count": 3,
                     "observations": [
                         {
                             "date": "2024-01-01",
@@ -47,7 +47,7 @@ class _PagedSession:
             )
         return _Response(
             {
-                "count": 100001,
+                "count": 3,
                 "observations": [
                     {
                         "date": "2024-01-01",
