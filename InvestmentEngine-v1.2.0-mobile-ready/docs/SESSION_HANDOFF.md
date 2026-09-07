@@ -1,48 +1,54 @@
 # BTC_ETH_URA_10YIL — Oturum Devir Kaydı
 
-Son güncelleme: 06 Eylül 2026  
+Son güncelleme: 07 Eylül 2026  
 Amaç: Yeni sohbetin güncel proje durumunu konuşma geçmişini yeniden keşfetmeden devralması.
 
-Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları root `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, checkpoint kanıtları `SHADOW_CHECKPOINT_LOG.md`, Post-Shadow P0 kanıtları ise `POST_SHADOW_P0_CONNECTION_POOL_RCA.md` ve `POST_SHADOW_P0_RUNTIME_RELIABILITY_CLOSURE.md` içindedir.
+Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları root `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, checkpoint kanıtları `SHADOW_CHECKPOINT_LOG.md`, Post-Shadow P0/P1 kanıtları ise ilgili `POST_SHADOW_*.md` belgelerindedir.
 
 ## 1. Aktif repo / branch
 
-Ana repo:
-
 ```text
-nevzataksoy/Yatirim10YilUygulamasi
+Repo   nevzataksoy/Yatirim10YilUygulamasi
+Branch agent/portfolio-audit-reset
 ```
 
-Aktif Python geliştirme branch'i:
+Repo default branch'i `master` olsa da güncel Python/Shadow geliştirme gerçeği `agent/portfolio-audit-reset` branch'indedir.
+
+Bu çalışma ortamında kullanıcının Windows worktree'sine doğrudan erişim yoktur. Yerel repo:
 
 ```text
-agent/portfolio-audit-reset
+D:\wamp64\www\Yatirim10YilUygulamasi
 ```
 
-06.09.2026 P0 kapanışı sırasında remote branch üzerinde ardışık olarak oluşturulan güncel commitler:
+Asistan yerel `git status clean` iddiası yapmaz. Remote gerçeklik GitHub branch ref/commit/blob SHA ile, yerel durum ise kullanıcının verdiği `git rev-parse` / `git status` çıktısıyla doğrulanır.
 
-```text
-7b697425a45510a5b6dcbb6bfeb99dbb9f3764f3 — Close development connection pool RCA
-0a5a3520a89f3285e88b908a31c512778eec19d0 — Record Post-Shadow P0 runtime reliability closure
-```
+Her mantıksal değişiklik ayrı commit edilir ve hemen push edilir. Kullanıcıya short SHA, full SHA ve commit mesajı bildirilir. Raw telemetry/log/generated verification dosyaları commit edilmez.
 
-Bu handoff commit'i branch'i ayrıca ileri taşır. Yeni oturum yazmadan önce remote HEAD ve değiştirilecek dosya blob SHA'sı yeniden doğrulanır.
+## 2. Anlatım ve proje hakimiyeti kuralı
 
-Repo default branch'i `master` olsa da güncel Shadow/Python çalışması `agent/portfolio-audit-reset` branch'indedir.
+Bu proje için zorunlu iletişim biçimi `CHATGPT_PROJECT_START_HERE.md` içinde sabittir:
 
-Bu çalışma ortamında doğrudan Windows `D:\wamp64\www\Yatirim10YilUygulamasi` worktree'sine erişim yoktur ve geçmiş oturumda shell üzerinden GitHub DNS çözümlemesi başarısız olmuştur. Bu yüzden yerel `git status clean` iddiası yapılmaz. Remote gerçeklik bağlı GitHub üzerinden branch ref, commit ve blob SHA ile doğrulanır. Kullanıcı kendi Windows worktree'sinde gerektiğinde `git pull --ff-only` çalıştırır.
+- mümkün olduğunca sade Türkçe kullan,
+- yabancı teknik terim gerekiyorsa önce Türkçe anlamını açıkla,
+- her teknik adımda **hangi sorunu çözdüğümüzü** anlat,
+- kontrolün **neden yapıldığını** belirt,
+- sonucun **hangi proje aşamasını etkilediğini** açıkla,
+- sonucun **hangi kararı henüz değiştirmediğini** özellikle söyle,
+- kullanıcıya yalnız komut değil, projenin neden o komutu çalıştırdığını da aktar.
 
-## 2. Değişmez released durum
+Bu yaklaşım yeni oturumlarda da vazgeçilmezdir.
+
+## 3. Değişmez released durum
 
 ```text
 Model Version        1.2.0
 Mode                 SHADOW
 Realtime Execution   OFF
 SHADOW_READINESS     READY
-LIVE Graduation      OPEN / NO-GO for now
+LIVE Graduation      OPEN / NO-GO
 ```
 
-Released eşikler ve state davranışı değişmemiştir:
+Released ayarlar değişmemiştir:
 
 ```text
 minimum data quality 80
@@ -57,11 +63,11 @@ base tranche         25%
 max regime           50%
 ```
 
-`direction` emir değildir. `ACTION` tek başına yeni kademe değildir; `action_event=true` gerekir. K1/K2/reversal/reset/sizing davranışı `SIGNAL_ENGINE_DECISION_CONTRACT.md` ile sabittir.
+Factor weights, K1/K2, reversal/reset/sizing davranışı değişmemiştir.
 
-Python portföy bakiyesi okumaz, otomatik exchange order göndermez ve readiness sonucundan otomatik LIVE'a geçmez.
+`direction` emir değildir. `ACTION` tek başına yeni kademe değildir; `action_event=true` gerekir. Python portföy bakiyesi okumaz, otomatik exchange order göndermez ve readiness sonucundan otomatik LIVE'a geçmez.
 
-## 3. Shadow görev takvimi sonucu
+## 4. Shadow görev takvimi sonucu
 
 Görev 1–6: `PASS`.
 
@@ -76,196 +82,229 @@ Mode                    SHADOW
 Realtime Execution      OFF
 ```
 
-Görev 7 readiness kanıtı:
+Readiness kanıtı:
 
 ```text
-Shadow calendar days: 36              >= 30
-ETH/BTC decision days: 35             >= 25
-URA/USD decision days: 25             >= 20
-ETH/BTC median quality: 90.83         >= 80
-URA/USD median quality: 87.71         >= 80
-URA holdings dates: 24                >= 2
-URA breadth dates: 24                 >= 20
-Recent job success: 99.2126%          >= 98%
-Realtime test: OK / 8 snapshots / max_trade_gap=0
-waiting_reasons: []
-blockers: []
+Shadow calendar days       36
+ETH/BTC decision days      35
+URA/USD decision days      25
+ETH/BTC median quality     90.83
+URA/USD median quality     87.71
+URA holdings dates         24
+URA breadth dates          24
+Recent job success         99.2126%
+Realtime test              OK / 8 snapshots / max_trade_gap=0
+waiting_reasons            []
+blockers                   []
 ```
 
-Readiness classifier geçti ancak LIVE için kanıt yeterli kabul edilmedi.
-
-## 4. LIVE neden hâlâ NO-GO
+## 5. LIVE neden hâlâ NO-GO
 
 Shadow epoch boyunca gerçek ACTION/WATCH davranışı egzersiz edilmedi:
 
 ```text
-ETH/BTC WAIT: 35 karar / 35 gün
-URA/USD WAIT: 33 karar / 24 gün
-URA/USD NO_ACTION_DATA: 2 karar / 1 gün
-Crypto ACTION/WATCH: 0/0
-URA ACTION/WATCH: 0/0
-performance: []
+ETH/BTC WAIT              35 / 35 gün
+URA/USD WAIT              33 karar / 24 gün
+URA/USD NO_ACTION_DATA    2 karar / 1 gün
+Crypto ACTION/WATCH       0 / 0
+URA ACTION/WATCH          0 / 0
+performance               []
 ```
 
-ETH/BTC historical core replay directional validation sağlıyor fakat production ACTION parity sağlamıyor. Configured edge threshold `70` ile yeterli signal count oluşmadı; bu durum threshold düşürme gerekçesi değildir.
+Historical replay yönsel doğrulama sağlar fakat production ACTION/state davranışını birebir doğrulamaz. `edge=70` için yeterli sinyal kanıtı yoktur. Bu durum threshold düşürme gerekçesi değildir.
 
-URA full PIT hâlâ yeterli gerçek holdings/breadth/event history taşımıyor.
+URA full PIT de henüz yeterli tarihsel holdings/breadth/event geçmişine sahip değildir.
 
-Bu nedenle `READY` operasyonel readiness anlamındadır; model davranışının production graduation için yeterince egzersiz edildiği anlamına gelmez.
-
-## 5. Post-Shadow P0 — KAPANDI
-
-06.09.2026 itibarıyla development tarafındaki P0 runtime reliability çalışması:
+## 6. Post-Shadow P0 — KAPANDI
 
 ```text
 P0 Development Reliability   CLOSED / NON-BLOCKING
 ```
 
-### 5.1 Connection pool RCA
+Detaylar:
 
-Detaylı belge:
+- `docs/POST_SHADOW_P0_CONNECTION_POOL_RCA.md`
+- `docs/POST_SHADOW_P0_RUNTIME_RELIABILITY_CLOSURE.md`
 
-```text
-docs/POST_SHADOW_P0_CONNECTION_POOL_RCA.md
-```
+Özet:
 
-Final sınıflandırma:
+- historical 10s pool timeout development ortamında doğrudan yeniden üretilemedi,
+- pool lifecycle/replacement davranışı çalışıyor,
+- yeni instrumented checkout timeout görülmedi,
+- `max_size=6`, `timeout=10s` değiştirilmedi,
+- generic DB retry eklenmedi,
+- scheduler serialize edilmedi,
+- historical production gözlem borcu GitHub Issue #2'de açık kaldı.
 
-```text
-Development RCA          CLOSED / NON-BLOCKING
-Historical 10s timeout   doğrudan yeniden üretilemedi
-Production observation   OPEN — GitHub Issue #2
-```
+Scheduler ERROR RCA:
 
-Doğrudan lifecycle telemetry şunları doğruladı:
+- ID 5: pre-Shadow Alpha Vantage free API quota — non-blocking.
+- ID 477: isolated unexpected Alpha Vantage response shape, sonraki run otomatik toparlandı — non-blocking.
+- ID 1642: SEC job içindeki 10s DB pool timeout, Issue #2 ailesi.
+- SEC `DEGRADED` kayıtlarının çoğu crash değil, yaklaşık %19–20 fund-weight coverage semantiğidir.
 
-- `connection_expired_on_return` olayları,
-- connection age yaklaşık 57–60 dakika,
-- replacement connection başarıyla oluşturuluyor,
-- pressure sırasında pool headroom mevcut,
-- yeni instrumented `checkout_timeout = 0`,
-- bad/error/lost connection counter'ları kök nedeni desteklemiyor.
+## 7. P1 — Walk-forward validation durumu
 
-Development host kaynak baskısı connection establishment latency'yi artırabilen makul contributor, fakat historical timeout'un kanıtlanmış root cause'u değildir.
+Expanding walk-forward altyapısı teknik olarak doğrulanmıştır.
 
-Ayrı bir yaklaşık `14.657s` DB hold gözlendi; düşük checkout wait nedeniyle historical timeout ile otomatik aynı problem sayılmaz.
-
-No-change kararı:
+Son doğrulanmış ana sonuç:
 
 ```text
-max_size = 6        değişmez
-timeout = 10s       değişmez
-generic DB retry    eklenmez
-scheduler serialize edilmez
-model davranışı     değişmez
+observations                  1420
+folds                         12
+configured edge=70 OOS signal 0
 ```
 
-### 5.2 Scheduler ERROR RCA
+Daha düşük keşif eşikleriyle yapılan hassasiyet koşusunda yalnız 4 OOS sinyal görülmüş, hit rate %25 ve ortalama signed return yaklaşık `-0.0382` olmuştur.
 
-Detaylı kapanış belgesi:
+Doğru yorum:
 
 ```text
-docs/POST_SHADOW_P0_RUNTIME_RELIABILITY_CLOSURE.md
+Walk-forward implementation  VERIFIED / CLOSED as implementation
+Evidence                     LIMITED / SIGNAL-STARVED
+Threshold change             NOT SUPPORTED
+LIVE                         NO-GO
 ```
 
-Gerçek `system.job_runs` incelemesi:
-
-#### ID 5 — daily_ura_job
+`selection_status=OK`, tek başına yeterli model kanıtı anlamına gelmez. P1 ortak kanıt sınıflandırması:
 
 ```text
-2026-07-30
-shadow_epoch_id = null
-Alpha Vantage explicit free API rate/quota response
+LIMITED_TRAIN_SIGNAL_COUNT
+LIMITED_OOS_SIGNAL_COUNT
+EVIDENCE_AVAILABLE
 ```
 
-Pre-Shadow historical provider-limit olayı; current P0 blocker değil.
+## 8. P1 — FRED strict tarihsel doğrulama durumu
 
-#### ID 477 — daily_ura_job
+İlgili belgeler:
+
+- `docs/POST_SHADOW_P1_FRED_PIT_BASELINE.md`
+- `docs/POST_SHADOW_P1_FRED_STRICT_PIT_COMPARISON.md`
+
+### 8.1 Mevcut Supabase FRED tablosu
+
+Baseline kanıtı:
+
+- `macro.observations` strict ALFRED validity history değildir,
+- tekrar tekrar alınmış FRED-current/fetch-day snapshot'larıdır,
+- historical cutoff testlerinde local strict PIT coverage yoktur,
+- gerçek value revision kanıtlanmıştır,
+- özellikle `STLFSI4` çok sayıda revision taşır,
+- `DTWEXBGS` için de revision örneği vardır.
+
+Bu nedenle `(series_id, observation_date)` bazında kör dedup yapılmaz ve mevcut tablo strict PIT store diye yorumlanmaz.
+
+### 8.2 Verification-only ALFRED yolu
+
+Production collector davranışı değiştirilmeden ayrı doğrulama yolu kuruldu:
+
+- FRED historical real-time verisi memory içinde çekilir,
+- historical `realtime_start/realtime_end` dönemine göre o gün gerçekten yayımlanmış değer seçilir,
+- DB'ye yazılmaz,
+- threshold/weight/state/mode değiştirilmez.
+
+İlk geniş API isteği 400 verdi; tarih aralığı replay dönemine daraltıldı. API key'in hata URL'sinde görünmesini engelleyen güvenli hata raporu eklendi.
+
+`SP500` FRED'de vardır fakat FRED API cevabına göre ALFRED historical history'si yoktur. Strict replay'de bugünkü değer geçmişe uydurulmaz; kaynak boşluğu sayılır.
+
+### 8.3 Son gerçek veri koşusu
+
+Kullanıcı koşusu:
 
 ```text
-2026-08-08 02:40 TRT
-shadow_epoch_id = 1
-Alpha Vantage günlük seri bulunamadı.
+FRED PIT focused tests       9 passed
+Full Python tests            63 passed
+Release check                OK
+verification stderr          empty
 ```
 
-Öncesinde iki OK, sonrasında ardışık OK scheduler çalışmaları var. Bir sonraki çalışma eksik piyasa kapanışını `as_of=2026-08-07`, `WAIT`, quality `87.77` ile üretmiştir.
-
-Collector olay tarihinde zaten request pacing ve explicit `1 request per second` için tek kontrollü retry içeriyordu. Ham historical provider payload'ı saklanmadığından exact cevap kanıtlanamaz.
-
-Doğru sınıflandırma:
+ALFRED durumu:
 
 ```text
-isolated unexpected Alpha Vantage response shape
-exact historical payload unavailable
-next scheduled run recovered automatically
-NON-BLOCKING
+configured series            8
+ALFRED-available             7
+ALFRED-unavailable           SP500
+replay days                  1420
+7-seri complete days         1397
+complete ratio               %98.3803
+first complete date          2022-11-10
+last complete date           2026-09-06
+excluded incomplete dates    23
 ```
 
-Bu tek olaydan yeni retry/backoff davranışı türetilmez.
+Eksik 23 günün tamamı `2022-10-18..2022-11-09` ve yalnız `STLFSI4` eksiktir.
 
-#### ID 1642 — sec_event_job
+Resmî ALFRED kaydı `STLFSI4` serisinin ilk yayımlanma tarihini `2022-11-10` olarak gösterir. Bu collector hatası değildir. Önceki `STLFSI3` serisi sessizce ikame edilmez; böyle bir ikame model/data-source değişikliği sayılır.
+
+### 8.4 Temiz 1397 günlük FRED tarihsel farkı
+
+ALFRED-available 7 serinin de bulunduğu tam-kapsama günlerinde:
 
 ```text
-2026-08-29
-couldn't get a connection after 10.00 sec
+common dates                         1397
+mean abs edge delta                  0.5222834646
+max abs edge delta                   14.27
+regime change dates                  19
+direction-sign change dates          5
+edge=70 qualification change dates   0
 ```
 
-Ayrı SEC provider problemi değildir. Historical connection-pool timeout ailesidir ve GitHub Issue #2 production observation debt kapsamındadır.
-
-SEC'in yüzlerce `DEGRADED` kaydı bu ERROR'dan farklıdır; yaklaşık %19–20 exact US SEC ticker fund-weight coverage semantiğini gösterir ve crash değildir.
-
-## 6. Aktif sonraki aşama — P1 Validation Parity / PIT
-
-P0 artık roadmap blocker değildir.
-
-Sıradaki geliştirme aşaması:
+Örnek büyük farklar:
 
 ```text
-P1 — Validation parity / point-in-time evidence
+2025-04-04   30.75 -> 16.48   RISK_OFF -> NEUTRAL
+2025-04-05   30.96 -> 16.82   RISK_OFF -> NEUTRAL
+2025-04-06   34.07 -> 20.28   RISK_OFF -> NEUTRAL
+2025-04-07   36.06 -> 22.69   RISK_OFF -> NEUTRAL
+2025-04-21   20.12 -> 31.83   NEUTRAL  -> RISK_OFF
+2023-03-22   38.38 -> 45.58   NEUTRAL  -> RISK_ON_TREND
 ```
 
-Önerilen sıra:
+Ana yorum:
 
-1. gerçek rolling/expanding walk-forward validation kur,
-2. aynı piyasa `as_of` tarihindeki tekrar scheduler değerlendirmelerini bağımsız market day gibi sayma,
-3. strict FRED vintage / realtime_start-realtime_end PIT erişimini doğrula,
-4. production vs replay factor/state/action gap raporu üret,
-5. K1/K2/reversal state-machine replay parity'sini released davranışı değiştirmeden ölç,
-6. URA full PIT için trustworthy history biriktir veya doğrulanabilir gerçek PIT kaynak araştır.
+- FRED revision/yayın-zamanı farkı motorun iç edge ve rejim yorumunu bazı günlerde gerçekten değiştirir.
+- Ancak tam kapsamalı 1397 günün hiçbirinde released `edge=70` uygunluğu değişmez.
+- Dolayısıyla mevcut edge=70 sinyal kıtlığı FRED revision etkisiyle açıklanamamaktadır.
+- Bu sonuç threshold düşürme veya LIVE gerekçesi değildir.
 
-P1 evidence çalışmasıdır. Şunları otomatik olarak yetkilendirmez:
+### 8.5 FRED walk-forward sınıflandırması — RETEST REQUIRED
 
-- threshold değişikliği,
-- factor-weight değişikliği,
-- K1/K2 değişikliği,
-- reversal/reset değişikliği,
-- sizing değişikliği,
-- yeni model version,
-- SHADOW -> LIVE.
-
-## 7. Aynı `as_of` duplicate evaluation notu
-
-URA scheduler kanıtında hafta sonu nedeniyle iki farklı scheduler run'ın aynı `as_of=2026-08-07` kararı ürettiği doğrulandı.
-
-Bu production açısından doğal olabilir; ancak walk-forward/readiness/performance analizlerinde scheduler run count ile distinct market observation day birbirine karıştırılmamalıdır.
-
-P1 tasarımında validation unit açıkça tanımlanmalıdır:
+Son kullanıcı koşusunda eski ham helper alanı:
 
 ```text
-market observation / distinct as_of
+current status       LIMITED_SIGNAL_COUNT / edge70=0
+comparable status    LIMITED_SIGNAL_COUNT / edge70=0
+strict status        OK / edge70=0
 ```
 
-veya kullanılan başka bir unit ise bunun neden doğru olduğu testlerle kanıtlanmalıdır.
+Buradaki strict `OK` yeterli kanıt anlamına gelmiyordu; yalnız aday seçimi çalışabiliyordu.
 
-## 8. Veri yaşam döngüsü — P2 açık
+FRED doğrulama komutu artık ana walk-forward ile aynı evidence classifier'ı kullanacak şekilde güncellendi ve ayrıca 1397 günlük clean walk-forward üretecek.
 
-FRED current/revision/dedup/retention çözümü hâlâ OPEN araştırma başlığıdır.
+Bu yeni raporlama kodu unit test ile korunmuştur fakat **gerçek FRED ortamında son kez yeniden çalıştırılmayı beklemektedir**. FRED P1 alt aşamasını `CLOSED` yapmadan önce bu retest alınmalıdır.
 
-Doğrudan `(series_id, observation_date)` UNIQUE migration uygulanmaz. Önce strict PIT/backtest gereksinimi ve mevcut revision history ölçülür.
+## 9. P1 sıradaki adımlar
 
-Uygulanmış `0001` migration geriye dönük değiştirilmez. Silme/dedup migration'ı dry-run/backfill kanıtı olmadan çalıştırılmaz.
+FRED evidence-status retest tamamlandıktan sonra önerilen sıra:
 
-## 9. Model davranışı — P3 yalnız ayrı onayla
+1. FRED strict macro PIT alt aşamasını sonuçlandır.
+2. Production vs replay factor/state/action gap raporu üret.
+3. Aynı piyasa `as_of` tarihindeki scheduler tekrarlarını bağımsız market day saymama semantiğini netleştir.
+4. K1/K2/reversal/reset persistent state davranışını replay ile karşılaştır.
+5. Derivatives/event PIT açığını ayrıca sınıflandır.
+6. URA full PIT için trustworthy history biriktir/araştır.
+
+P1 evidence çalışmasıdır. Otomatik olarak threshold, factor weight, K1/K2, reversal/reset, sizing, model version, mode veya LIVE değiştirmez.
+
+## 10. P2 veri yaşam döngüsü — AÇIK
+
+FRED current/revision/dedup/retention çözümü P1 kanıtına bağlı olarak açık araştırma başlığıdır.
+
+Doğrudan `(series_id, observation_date)` UNIQUE migration uygulanmaz. Önce strict PIT gereksinimi ve revision history semantiği tamamlanır.
+
+Uygulanmış `0001` migration geriye dönük değiştirilmez. Silme/dedup/backfill migration'ı dry-run ve açık kanıt olmadan çalıştırılmaz.
+
+## 11. P3 model davranışı — yalnız ayrı onayla
 
 Aşağıdakiler PROPOSED kalır:
 
@@ -278,16 +317,16 @@ Aşağıdakiler PROPOSED kalır:
 
 Bunlardan biri seçilirse açık kullanıcı onayı + yeni model version + test + deploy + yeni Shadow Epoch gerekir. Mevcut v1.2.0 Shadow kanıtı yeni semantiğe otomatik taşınmaz.
 
-## 10. Quasar bağlamı
+## 12. Quasar bağlamı
 
 - Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir.
 - Tek Auth kullanıcısı + çoklu portföy mimarisi korunur.
 - Account-scoped ledger, append-only revision/cancellation, reset RPC ve connection/Auth hardening mevcut bağlamın parçasıdır.
 - Signal/market/validation/health global; portföy işlemleri account scoped.
 - Python önerisi hard limit değildir; kullanıcı nihai dönüşüm kararını verir.
-- P0/P1 çalışması Quasar'ın bu ürün davranışlarını otomatik değiştirmez.
+- P0/P1 çalışması Quasar ürün davranışlarını otomatik değiştirmez.
 
-## 11. Yeni oturum başlangıç protokolü
+## 13. Yeni oturum başlangıç protokolü
 
 1. `CHATGPT_PROJECT_START_HERE.md` tamamen oku.
 2. `docs/PROJECT_MEMORY_BANK.md`, `docs/SIGNAL_ENGINE_DECISION_CONTRACT.md`, `docs/SESSION_HANDOFF.md` tamamen oku.
@@ -298,9 +337,9 @@ Bunlardan biri seçilirse açık kullanıcı onayı + yeni model version + test 
 7. Runtime iddiasını gerçek code/deployment/user output ile kanıtla.
 8. Model davranışı değişiyorsa önce açık kullanıcı onayı + version/epoch etkisini belirt.
 9. Her mantıksal repo değişikliğini ayrı commit yap ve hemen push et; short SHA, full SHA ve commit mesajını kullanıcıya bildir.
-10. Raw telemetry/log dosyalarını commit etme.
+10. Raw telemetry/log/generated verification çıktılarını commit etme.
 
-## 12. Güvenlik sınırı
+## 14. Güvenlik sınırı
 
 API key, parola, Telegram token/Chat ID, DB password veya service-role secret bağlam belgelerine yazılmaz.
 
