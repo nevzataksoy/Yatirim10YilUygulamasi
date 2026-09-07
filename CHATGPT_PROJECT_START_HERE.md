@@ -125,3 +125,22 @@ API key, parola, Telegram token/Chat ID, Supabase DB password, service-role key 
 ## 10. ChatGPT Project Sources notu
 
 Repo dosyasının varlığı normal sohbetin onu kendiliğinden okuduğunu garanti etmez. Statik Project Source yüklenmişse repo değişince yeniden yüklenmelidir. GitHub connected source kullanılıyorsa yeni sohbet yine dosya yollarını açıkça okuyup branch/HEAD doğrulaması yapmalıdır.
+
+## 11. Vazgeçilmez anlatım ve proje hakimiyeti kuralı
+
+Bu proje üzerinde kullanıcıya yapılan açıklamalar yalnız teknik komut veya sonuç listesi olmamalıdır. Her önemli adımda proje hakimiyetini koruyacak bağlam birlikte verilmelidir.
+
+Zorunlu anlatım biçimi:
+
+1. Önce ilgilenilen sorun sade Türkçe ile belirtilir.
+2. Yapılan kontrolün veya değişikliğin neden gerekli olduğu açıklanır.
+3. Çıktının hangi proje aşamasını etkilediği açıkça söylenir.
+4. Çıktının hangi kararı henüz etkilemediği ayrıca belirtilir; örneğin bir doğrulama sonucu otomatik olarak model eşiği, LIVE modu veya portföy davranışı değiştirmez.
+5. Yabancı teknik terim zorunluysa önce Türkçe anlamı verilir; gereksiz İngilizce terim kullanımından kaçınılır.
+6. Test, doğrulama ve hata sonuçları sadece `PASS/FAIL` diye bırakılmaz; projenin mevcut durumu açısından ne anlama geldikleri anlatılır.
+7. Kullanıcıdan yeni komut çalıştırması istendiğinde o komutun neyi ölçtüğü ve sonraki kararı nasıl belirleyeceği kısa biçimde açıklanır.
+8. Bir alt aşama kapanıyorsa neden kapandığı; açık kalıyorsa hangi kanıtın eksik olduğu belirtilir.
+9. Kod, veri, doğrulama ve ürün kararı birbirine karıştırılmaz. `Kodlandı`, `test edildi`, `gerçek veride doğrulandı`, `ürün kararı olarak onaylandı` durumları ayrı ayrı ifade edilir.
+10. Kullanıcıya proje bağlamı aktarılırken teknik doğruluk korunur ancak anlaşılabilir Türkçe önceliklidir.
+
+Bu kural yeni sohbetlerde de bağlayıcıdır ve proje iletişim standardının parçasıdır.
