@@ -108,42 +108,67 @@ The current table must therefore not be deduplicated to only `(series_id, observ
 
 Before changing production collection or applying a migration:
 
-1. Fetch FRED/ALFRED observations using the complete real-time period.
+1. Fetch FRED/ALFRED observations using the historical real-time period needed by replay.
 2. Preserve each observation's historical `realtime_start` / `realtime_end` interval in memory for verification.
 3. At each replay `as_of`, select only observations whose real-time validity includes that `as_of` and whose `observation_date <= as_of`.
 4. Re-run ETH/BTC directional-core replay and expanding walk-forward with this strict macro selector.
 5. Compare current-history replay vs strict-vintage replay for edge, regime, signal eligibility and fold evidence.
 6. Only after the comparison decide whether a dedicated ALFRED backfill table/migration is justified.
 
-## 2026-09-07 gerçek veri doğrulama denemesi — güncel durum
+## 2026-09-07 gerçek veri doğrulama denemeleri — güncel durum
 
-İlk gerçek doğrulama koşusunda yerel testler başarılı geçti:
+### İlk deneme
+
+İlk gerçek doğrulama koşusunda:
 
 - FRED PIT odaklı testler: `5 passed`
 - tüm Python testleri: `59 passed`
 - release check: `OK`
 
-Ancak gerçek FRED isteği `HTTP 400 Bad Request` ile durdu. Bu nedenle karşılaştırma JSON çıktısı oluşmadı ve sonraki PowerShell özetlerinin boş gelmesi model sonucunun boş olduğu anlamına gelmiyor; doğrulama FRED verisi alınmadan önce kesildi.
+Gerçek FRED isteği `HTTP 400 Bad Request` ile durdu. İlk istek 2022–2026 replay ihtiyacı için gereksiz biçimde 1776–9999 arasındaki bütün real-time geçmişi istiyordu. Bu doğrulama isteği replay dönemine daraltıldı. Ayrıca hata mesajlarında API anahtarının URL üzerinden görünmesi engellendi.
 
-İnceleme sonucunda doğrulama isteğinin ihtiyacımızdan çok daha geniş bir real-time dönem istediği görüldü: 2022–2026 replay dönemi için veri gerekirken FRED'e 1776–9999 arasındaki bütün real-time geçmiş soruluyordu. Uzun ömürlü günlük serilerde bu yaklaşım JSON tarihsel sürüm sınırlarına çarpabilir.
+### İkinci deneme
 
-Bu nedenle verification-only collector şu şekilde daraltıldı:
+Daraltılmış istek sonrasında:
 
-- `realtime_start` varsayılan olarak doğrulamanın `observation_start` tarihine,
-- `realtime_end` varsayılan olarak doğrulamanın `observation_end` tarihine bağlandı,
-- production `fetch_series()` davranışı değiştirilmedi,
-- hata mesajlarında API anahtarının istek URL'si üzerinden görünmesini engelleyen güvenli hata üretimi eklendi.
+- FRED PIT odaklı testler: `6 passed`
+- tüm Python testleri: `60 passed`
+- release check: `OK`
 
-Bu düzeltme henüz gerçek FRED verisi üzerinde yeniden doğrulanmadı. Dolayısıyla durum:
+Bu kez ilk yedi yapılandırılmış seri tarihsel FRED/ALFRED çağrısından geçti; çalışma son seri `SP500` üzerinde durdu. FRED'in kendi hata cevabı şunu açıkça bildirdi:
 
 ```text
-Strict FRED doğrulama kodu      TESTED
-Gerçek FRED veri çekimi         RETEST REQUIRED
-Current-vs-strict karşılaştırma NOT YET PRODUCED
-Model / threshold / LIVE        UNCHANGED
+The series does not exist in ALFRED but may exist in FRED.
 ```
 
-Bir sonraki adım aynı read-only verification komutunu tekrar çalıştırmak ve gerçek FRED tarihsel verisinin artık alınabildiğini doğrulamaktır.
+Bu nedenle ikinci denemedeki hata artık genel FRED erişim veya tarih-aralığı hatası değildir. `SP500` FRED'de kullanılabilir olsa da ALFRED tarafında doğrulanabilir tarihsel sürüm geçmişi bulunmayan bir kaynak boşluğudur.
+
+Strict geçmiş doğrulamanın amacı geçmişte kanıtlanamayan bugünkü veriyi geçmişe taşımamak olduğundan `SP500` için FRED-current değeri strict replay'e yedek olarak sokulmayacaktır.
+
+Verification-only kod buna göre güncellendi:
+
+- ALFRED'de bulunmayan seri ayrı bir kaynak durumu olarak sınıflandırılır,
+- doğrulama tamamen durmaz; o seri tarihsel olarak kanıtlanamayan/eksik veri sayılır,
+- tüm yapılandırılmış seriler için kapsama ayrıca raporlanır,
+- ALFRED'de bulunan seriler için ayrı kapsama raporu üretilir,
+- `current -> comparable current` karşılaştırması ALFRED kaynak boşluğunun etkisini ölçer,
+- `comparable current -> strict vintage` karşılaştırması yalnız ALFRED'de bulunan serilerde tarihsel revision/zamanlama etkisini ölçer,
+- `current -> strict` karşılaştırması toplam farkı gösterir.
+
+Bu ayrım gereklidir; aksi halde gelecekte görülen bir karar farkının `SP500` tarihsel arşiv eksikliğinden mi yoksa diğer FRED serilerinin geçmişte farklı yayımlanmış olmasından mı kaynaklandığı anlaşılamaz.
+
+Güncel durum:
+
+```text
+Strict FRED seçme mantığı              TESTED
+Daraltılmış gerçek FRED çağrısı         ÇALIŞIYOR — ilk 7 seri geçti
+SP500 ALFRED geçmişi                    YOK / SOURCE GAP
+Kaynak boşluğu işleme kodu              TESTED IN CODE, REAL RETEST REQUIRED
+Current-vs-strict gerçek karşılaştırma  NOT YET PRODUCED
+Model / threshold / LIVE                UNCHANGED
+```
+
+Bir sonraki adım aynı read-only verification komutunu tekrar çalıştırmak ve `SP500` kaynak boşluğu işlenirken kalan ALFRED serileriyle gerçek karşılaştırma çıktısının oluştuğunu doğrulamaktır.
 
 ## Invariants retained
 
