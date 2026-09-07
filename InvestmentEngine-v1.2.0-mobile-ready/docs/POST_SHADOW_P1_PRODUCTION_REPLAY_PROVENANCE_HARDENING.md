@@ -181,7 +181,64 @@ file    dist\InvestmentEngine\InvestmentEngine.exe
 SHA256  91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
 ```
 
+Installer reference:
+
+```text
+file    installer\InvestmentEngineSetup-1.2.0.exe
+SHA256  7F49A2670F1A7BECB8BAE1055A87C4548F035DE0360ACF24B9B3EEFC035C5B7C
+```
+
 This SHA256 is the deployment identity for the provenance-hardened `1.2.0` runtime. Because the semantic model version remains intentionally `1.2.0`, production upgrade acceptance must compare the installed EXE hash against this artefact rather than relying only on the version string.
+
+## Production runtime deployment acceptance
+
+The development workstation is also the Windows host running the production Shadow service, so the freshly built installer was executed directly in place; no cross-host file transfer was required.
+
+Pre-upgrade baseline:
+
+```text
+service                         RosaInvestmentEngine
+state                           RUNNING
+start mode                      Auto
+service path                    C:\Program Files\Rosa\InvestmentEngine\InvestmentEngine.exe --service
+old installed EXE SHA256        5DA8383A5B0B1F8710168B247ED9CC2BBA0C1DC440A607B3F275F59678B1253D
+settings SHA256                 9B399425AA664EE5ECC94553259DCAF8261EB4FF1490E5E4768DAAFA8463C88B
+rosalock SHA256                 5B3D7A5AA99739516DAD7D816BFB7CBEC695FCD924502EE038B383099F216D9A
+```
+
+Post-upgrade acceptance:
+
+```text
+service                         RUNNING
+start mode                      Auto
+installed EXE SHA256            91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
+build artefact hash match       PASS
+settings SHA256                 9B399425AA664EE5ECC94553259DCAF8261EB4FF1490E5E4768DAAFA8463C88B
+settings preservation           PASS
+rosalock SHA256                 5B3D7A5AA99739516DAD7D816BFB7CBEC695FCD924502EE038B383099F216D9A
+rosalock preservation           PASS
+CLI service-status              RUNNING
+CLI exit code                   0
+```
+
+This proves the running Windows service was upgraded to the exact hardened OneDir build while preserving the configured settings/lock files.
+
+## Forward URA job execution
+
+After deployment, the installed runtime was exercised twice with:
+
+```text
+InvestmentEngineCLI.cmd --once ura
+```
+
+Both runs returned:
+
+```text
+daily_ura_job: OK
+exit code: 0
+```
+
+In the released code path, `daily_ura_job` logs `OK` only after `_persist_decision(...)` completes. Therefore the deployed runtime completed the normal URA decision persistence path. The exact latest decision id/timestamps and the new audit payload fields are still verified separately by the read-only forward SQL below; this job result alone is not used to claim those JSON fields are correct.
 
 ## Implementation classification
 
@@ -198,8 +255,11 @@ Release check                            OK
 Windows OneDir build                     PASS
 Installer compile                        PASS
 Build EXE SHA256                         91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
-Production runtime deployment           PENDING
-Forward production decision check       PENDING
+Production runtime deployment           VERIFIED
+Installed/build EXE identity             VERIFIED
+settings/rosalock preservation           VERIFIED
+Post-deploy URA job execution            VERIFIED / 2 manual runs
+Forward production decision payload      PENDING READ-ONLY SQL
 Full production/replay parity            OPEN
 LIVE                                     NO-GO
 ```
@@ -210,7 +270,7 @@ A read-only forward verification query is provided:
 
 - `verification/verify_production_replay_ura_provenance_forward.sql`
 
-It must be run only after the hardened runtime has actually been deployed and at least one new URA/USD decision has been created by that runtime.
+It must be run only after the hardened runtime has actually been deployed and at least one new URA/USD decision has been created by that runtime. Those preconditions are now satisfied by the deployment/hash acceptance and successful post-deploy URA persistence path above.
 
 The acceptance field is:
 
