@@ -10,3 +10,5 @@ logs/
 *.log
 walk_forward_*.json
 walk_forward_*.txt
+fred_strict_pit_*.json
+fred_strict_pit_*.txt
