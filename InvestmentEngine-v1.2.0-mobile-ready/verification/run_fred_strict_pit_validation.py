@@ -19,7 +19,11 @@ from app.backtest.fred_pit import (
 from app.backtest.validation import replay_ethbtc_core, walk_forward_edge_thresholds
 from app.collectors.fred import FredRealtimeHistoryUnavailable
 from app.engine import InvestmentEngine
-from verification.run_walk_forward_validation import _load_settings
+from verification.run_walk_forward_validation import (
+    _aggregate_selected_oos,
+    _classify_evidence,
+    _load_settings,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -40,6 +44,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--step-sessions", type=int, default=90)
     parser.add_argument("--horizon", type=int, default=20)
     parser.add_argument("--min-train-signals", type=int, default=8)
+    parser.add_argument(
+        "--min-oos-signals",
+        type=int,
+        default=8,
+        help=(
+            "Minimum aggregate selected-candidate holdout signals before walk-forward "
+            "evidence is classified as EVIDENCE_AVAILABLE. Verification-only."
+        ),
+    )
     parser.add_argument(
         "--macro-lookback-days",
         type=int,
@@ -143,9 +156,20 @@ def _filter_points(points, allowed_dates: set[str]):
     return [point for point in points if point.as_of in allowed_dates]
 
 
-def _walk_forward_summary(result: dict) -> dict:
+def _walk_forward_summary(result: dict, min_oos_signals: int) -> dict:
+    """Report both mechanical candidate-selection and evidence sufficiency.
+
+    ``walk_forward_edge_thresholds`` may return ``OK`` when exploratory candidate
+    selection can run even if the configured edge threshold has no holdout
+    signals. The Post-Shadow evidence classifier is therefore reported separately
+    and is the status that should be used for validation conclusions.
+    """
+    selection_status = str(result.get("status") or "UNKNOWN")
+    evidence_status = _classify_evidence(result, min_oos_signals)
     return {
-        "status": result.get("status"),
+        "status": evidence_status,
+        "evidence_status": evidence_status,
+        "selection_status": selection_status,
         "observations": result.get("observations"),
         "start_date": result.get("start_date"),
         "end_date": result.get("end_date"),
@@ -154,6 +178,8 @@ def _walk_forward_summary(result: dict) -> dict:
         "configured_holdout_signals": result.get("configured_holdout_signals"),
         "selected_candidate_folds": result.get("selected_candidate_folds"),
         "selected_candidate_holdout_signals": result.get("selected_candidate_holdout_signals"),
+        "selected_candidate_oos_summary": _aggregate_selected_oos(result),
+        "min_oos_signals": min_oos_signals,
         "folds": [
             {
                 "fold": fold.get("fold"),
@@ -197,6 +223,9 @@ def main() -> int:
     args = _parser().parse_args()
     if args.macro_lookback_days <= 0:
         print("ERROR: --macro-lookback-days pozitif olmalıdır.", file=sys.stderr)
+        return 2
+    if args.min_oos_signals <= 0:
+        print("ERROR: --min-oos-signals pozitif olmalıdır.", file=sys.stderr)
         return 2
 
     settings, settings_dir, searched, load_errors = _load_settings(args.settings_dir)
@@ -299,32 +328,24 @@ def main() -> int:
             complete_available_dates,
         )
 
-        current_walk = walk_forward_edge_thresholds(
-            current_points,
-            configured_edge=settings.min_action_edge,
-            primary_horizon=args.horizon,
-            min_train_sessions=args.min_train,
-            test_sessions=args.test_sessions,
-            step_sessions=args.step_sessions,
-            min_train_signals=args.min_train_signals,
+        walk_kwargs = {
+            "configured_edge": settings.min_action_edge,
+            "primary_horizon": args.horizon,
+            "min_train_sessions": args.min_train,
+            "test_sessions": args.test_sessions,
+            "step_sessions": args.step_sessions,
+            "min_train_signals": args.min_train_signals,
+        }
+        current_walk = walk_forward_edge_thresholds(current_points, **walk_kwargs)
+        comparable_walk = walk_forward_edge_thresholds(comparable_current_points, **walk_kwargs)
+        strict_walk = walk_forward_edge_thresholds(strict_points, **walk_kwargs)
+        comparable_complete_walk = walk_forward_edge_thresholds(
+            comparable_complete_points,
+            **walk_kwargs,
         )
-        comparable_walk = walk_forward_edge_thresholds(
-            comparable_current_points,
-            configured_edge=settings.min_action_edge,
-            primary_horizon=args.horizon,
-            min_train_sessions=args.min_train,
-            test_sessions=args.test_sessions,
-            step_sessions=args.step_sessions,
-            min_train_signals=args.min_train_signals,
-        )
-        strict_walk = walk_forward_edge_thresholds(
-            strict_points,
-            configured_edge=settings.min_action_edge,
-            primary_horizon=args.horizon,
-            min_train_sessions=args.min_train,
-            test_sessions=args.test_sessions,
-            step_sessions=args.step_sessions,
-            min_train_signals=args.min_train_signals,
+        strict_complete_walk = walk_forward_edge_thresholds(
+            strict_complete_points,
+            **walk_kwargs,
         )
 
         result = {
@@ -396,9 +417,26 @@ def main() -> int:
                 "last_date": max(complete_available_dates) if complete_available_dates else None,
                 "excluded_incomplete_dates": len(incomplete_available_dates),
             },
-            "current_walk_forward": _walk_forward_summary(current_walk),
-            "comparable_current_walk_forward": _walk_forward_summary(comparable_walk),
-            "strict_walk_forward": _walk_forward_summary(strict_walk),
+            "current_walk_forward": _walk_forward_summary(
+                current_walk,
+                args.min_oos_signals,
+            ),
+            "comparable_current_walk_forward": _walk_forward_summary(
+                comparable_walk,
+                args.min_oos_signals,
+            ),
+            "strict_walk_forward": _walk_forward_summary(
+                strict_walk,
+                args.min_oos_signals,
+            ),
+            "comparable_complete_coverage_walk_forward": _walk_forward_summary(
+                comparable_complete_walk,
+                args.min_oos_signals,
+            ),
+            "strict_complete_coverage_walk_forward": _walk_forward_summary(
+                strict_complete_walk,
+                args.min_oos_signals,
+            ),
             "persistence": {"persisted": False},
             "auto_apply": False,
             "limitations": [
@@ -407,6 +445,8 @@ def main() -> int:
                 "source_gap_comparison isolates the effect of those unavailable series.",
                 "vintage_comparison includes dates with incomplete ALFRED coverage among available series.",
                 "vintage_comparison_complete_coverage isolates vintage/revision timing only on dates where every ALFRED-available series is present.",
+                "Walk-forward status uses the same evidence sufficiency classifier as run_walk_forward_validation.py; selection_status is reported separately.",
+                "Complete-coverage walk-forward excludes dates where an ALFRED-available series is historically unavailable.",
                 "Derivatives and event PIT histories remain unavailable and neutral in core replay.",
                 "This is not a production ACTION/state-machine backtest.",
                 "No threshold, factor weight, mode or signal-state parameter is changed.",
