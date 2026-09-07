@@ -238,17 +238,65 @@ daily_ura_job: OK
 exit code: 0
 ```
 
-In the released code path, `daily_ura_job` logs `OK` only after `_persist_decision(...)` completes. Therefore the deployed runtime completed the normal URA decision persistence path. The exact latest decision id/timestamps and the new audit payload fields are still verified separately by the read-only forward SQL below; this job result alone is not used to claim those JSON fields are correct.
+In the released code path, `daily_ura_job` logs `OK` only after `_persist_decision(...)` completes. Therefore the deployed runtime completed the normal URA decision persistence path. The exact latest decision id/timestamps and the new audit payload fields were then verified separately by the read-only forward SQL below.
+
+## Forward production verification — VERIFIED
+
+Read-only query:
+
+- `verification/verify_production_replay_ura_provenance_forward.sql`
+
+Observed production result:
+
+```text
+latest decision id                    85
+system                                URA/USD
+model version                         1.2.0
+as_of                                 2026-09-04
+created_at                            2026-09-07T22:30:02.725709+00:00
+decision_evaluated_at                 2026-09-07T22:30:00.362158+00:00
+status                                WAIT
+direction                             USD→URA
+action_event                          false
+edge_score                            1.03
+confidence                            23.77
+data_quality                          90.51
+hardened_audit_payload_complete       true
+```
+
+All required audit checks were true:
+
+```text
+has_decision_evaluated_at                 true
+has_embedded_signal_state                 true
+has_breadth_numeric_keys                  true
+has_breadth_created_at                    true
+has_breadth_date                          true
+has_event_refs_array                      true
+has_event_health_checked_at               true
+has_event_health_status                   true
+has_event_count                           true
+fundamentals_directional_inputs_complete  true
+has_macro_values                          true
+has_macro_observation_dates               true
+has_macro_freshness_quality               true
+```
+
+The forward breadth payload preserved the exact scoring keys, including legitimate nulls for not-yet-mature 50DMA/200DMA components. It also preserved `breadth_date=2026-09-04` and breadth row `created_at=2026-09-07T22:29:35.234625+00:00`.
+
+The event payload preserved the exact evaluated set as `event_refs=[]`, plus `health_status=DEGRADED`, `recent_events=0` and `health_checked_at=2026-09-07T21:35:13.572708+00:00`. An empty array is a valid exact set identity; it is not equivalent to the historical pre-hardening absence of the field.
+
+The persisted signal state also carried `last_evaluated_as_of=2026-09-04`, with inactive stage/cumulative/reset values unchanged.
 
 ## Implementation classification
 
 ```text
 Baseline provenance diagnostic          VERIFIED IN PRODUCTION
 ETH/BTC persisted audit coverage        STRONG / 39 of 39
-URA technical+macro audit coverage      COMPLETE / 38 of 38
-URA directional fundamentals inputs     COMPLETE / 36 of 36 positive-quality rows
-URA historical breadth raw inputs       MISSING BEFORE HARDENING
-URA historical exact event-set identity MISSING BEFORE HARDENING
+URA technical+macro audit coverage      COMPLETE / 38 of 38 historical baseline
+URA directional fundamentals inputs     COMPLETE / 36 of 36 positive-quality historical rows
+URA historical breadth raw inputs       MISSING BEFORE HARDENING / NOT BACKFILLED
+URA historical exact event-set identity MISSING BEFORE HARDENING / NOT BACKFILLED
 Audit-only code hardening                VERIFIED BY TESTS
 Full Python suite                        68 PASS
 Release check                            OK
@@ -259,29 +307,28 @@ Production runtime deployment           VERIFIED
 Installed/build EXE identity             VERIFIED
 settings/rosalock preservation           VERIFIED
 Post-deploy URA job execution            VERIFIED / 2 manual runs
-Forward production decision payload      PENDING READ-ONLY SQL
+Forward production decision payload      VERIFIED / decision 85
+URA provenance hardening substage        CLOSED
 Full production/replay parity            OPEN
+Raw holdings snapshot version history    OPEN
 LIVE                                     NO-GO
 ```
 
-## Forward production verification
+## What this closure proves — and what it does not
 
-A read-only forward verification query is provided:
+This closure proves that **new** URA decisions produced by the deployed hardened runtime preserve the intended breadth/event evaluation-time audit metadata in the decision payload.
 
-- `verification/verify_production_replay_ura_provenance_forward.sql`
+It does **not**:
 
-It must be run only after the hardened runtime has actually been deployed and at least one new URA/USD decision has been created by that runtime. Those preconditions are now satisfied by the deployment/hash acceptance and successful post-deploy URA persistence path above.
-
-The acceptance field is:
-
-```text
-checks.hardened_audit_payload_complete = true
-```
-
-A passing forward check proves that newly created URA decisions carry the intended breadth/event audit metadata. It does not retroactively repair old decisions and does not create immutable raw holdings history.
+- retroactively repair historical URA decisions,
+- create immutable version history for overwritten same-date raw Global X holdings rows,
+- prove exact source-snapshot replay for all historical URA inputs,
+- change thresholds, factor weights, K1/K2, reset rules, sizing, scheduler cadence, model version, SHADOW mode or LIVE status.
 
 ## Remaining parity work
 
-After a successful forward production check, the next research decision is whether full replay needs new immutable source-snapshot storage for URA holdings/events or whether persisted decision-input snapshots are sufficient for the intended validation contract.
+The next evidence-driven decision is whether full replay requires immutable source-snapshot storage for URA holdings/events or whether persisted decision-input snapshots are sufficient for the intended validation contract.
 
-That decision must be evidence-driven and separate from model tuning. No threshold/weight/model/LIVE change follows automatically from this hardening.
+A separate latent transactional question also remains in the broader production/replay work: state is currently persisted before the decision insert, so a hypothetical state-commit success followed by decision-insert failure must be analyzed separately. There is **no production DB evidence** that this failure sequence occurred; it is not classified as a production incident.
+
+Neither open item is a threshold/model-tuning justification. LIVE remains NO-GO.
