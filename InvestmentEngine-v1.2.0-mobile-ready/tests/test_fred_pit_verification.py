@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from app.backtest.fred_pit import prepare_realtime_history
 from app.backtest.validation import ReplayPoint
 from app.collectors.fred import FredRealtimeHistoryUnavailable
 from verification.run_fred_strict_pit_validation import (
     _fetch_realtime_histories,
+    _filter_points,
+    _macro_coverage_partition,
     _point_comparison,
 )
 
@@ -90,3 +93,45 @@ def test_realtime_history_fetch_continues_when_one_series_has_no_alfred_history(
     assert len(histories["VIXCLS"]) == 1
     assert list(unavailable) == ["SP500"]
     assert "does not exist in ALFRED" in unavailable["SP500"]
+
+
+def test_complete_coverage_partition_separates_missing_dates_before_vintage_comparison():
+    prepared = prepare_realtime_history(
+        {
+            "A": [
+                {
+                    "date": "2024-01-01",
+                    "value": 1.0,
+                    "realtime_start": "2024-01-02",
+                    "realtime_end": None,
+                }
+            ],
+            "B": [
+                {
+                    "date": "2024-01-01",
+                    "value": 2.0,
+                    "realtime_start": "2024-01-03",
+                    "realtime_end": None,
+                }
+            ],
+        }
+    )
+
+    complete, incomplete = _macro_coverage_partition(
+        prepared,
+        ["2024-01-02", "2024-01-03", "2024-01-04"],
+        ["A", "B"],
+    )
+
+    assert complete == {"2024-01-03", "2024-01-04"}
+    assert incomplete == [
+        {"as_of": "2024-01-02", "missing_series": ["B"]}
+    ]
+
+    points = [
+        _point("2024-01-02", edge_signed=1.0, edge=1.0),
+        _point("2024-01-03", edge_signed=2.0, edge=2.0),
+        _point("2024-01-04", edge_signed=3.0, edge=3.0),
+    ]
+    filtered = _filter_points(points, complete)
+    assert [point.as_of for point in filtered] == ["2024-01-03", "2024-01-04"]
