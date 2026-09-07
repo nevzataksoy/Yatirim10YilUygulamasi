@@ -103,13 +103,13 @@ def score_ura_breadth(row: dict | None, reference_date: str | None = None) -> Fa
         "new_20d_high_pct",
     )
     audit_details = {
+        **(row.get("details") or {}),
         "breadth_date": str(row.get("breadth_date")),
         "created_at": _as_text(row.get("created_at")),
         **{
             key: (float(row[key]) if row.get(key) is not None else None)
             for key in numeric_keys
         },
-        **(row.get("details") or {}),
     }
 
     quality = float(row.get("quality") or 0)
