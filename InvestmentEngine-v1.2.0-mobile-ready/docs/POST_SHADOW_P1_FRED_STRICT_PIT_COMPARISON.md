@@ -21,8 +21,8 @@ Bu çalışma model ayarlarını değiştirmek için değil, mevcut v1.2.0 geçm
 Son kullanıcı koşusunda:
 
 ```text
-FRED PIT odaklı testler                 9 passed
-Tüm Python testleri                     63 passed
+FRED PIT odaklı testler                 10 passed
+Tüm Python testleri                     64 passed
 Release check                           OK
 Doğrulama stderr                        BOŞ
 Sonuç durumu                            VERIFICATION_COMPLETE_WITH_SOURCE_GAP
@@ -135,32 +135,68 @@ Ancak ilk 23 günde `STLFSI4` henüz yayımlanmadığı için bu sayıların tam
 
 ## 8. Walk-forward sonucu nasıl yorumlanmalı?
 
-Kullanıcının son koşusunda ham helper çıktısı şöyleydi:
+Son gerçek ortam koşusunda ortak kanıt sınıflandırması başarıyla çalışmıştır.
 
 ```text
-current selection status       LIMITED_SIGNAL_COUNT
-current edge70 signals         0
-comparable selection status    LIMITED_SIGNAL_COUNT
-comparable edge70 signals      0
-strict selection status        OK
-strict edge70 signals          0
+current_walk_forward
+  evidence_status          LIMITED_TRAIN_SIGNAL_COUNT
+  selection_status         LIMITED_SIGNAL_COUNT
+  observations             1420
+  folds                    12
+  edge70_signals           0
+  selected_candidate_folds 0
+  selected_oos_signals     0
+
+comparable_current_walk_forward
+  evidence_status          LIMITED_TRAIN_SIGNAL_COUNT
+  selection_status         LIMITED_SIGNAL_COUNT
+  observations             1420
+  folds                    12
+  edge70_signals           0
+  selected_candidate_folds 0
+  selected_oos_signals     0
+
+strict_walk_forward
+  evidence_status          LIMITED_OOS_SIGNAL_COUNT
+  selection_status         OK
+  observations             1420
+  folds                    12
+  edge70_signals           0
+  selected_candidate_folds 7
+  selected_oos_signals     1
+
+comparable_complete_coverage_walk_forward
+  evidence_status          LIMITED_TRAIN_SIGNAL_COUNT
+  selection_status         LIMITED_SIGNAL_COUNT
+  observations             1397
+  folds                    12
+  edge70_signals           0
+  selected_candidate_folds 0
+  selected_oos_signals     0
+
+strict_complete_coverage_walk_forward
+  evidence_status          LIMITED_OOS_SIGNAL_COUNT
+  selection_status         LIMITED_SIGNAL_COUNT
+  observations             1397
+  folds                    12
+  edge70_signals           0
+  selected_candidate_folds 7
+  selected_oos_signals     0
 ```
 
-Buradaki `strict = OK`, model için yeterli kanıt oluştuğu anlamına gelmez. Bu eski alan, yalnız keşif amaçlı aday eşik seçme mekanizmasının çalışabildiğini bildiriyordu. Aynı sonuçta yayımlanmış `edge=70` için bağımsız test sinyali yine `0`dır.
+Burada karar için esas alınan satır `strict_complete_coverage_walk_forward` sonucudur; çünkü bu satır yalnız yedi ALFRED serisinin de tarihsel olarak mevcut olduğu 1397 günü kullanır.
 
-Bu anlam karışıklığını gidermek için FRED doğrulama raporu, ana walk-forward doğrulamasıyla aynı kanıt sınıflandırmasına bağlanmıştır:
+Önemli yorumlar:
 
-```text
-LIMITED_TRAIN_SIGNAL_COUNT
-LIMITED_OOS_SIGNAL_COUNT
-EVIDENCE_AVAILABLE
-```
+- `edge70_signals = 0`: yayımlanmış v1.2.0 edge=70 ayarı tarihsel sürümler doğru kullanıldığında da bağımsız test sinyali üretmemektedir.
+- `selected_candidate_folds = 7`: daha düşük keşif eşikleri bazı eğitim pencerelerinde aday seçmeye yetecek kadar örnek üretmiştir.
+- `selected_oos_signals = 0`: bu adaylar tam-kapsamalı bağımsız test dönemlerinde sinyal üretmemiştir.
+- `evidence_status = LIMITED_OOS_SIGNAL_COUNT`: model ayarı değiştirmeye yetecek bağımsız kanıt yoktur.
+- 1420 günlük strict koşudaki tek OOS sinyal, tam-kapsama dışındaki 23 günlük dönemin dahil olduğu ham karşılaştırmadadır; karar kanıtı olarak kullanılmaz.
 
-Ayrıca walk-forward artık hem 1420 günlük ham seri hem de 1397 günlük tam-kapsamalı seri için ayrı raporlanacaktır.
+Dolayısıyla `selection_status=OK` veya `selected_candidate_folds>0`, tek başına “model doğrulandı” anlamına gelmez.
 
-Bu yeni raporlama kodu test edilmek üzere push edilmiştir; gerçek FRED koşusunda son bir yeniden doğrulama gereklidir. Bu nedenle FRED P1 alt aşaması henüz `CLOSED` olarak işaretlenmemiştir.
-
-## 9. P1 açısından şu ana kadar neyi kanıtladık?
+## 9. P1 açısından neyi kanıtladık?
 
 1. Mevcut `macro.observations` tablosu strict tarihsel FRED doğrulaması için tek başına yeterli değildir.
 2. FRED tarihsel revision'ları gerçekten vardır.
@@ -168,23 +204,47 @@ Bu yeni raporlama kodu test edilmek üzere push edilmiştir; gerçek FRED koşus
 4. `SP500` ALFRED geçmişi olmayan açık bir tarihsel kaynak boşluğudur.
 5. `STLFSI4` için 2022-10-18..2022-11-09 eksikliği collector hatası değil, serinin henüz yayımlanmamış olmasıdır.
 6. Tam kapsamalı 1397 günde FRED tarihsel sürüm farkı `edge=70` uygunluğunu hiçbir gün değiştirmemiştir.
-7. Dolayısıyla mevcut edge=70 sinyal kıtlığı FRED revision etkisiyle açıklanamamaktadır.
-8. Bu kanıt threshold düşürmeyi veya LIVE'a geçmeyi desteklememektedir.
+7. Tam kapsamalı strict walk-forward'da yayımlanmış `edge=70` için OOS sinyal sayısı `0`dır.
+8. Daha düşük keşif eşiklerinde bile tam-kapsamalı bağımsız test sinyali `0`dır.
+9. Dolayısıyla mevcut edge=70 sinyal kıtlığı FRED revision etkisiyle açıklanamamaktadır.
+10. Bu kanıt threshold düşürmeyi veya LIVE'a geçmeyi desteklememektedir.
 
-## 10. Henüz neyi kanıtlamadık?
+## 10. FRED strict-PIT alt aşaması kararı
 
-Bu çalışma production ACTION/state backtest değildir.
+```text
+Verification implementation     VERIFIED
+Real ALFRED fetch               VERIFIED
+Source-gap handling             VERIFIED
+Complete-coverage separation    VERIFIED
+Evidence classification         VERIFIED IN REAL ENVIRONMENT
+FRED strict-PIT sub-stage       CLOSED
+Model change                    NONE
+Threshold change                NONE
+LIVE impact                     NONE / NO-GO unchanged
+```
 
-Hâlâ açık olan başlıklar:
+Bu alt aşama, FRED tarihsel sürüm etkisinin P1 kapsamında ölçülmesi açısından kapatılmıştır.
 
-- yeni ortak kanıt sınıflandırmasıyla current/comparable/strict ve 1397-gün clean walk-forward sonuçlarının gerçek ortamda son kez çalıştırılması,
-- production ile replay arasındaki factor/state/action farklarının ölçülmesi,
-- K1/K2/reversal/reset state davranışının replay parity'si,
-- aynı `as_of` tarihindeki tekrar değerlendirmelerin validation birimi olarak nasıl ele alınacağı,
-- derivatives/event tarihsel PIT,
-- URA full PIT.
+Bu kapanış, üretim `macro.observations` yaşam döngüsü veya retention/dedup tasarımını otomatik kapatmaz. O başlık P2 veri yaşam döngüsü çalışması olarak ayrıca ele alınır.
 
-## 11. Karar etkisi
+## 11. Sonraki P1 sorunu
+
+FRED tarafı kapandıktan sonra P1'in sıradaki ana sorusu şudur:
+
+> Geçmiş replay ile üretimde çalışan gerçek karar zinciri aynı girdiyi gördüğünde aynı factor, state ve ACTION davranışını üretiyor mu?
+
+Bu nedenle sıradaki çalışma production-vs-replay parity'dir. Özellikle:
+
+- üretim factor/quality/confidence kapıları ile replay arasındaki fark,
+- aynı piyasa `as_of` tarihindeki tekrar scheduler koşularının nasıl ele alınacağı,
+- persistent K1/K2 state,
+- reversal/reset davranışı,
+- `ACTION` ile `action_event` ayrımı,
+- derivatives/event geçmişi eksik olduğunda karşılaştırma sınırları
+
+ölçülecektir.
+
+## 12. Karar etkisi
 
 Bu çalışma şunları **değiştirmez**:
 
