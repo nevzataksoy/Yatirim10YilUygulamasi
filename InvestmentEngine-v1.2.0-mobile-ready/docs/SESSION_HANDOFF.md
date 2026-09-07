@@ -24,7 +24,7 @@ Asistan kullanıcının Windows worktree'sine doğrudan erişemediği için yere
 
 Her mantıksal değişiklik ayrı commit edilir ve hemen push edilir. Kullanıcıya short SHA, full SHA ve commit mesajı bildirilir. Raw telemetry/log/generated verification çıktıları commit edilmez.
 
-## 2. Zorunlu anlatım ve proje hakimiyeti kuralı
+## 2. Zorunlu anlatım ve PowerShell sunum kuralı
 
 Bu proje için iletişim yalnız komut/kod vermekten ibaret değildir. Her teknik adımda mümkün olduğunca sade Türkçe ile:
 
@@ -34,7 +34,9 @@ Bu proje için iletişim yalnız komut/kod vermekten ibaret değildir. Her tekni
 - hangi kararı henüz değiştirmediği,
 - bir sonraki adımın neden gerekli olduğu
 
-anlatılır. Yabancı teknik terim gerekiyorsa önce Türkçe anlamı verilir. Bu yaklaşım `CHATGPT_PROJECT_START_HERE.md` içinde vazgeçilmez proje kuralıdır.
+anlatılır.
+
+PowerShell komutları kullanıcıya doğrudan kopyala-yapıştır güvenli biçimde verilir. Birbirine bağlı komutlar mümkünse tek blokta ve açık `;` ayırıcılarıyla yazılır. `$LASTEXITCODE` gibi geçici değerler ilgili komuttan hemen sonra yakalanır. `PS ...>` veya `>>` promptları komut bloğuna karıştırılmaz. Bu kural `CHATGPT_PROJECT_START_HERE.md` içinde bağlayıcıdır.
 
 ## 3. Değişmez released durum
 
@@ -63,7 +65,7 @@ max regime           50%
 
 Factor weights, K1/K2, reversal/reset/sizing davranışı değişmemiştir.
 
-`direction` emir değildir. `ACTION` tek başına yeni kademe değildir; yeni kademe davranışı için `action_event=true` gerekir. Python kullanıcı portföy bakiyesine göre karar vermez, otomatik exchange order göndermez ve readiness sonucundan otomatik LIVE'a geçmez.
+`direction` emir değildir. `ACTION` tek başına yeni kademe değildir; yeni kademe davranışı için ayrıca `action_event=true` gerekir. Python kullanıcı portföy bakiyesine göre karar vermez, otomatik exchange order göndermez ve readiness sonucundan otomatik LIVE'a geçmez.
 
 Bu released davranışlarda değişiklik ancak ayrı kullanıcı onayı + yeni model version + test + deploy + yeni Shadow Epoch ile yapılabilir.
 
@@ -113,7 +115,7 @@ performance               []
 
 Historical replay yönsel doğrulama sağlar fakat production ACTION/state davranışını birebir doğrulamaz. `edge=70` için yeterli bağımsız sinyal kanıtı yoktur. Bu durum threshold düşürme gerekçesi değildir.
 
-URA full PIT de henüz yeterli tarihsel holdings/breadth/event geçmişine sahip değildir.
+URA full exact PIT/replay de ham holdings/breadth/event source snapshot geçmişi açısından hâlâ tam değildir.
 
 ## 6. Post-Shadow P0 — KAPANDI
 
@@ -203,7 +205,7 @@ Production collector davranışı değiştirilmeden ayrı doğrulama yolu kurulm
 - DB'ye yazılmaz,
 - threshold/weight/state/mode değiştirilmez.
 
-`SP500` FRED'de vardır fakat FRED API cevabına göre ALFRED historical history'si yoktur. Strict replay'de bugünkü SP500 geçmişe uydurulmaz; kaynak boşluğu kabul edilir.
+`SP500` FRED'de vardır fakat ALFRED historical history'si yoktur. Strict replay'de bugünkü SP500 geçmişe uydurulmaz; kaynak boşluğu kabul edilir.
 
 ### 8.3 Son gerçek ortam doğrulaması
 
@@ -228,11 +230,9 @@ last complete date           2026-09-06
 excluded incomplete dates    23
 ```
 
-Eksik 23 günün tamamı `2022-10-18..2022-11-09` ve yalnız `STLFSI4` eksiktir. Resmî ALFRED kaydına göre `STLFSI4` ilk kez `2022-11-10` tarihinde yayımlanmıştır. Bu collector hatası değildir. Önceki `STLFSI3` sessizce ikame edilmez; bu model/data-source değişikliği sayılır.
+Eksik 23 günün tamamı `2022-10-18..2022-11-09` ve yalnız `STLFSI4` eksiktir. Resmî ALFRED kaydına göre `STLFSI4` ilk kez `2022-11-10` tarihinde yayımlanmıştır.
 
 ### 8.4 Temiz 1397 günlük tarihsel fark
-
-ALFRED geçmişi bulunan 7 serinin de mevcut olduğu günlerde:
 
 ```text
 common dates                         1397
@@ -285,7 +285,7 @@ strict_complete_coverage_walk_forward
   selected_oos_signals     0
 ```
 
-Karar için esas alınan satır tam kapsamalı `strict_complete_coverage_walk_forward` sonucudur. Burada yayımlanmış edge70 için sinyal `0`, daha düşük keşif adaylarında bağımsız test sinyali de `0`dır.
+Karar için esas alınan satır tam kapsamalı `strict_complete_coverage_walk_forward` sonucudur.
 
 Sonuç:
 
@@ -300,7 +300,7 @@ Threshold/model change          NONE
 LIVE impact                     NONE / NO-GO unchanged
 ```
 
-FRED current/revision/dedup/retention veri yaşam döngüsü ise ayrı P2 başlığıdır; bu kapanış P2'yi kapatmaz.
+FRED current/revision/dedup/retention veri yaşam döngüsü ayrı P2 başlığıdır.
 
 ## 9. P1 — Production vs replay parity
 
@@ -310,13 +310,12 @@ FRED current/revision/dedup/retention veri yaşam döngüsü ise ayrı P2 başl�
 
 - `docs/POST_SHADOW_P1_PRODUCTION_REPLAY_STATE_IDEMPOTENCY.md`
 
-Production read-only baseline ve tekrar-detail sorguları şunları kanıtladı:
+Production baseline:
 
 ```text
 ETH/BTC decisions              39
 ETH/BTC unique market dates    39
 ETH/BTC repeated market dates  0
-
 URA/USD decisions              38
 URA/USD unique market dates    26
 URA/USD repeated market dates  7
@@ -331,16 +330,16 @@ same_asof_reset_advances          []
 same_asof_multiple_action_events  []
 ```
 
-Bu geçmişte state corruption görülmediğini gösterdi; fakat iki sistemde de `action_event=0` ve state pasif olduğu için aktif rejim reset dalı production geçmişinde egzersiz edilmemişti.
+Production geçmişinde state corruption görülmedi; fakat aktif rejim/reset dalı doğal production ACTION geçmişinde egzersiz edilmemişti.
 
-Kod RCA'sında `reset_counter` market-günü kuralı olmasına rağmen aynı market `as_of` tekrarında yeniden artabilen latent risk doğrulandı. URA tekrar-detail kanıtı aynı market gününün farklı evaluation zamanlarında güncellenmiş `macro`, `fundamentals`, `breadth` ve `event` girdileriyle tekrar değerlendirilebildiğini gösterdi; bu nedenle scheduler tekrarlarını körlemesine engellemek doğru çözüm değildi.
+Kod RCA'sında `reset_counter` aynı market `as_of` tekrarında yeniden artabilecek latent risk olarak doğrulandı. Scheduler tekrarları körlemesine engellenmedi; çünkü aynı `as_of` farklı evaluation zamanlarında farklı macro/fundamentals/breadth/event girdileri görebilir.
 
-Uygulanan en küçük hardening:
+Uygulanan hardening:
 
 - `model.signal_state.last_evaluated_as_of` eklendi,
 - `reset_counter` yalnız yeni market `as_of` geldiğinde +1 ilerler,
 - aynı `as_of` tekrarında ikinci kez artmaz,
-- aynı gün aktif yön edge'i released `reset edge=45` üzerine geri çıkarsa sayaç yine 0'a dönebilir,
+- aynı gün aktif yön edge'i reset eşiği üzerine geri çıkarsa sayaç yine 0'a dönebilir,
 - K1/K2, reversal, sizing, thresholds, scheduler cadence ve SHADOW/LIVE semantiği değişmedi.
 
 Migration:
@@ -359,13 +358,13 @@ release check               OK
 Production migration sonrası read-only DB doğrulaması:
 
 ```text
-column_present                         true
-trigger.present                        true
-trigger.enabled                        true
-signal_state_rows                      2
-rows_with_last_evaluated_as_of         2
-rows_matching_latest_decision_as_of    2
-rows_not_matching_latest_decision_as_of 0
+column_present                           true
+trigger.present                          true
+trigger.enabled                          true
+signal_state_rows                        2
+rows_with_last_evaluated_as_of           2
+rows_matching_latest_decision_as_of      2
+rows_not_matching_latest_decision_as_of  0
 ```
 
 Doğrulama anındaki marker eşleşmeleri:
@@ -375,7 +374,7 @@ ETH/BTC latest decision 83  as_of=2026-09-06  marker=2026-09-06
 URA/USD latest decision 82  as_of=2026-09-04  marker=2026-09-04
 ```
 
-Kapanış sınıflandırması:
+Kapanış:
 
 ```text
 Historical production corruption observed  NO
@@ -386,32 +385,129 @@ Migration                                    VERIFIED
 Same-as-of state idempotency substage        CLOSED
 ```
 
-### 9.2 Aktif sıradaki alt aşama: evaluation-time provenance parity
+### 9.2 Evaluation-time provenance hardening — KAPANDI
 
-Full production/replay parity **henüz kapanmadı**.
+İlgili belge:
 
-Artık ana soru şudur:
+- `docs/POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
 
-> Aynı market `as_of` tekrar değerlendirildiğinde production'ın o gerçek evaluation anında bildiği source snapshot'ları replay tarafından yeniden kurulabiliyor mu?
+Production reconstructibility baseline:
 
-Market `as_of` tek başına production bilgi setini tanımlamıyor. En az şu zaman kavramları ayrılmalıdır:
+```text
+ETH/BTC historical decisions                       39
+ETH/BTC persisted audit coverage                   strong / 39 of 39
+URA/USD historical decisions                       38
+URA directional fundamentals complete              36 of 36 positive-quality rows
+URA positive-quality breadth rows                   36
+historical breadth rows with numeric inputs         0 of 36
+historical rows with exact event-set identity       0 of 38
+historical rows with breadth/event timestamps       0 of 38
+```
 
-1. market `as_of`,
-2. gerçek decision evaluation zamanı,
-3. source-specific observation/fetch zamanları,
-4. o evaluation anında eligibility taşıyan macro/fundamentals/breadth/event/derivatives snapshot'ları.
+Aynı market `as_of` tekrarlarında URA faktör payload'ının gerçekten değişebildiği de doğrulandı:
 
-Özellikle:
+```text
+repeated market dates                    7
+repeated decision rows                  19
+factor-payload peer difference rows     17 / 19
+regime peer difference rows              0
+```
 
-- production `daily_crypto_job` / `daily_ura_job` veri kesim semantiği,
-- replay factor/quality/confidence/regime hesapları,
-- `ACTION` ile `action_event=true` ayrımının replay'de korunması,
-- derivatives/event historical coverage boşlukları,
-- decision provenance içindeki gerçek timestamp coverage
+Bu nedenle repeated decision history deduplicate edilmez.
 
-ölçülmeden production state-machine'i taklit eden yeni geniş replay yazılmaz.
+Dar audit-only hardening ile yeni URA decision payload'ına şunlar eklendi:
 
-Bu aşama threshold düşürme veya model tuning gerekçesi değildir.
+- breadth numeric scoring inputs,
+- `breadth_date`,
+- breadth row `created_at`,
+- exact `event_refs` array,
+- `health_checked_at`,
+- `health_status`,
+- evaluated event count.
+
+Scoring formülü, factor weight, threshold, confidence, K1/K2, reset, sizing, scheduler, mode ve model version değişmedi.
+
+Regression:
+
+```text
+focused provenance tests  3 passed
+full Python tests          68 passed
+release check              OK
+```
+
+Windows build/deploy kabulü:
+
+```text
+PyInstaller OneDir                       PASS
+Inno Setup                               PASS
+build EXE SHA256                         91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
+installed EXE SHA256                     same / PASS
+service                                  RUNNING / Auto
+CLI service-status                       RUNNING / exit 0
+settings preservation                    PASS
+rosalock preservation                    PASS
+post-deploy manual URA runs              2 x OK / exit 0
+```
+
+Forward read-only verification sonucu:
+
+```text
+latest decision id                       85
+system                                   URA/USD
+model_version                            1.2.0
+as_of                                    2026-09-04
+created_at                               2026-09-07T22:30:02.725709+00:00
+decision_evaluated_at                    2026-09-07T22:30:00.362158+00:00
+status                                   WAIT
+direction                                USD→URA
+action_event                             false
+edge_score                               1.03
+confidence                               23.77
+data_quality                             90.51
+hardened_audit_payload_complete          true
+```
+
+Aşağıdaki check'lerin tamamı `true` çıktı:
+
+```text
+has_decision_evaluated_at
+has_embedded_signal_state
+has_breadth_numeric_keys
+has_breadth_created_at
+has_breadth_date
+has_event_refs_array
+has_event_health_checked_at
+has_event_health_status
+has_event_count
+fundamentals_directional_inputs_complete
+has_macro_values
+has_macro_observation_dates
+has_macro_freshness_quality
+```
+
+Breadth içindeki 50DMA/200DMA değerlerinin `null` olması hata değildir; history henüz olgunlaşmamışken anahtarların ve gerçek null değerlerin korunması audit kontratının parçasıdır. Event tarafında `event_refs=[]` gerçek evaluated set'in boş olduğunu gösterir; historical pre-hardening satırlardaki alan yokluğuyla aynı şey değildir.
+
+Kapanış sınıflandırması:
+
+```text
+Audit-only code hardening                 VERIFIED
+Production runtime deployment             VERIFIED
+Forward new-decision persistence           VERIFIED / decision 85
+URA provenance hardening substage          CLOSED
+Historical pre-hardening URA rows          NOT BACKFILLED
+Raw holdings immutable snapshot history    OPEN
+Full production/replay parity              OPEN
+LIVE                                       NO-GO
+```
+
+### 9.3 Sıradaki açık production/replay araştırmaları
+
+İki konu birbirinden ayrı tutulmalıdır:
+
+1. **Raw source snapshot/versioning gereksinimi:** `fundamentals.ura_holdings` aynı `(holding_date,ticker)` satırını overwrite ettiği için aynı güne ait her raw fetch immutable snapshot olarak tutulmuyor. Persisted decision-input snapshot'larının validation kontratı için yeterli olup olmadığı veya ayrı immutable source-snapshot storage gerekip gerekmediği kanıtla kararlaştırılacak.
+2. **Transactional state-before-decision risk analizi:** mevcut `_persist_decision` akışında signal state decision insert'ten önce commit edilir. Teorik olarak state commit başarılı olup decision insert başarısız olursa retry davranışı incelenmelidir. Bunun production'da gerçekleştiğine dair DB kanıtı yoktur; production incident olarak sınıflandırılmaz.
+
+Bu iki açık konu threshold düşürme veya model tuning gerekçesi değildir.
 
 ## 10. P2 veri yaşam döngüsü — AÇIK
 
@@ -448,4 +544,4 @@ External data
 
 Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir. Tek Auth kullanıcısı + çoklu portföy mimarisi korunur. Quasar gerçek kullanıcı ledger'ını taşır; Python global sistem değerlendirmesini yapar.
 
-Windows hedefi 24/7 servis çalışmasıdır. Production kurulum/ayar dizinleri ve encrypted settings çözümlemesi verification komutlarında korunur.
+Windows hedefi 24/7 servis çalışmasıdır. Bu projede development makinesi aynı zamanda çalışan Shadow service host'udur. Production kurulum/ayar dizinleri ve encrypted settings çözümlemesi verification komutlarında korunur.
