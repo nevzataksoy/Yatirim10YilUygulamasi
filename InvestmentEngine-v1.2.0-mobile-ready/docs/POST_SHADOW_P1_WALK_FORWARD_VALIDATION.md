@@ -8,51 +8,69 @@
 
 ## Decision
 
-**P1 walk-forward implementation: VERIFIED**  
+**P1 walk-forward implementation: VERIFIED / CLOSED AS IMPLEMENTATION STEP**  
 **Validation evidence: LIMITED / SIGNAL-STARVED**  
 **Threshold change: NOT SUPPORTED**  
 **SHADOW -> LIVE: NO-GO remains unchanged**
 
 The expanding-window implementation is functioning on real Supabase history, but the directional core does not produce enough threshold-qualified historical signals to justify threshold calibration or LIVE promotion.
 
-## Verification
+## Final verification — 2026-09-07
 
-Source checkout verification after implementation:
+The user pulled remote commit `04bc2c4` into the Windows worktree and verified a clean status before running the final regression.
 
-- focused P1 tests: `5 passed`
-- full test suite: `52 passed`
+Final test evidence:
+
+- focused walk-forward tests: `7 passed`
+- full test suite: `54 passed`
 - release check: `OK`
-- configured OneDir settings were resolved from `C:\Program Files\Rosa\InvestmentEngine`
-- verification was executed as dry-run; no validation row/snapshot was persisted
+- both verification commands completed as dry-run
+- `persistence.persisted = false` in both final outputs
 
-## Default expanding-window run
+Final default expanding-window output:
 
-Configuration:
+- observations: `1420`
+- folds: `12`
+- main evidence status: `LIMITED_TRAIN_SIGNAL_COUNT`
+- underlying selection status: `LIMITED_SIGNAL_COUNT`
+- configured edge=70 holdout signals: `0`
+- selected candidate folds: `0`
+- selected candidate holdout signals: `0`
+- selected candidate OOS summary: `0` signals
+- persistence: `false`
 
-- observations: `1419`
-- replay start: `2022-10-18`
-- replay end: `2026-09-05`
+Final sensitivity output with validation-only `--min-train-signals 1`:
+
+- observations: `1420`
+- folds: `12`
+- main evidence status: `LIMITED_OOS_SIGNAL_COUNT`
+- underlying selection status: `OK`
+- configured edge=70 holdout signals: `0`
+- selected candidate folds: `11`
+- selected candidate holdout signals: `4`
+- folds with selected-candidate OOS signals: `2`
+- aggregate OOS hit rate: `25%`
+- aggregate average signed return: `-0.03821323744433411` (about `-3.82%`)
+- persistence: `false`
+
+This final run confirms that the evidence-status hardening behaves as intended on live project data: candidate selection can technically succeed in the sensitivity run while the primary validation status correctly remains limited because the OOS evidence count is too small.
+
+## Expanding-window configuration
+
 - method: `EXPANDING_WINDOW`
 - minimum train sessions: `365`
 - holdout sessions: `90`
 - fold step: `90`
 - primary horizon: `20` sessions
 - configured production edge threshold: `70`
-- minimum train signals for candidate eligibility: `8`
+- default minimum train signals for candidate eligibility: `8`
 - folds: `12`
 
-Observed result:
-
-- configured edge=70 holdout signals: `0`
-- selected candidate folds: `0`
-- selected candidate holdout signals: `0`
-- original selection status: `LIMITED_SIGNAL_COUNT`
-
-The configured edge threshold therefore generated no out-of-sample signal in any of the 12 expanding holdout folds.
+The configured edge threshold generated no out-of-sample signal in the expanding holdout folds.
 
 ## Threshold train-signal diagnostics
 
-Maximum and final expanding-train signal counts:
+The detailed threshold-ranking diagnostic was captured one observation earlier, at `1419` replay observations. Maximum and final expanding-train signal counts were:
 
 | Edge | Max train signals | Final train signals | Folds meeting >=8 train signals |
 |---:|---:|---:|---:|
@@ -64,43 +82,29 @@ Maximum and final expanding-train signal counts:
 | 75 | 0 | 0 | 0 |
 | 80 | 0 | 0 | 0 |
 
-No tested threshold in `(50, 55, 60, 65, 70, 75, 80)` reached the validation-only minimum of 8 train signals in any fold.
+No tested threshold in `(50, 55, 60, 65, 70, 75, 80)` reached the validation-only minimum of 8 train signals in that diagnostic. The final 1420-observation regression was used to verify status semantics and aggregate evidence; the ranking table above is retained as the exact earlier diagnostic rather than silently rewriting it.
 
-## Sensitivity run — min train signals = 1
+## Sensitivity interpretation
 
-A second dry-run deliberately relaxed only the **validation candidate eligibility floor** from 8 to 1. This did not change any production threshold, model parameter, signal-state rule, K1/K2 rule, sizing rule, engine mode, or execution setting.
+A separate dry-run deliberately relaxed only the **validation candidate eligibility floor** from 8 to 1. This did not change any production threshold, model parameter, signal-state rule, K1/K2 rule, sizing rule, engine mode, or execution setting.
 
-Result:
-
-- observations: `1419`
-- folds: `12`
-- configured edge=70 holdout signals: `0`
-- selected candidate folds: `11`
-- selected candidate holdout signals: `4`
-
-Candidate pattern:
+Earlier fold-level diagnostics showed:
 
 - fold 1: no candidate
 - folds 2-5: edge `50` selected from only 1-2 train signals
 - folds 6-12: edge `60` selected from only 1 train signal
+- fold 3: 1 OOS signal, hit rate `0%`, average signed return about `-7.98%`
+- fold 5: 3 OOS signals, hit rate about `33.33%`, average signed return about `-2.43%`
 
-Only two holdout folds produced any selected-candidate signal:
-
-- fold 3: 1 signal, hit rate `0%`, average signed return about `-7.98%`
-- fold 5: 3 signals, hit rate about `33.33%`, average signed return about `-2.43%`
-
-Aggregate across the 4 selected-candidate OOS signals:
-
-- hit rate: `25%`
-- weighted average signed return: approximately `-3.82%`
+The final 1420-observation run preserved the aggregate outcome at 4 selected-candidate OOS signals, 25% hit rate and about -3.82% average signed return.
 
 This sensitivity result does **not** support lowering the production edge threshold. It shows that when candidate eligibility is reduced to one historical train signal, sparse candidates can be selected but their observed OOS evidence is both too small and unfavorable.
 
 ## Status semantics hardening
 
-The first sensitivity command returned `status=OK` because the core helper treated any selected candidate with at least one OOS signal as OK. That label was too broad for a validation gate.
+The first sensitivity command had returned `status=OK` because the core helper treated any selected candidate with at least one OOS signal as OK. That label was too broad for a validation gate.
 
-The verification layer was therefore hardened without changing the production model:
+The verification layer was hardened without changing the production model:
 
 - `selection_status` preserves the underlying selection result
 - main evidence status is now:
@@ -116,11 +120,11 @@ The verification-only OOS evidence floor defaults to 8 signals. It is not a mode
 
 Current evidence supports these conclusions:
 
-1. The expanding walk-forward machinery itself is working and boundary-safe.
+1. The expanding walk-forward machinery is working and boundary-safe.
 2. The ETH/BTC historical directional core is signal-starved at the released edge threshold and across the tested lower threshold grid.
 3. Lowering edge eligibility to create more historical candidates is not justified by the observed OOS sensitivity results.
 4. No released factor weight, quality threshold, edge threshold, confidence threshold, K1/K2 rule, reset/reversal rule, sizing rule, SHADOW mode, or realtime execution setting should be changed from this evidence.
-5. The next P1 work should target validation parity / point-in-time fidelity rather than threshold tuning: strict FRED vintage PIT and production-vs-replay gap analysis are the next logical evidence tasks.
+5. The walk-forward implementation step is complete; the next P1 work is validation parity / point-in-time fidelity: strict FRED vintage PIT followed by production-vs-replay gap analysis.
 
 ## Invariants retained
 
