@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from app.backtest.validation import ReplayPoint
-from verification.run_fred_strict_pit_validation import _point_comparison
+from app.collectors.fred import FredRealtimeHistoryUnavailable
+from verification.run_fred_strict_pit_validation import (
+    _fetch_realtime_histories,
+    _point_comparison,
+)
 
 
 def _point(
@@ -22,6 +26,23 @@ def _point(
         regime=regime,
         ratio=0.05,
     )
+
+
+class _FredStub:
+    def fetch_realtime_history(self, series_id: str, **_kwargs):
+        if series_id == "SP500":
+            raise FredRealtimeHistoryUnavailable(
+                "FRED SP500 isteği başarısız (HTTP 400): series does not exist in ALFRED"
+            )
+        return [
+            {
+                "series_id": series_id,
+                "date": "2024-01-01",
+                "value": 1.0,
+                "realtime_start": "2024-01-02",
+                "realtime_end": None,
+            }
+        ]
 
 
 def test_point_comparison_reports_regime_direction_and_qualification_changes():
@@ -54,3 +75,18 @@ def test_point_comparison_reports_non_overlapping_dates():
     assert result["current_only_dates"] == 1
     assert result["strict_only_dates"] == 1
     assert result["largest_changes"] == []
+
+
+def test_realtime_history_fetch_continues_when_one_series_has_no_alfred_history():
+    histories, unavailable = _fetch_realtime_histories(
+        _FredStub(),
+        ["DGS2", "SP500", "VIXCLS"],
+        observation_start="2024-01-01",
+        observation_end="2024-01-31",
+    )
+
+    assert len(histories["DGS2"]) == 1
+    assert histories["SP500"] == []
+    assert len(histories["VIXCLS"]) == 1
+    assert list(unavailable) == ["SP500"]
+    assert "does not exist in ALFRED" in unavailable["SP500"]
