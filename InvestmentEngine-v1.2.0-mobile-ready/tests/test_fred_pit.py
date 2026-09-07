@@ -7,7 +7,7 @@ from app.backtest.fred_pit import (
     strict_macro_asof,
     strict_macro_coverage,
 )
-from app.collectors.fred import FredCollector
+from app.collectors.fred import FredCollector, FredRealtimeHistoryUnavailable
 
 
 class _Response:
@@ -77,9 +77,29 @@ class _ErrorResponse:
         }
 
 
+class _AlfredUnavailableResponse:
+    status_code = 400
+
+    def raise_for_status(self) -> None:
+        raise RuntimeError("400 request failed")
+
+    def json(self) -> dict:
+        return {
+            "error_code": 400,
+            "error_message": (
+                "Bad Request. The series does not exist in ALFRED but may exist in FRED."
+            ),
+        }
+
+
 class _ErrorSession:
     def get(self, _url, *, params, timeout):
         return _ErrorResponse()
+
+
+class _AlfredUnavailableSession:
+    def get(self, _url, *, params, timeout):
+        return _AlfredUnavailableResponse()
 
 
 def test_strict_macro_selector_respects_release_and_revision_intervals():
@@ -205,3 +225,20 @@ def test_fred_http_error_hides_request_url_and_api_key():
     assert "secret-key" not in message
     assert "api_key" not in message
     assert "https://" not in message
+
+
+def test_fred_realtime_history_classifies_series_missing_from_alfred():
+    collector = FredCollector("secret-key")
+    collector.session = _AlfredUnavailableSession()
+
+    with pytest.raises(FredRealtimeHistoryUnavailable) as exc_info:
+        collector.fetch_realtime_history(
+            "SP500",
+            observation_start="2024-01-01",
+            observation_end="2024-01-31",
+        )
+
+    message = str(exc_info.value)
+    assert "SP500" in message
+    assert "does not exist in ALFRED" in message
+    assert "secret-key" not in message
