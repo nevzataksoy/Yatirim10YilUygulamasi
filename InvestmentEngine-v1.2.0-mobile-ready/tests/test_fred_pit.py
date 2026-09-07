@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.backtest.fred_pit import (
     prepare_realtime_history,
     strict_macro_asof,
@@ -58,6 +60,26 @@ class _PagedSession:
                 ],
             }
         )
+
+
+class _ErrorResponse:
+    status_code = 400
+
+    def raise_for_status(self) -> None:
+        raise RuntimeError(
+            "400 request failed: https://api.stlouisfed.org/?api_key=secret-key"
+        )
+
+    def json(self) -> dict:
+        return {
+            "error_code": 400,
+            "error_message": "Bad Request. Too many vintage dates requested.",
+        }
+
+
+class _ErrorSession:
+    def get(self, _url, *, params, timeout):
+        return _ErrorResponse()
 
 
 def test_strict_macro_selector_respects_release_and_revision_intervals():
@@ -129,7 +151,7 @@ def test_strict_macro_coverage_reports_missing_series_by_date():
     assert result["missing_date_counts"] == {"A": 0, "B": 1}
 
 
-def test_fred_realtime_history_requests_complete_period_and_normalizes_rows():
+def test_fred_realtime_history_limits_realtime_period_to_replay_window_and_normalizes_rows():
     collector = FredCollector("test-api-key")
     session = _PagedSession()
     collector.session = session
@@ -142,8 +164,8 @@ def test_fred_realtime_history_requests_complete_period_and_normalizes_rows():
 
     assert len(session.calls) == 2
     first = session.calls[0]["params"]
-    assert first["realtime_start"] == "1776-07-04"
-    assert first["realtime_end"] == "9999-12-31"
+    assert first["realtime_start"] == "2024-01-01"
+    assert first["realtime_end"] == "2024-01-31"
     assert first["output_type"] == 1
     assert first["observation_start"] == "2024-01-01"
     assert first["observation_end"] == "2024-01-31"
@@ -165,3 +187,21 @@ def test_fred_realtime_history_requests_complete_period_and_normalizes_rows():
             "realtime_end": None,
         },
     ]
+
+
+def test_fred_http_error_hides_request_url_and_api_key():
+    collector = FredCollector("secret-key")
+    collector.session = _ErrorSession()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        collector.fetch_realtime_history(
+            "SERIES",
+            observation_start="2024-01-01",
+            observation_end="2024-01-31",
+        )
+
+    message = str(exc_info.value)
+    assert "Bad Request" in message
+    assert "secret-key" not in message
+    assert "api_key" not in message
+    assert "https://" not in message
