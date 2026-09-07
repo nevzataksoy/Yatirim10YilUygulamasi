@@ -8,6 +8,7 @@ from verification.run_fred_strict_pit_validation import (
     _filter_points,
     _macro_coverage_partition,
     _point_comparison,
+    _walk_forward_summary,
 )
 
 
@@ -135,3 +136,47 @@ def test_complete_coverage_partition_separates_missing_dates_before_vintage_comp
     ]
     filtered = _filter_points(points, complete)
     assert [point.as_of for point in filtered] == ["2024-01-03", "2024-01-04"]
+
+
+def test_walk_forward_summary_does_not_treat_selection_ok_as_sufficient_evidence():
+    raw_result = {
+        "status": "OK",
+        "observations": 1397,
+        "fold_count": 11,
+        "configured_edge_threshold": 70.0,
+        "configured_holdout_signals": 0,
+        "selected_candidate_folds": 2,
+        "selected_candidate_holdout_signals": 3,
+        "folds": [
+            {
+                "fold": 1,
+                "selected_candidate": {
+                    "edge_threshold": 55.0,
+                    "holdout": {
+                        "signals": 2,
+                        "hit_rate": 0.5,
+                        "avg_signed_return": 0.01,
+                    },
+                },
+            },
+            {
+                "fold": 2,
+                "selected_candidate": {
+                    "edge_threshold": 50.0,
+                    "holdout": {
+                        "signals": 1,
+                        "hit_rate": 0.0,
+                        "avg_signed_return": -0.02,
+                    },
+                },
+            },
+        ],
+    }
+
+    summary = _walk_forward_summary(raw_result, min_oos_signals=8)
+
+    assert summary["selection_status"] == "OK"
+    assert summary["status"] == "LIMITED_OOS_SIGNAL_COUNT"
+    assert summary["evidence_status"] == "LIMITED_OOS_SIGNAL_COUNT"
+    assert summary["configured_holdout_signals"] == 0
+    assert summary["selected_candidate_oos_summary"]["signals"] == 3
