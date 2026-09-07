@@ -115,6 +115,36 @@ Before changing production collection or applying a migration:
 5. Compare current-history replay vs strict-vintage replay for edge, regime, signal eligibility and fold evidence.
 6. Only after the comparison decide whether a dedicated ALFRED backfill table/migration is justified.
 
+## 2026-09-07 gerçek veri doğrulama denemesi — güncel durum
+
+İlk gerçek doğrulama koşusunda yerel testler başarılı geçti:
+
+- FRED PIT odaklı testler: `5 passed`
+- tüm Python testleri: `59 passed`
+- release check: `OK`
+
+Ancak gerçek FRED isteği `HTTP 400 Bad Request` ile durdu. Bu nedenle karşılaştırma JSON çıktısı oluşmadı ve sonraki PowerShell özetlerinin boş gelmesi model sonucunun boş olduğu anlamına gelmiyor; doğrulama FRED verisi alınmadan önce kesildi.
+
+İnceleme sonucunda doğrulama isteğinin ihtiyacımızdan çok daha geniş bir real-time dönem istediği görüldü: 2022–2026 replay dönemi için veri gerekirken FRED'e 1776–9999 arasındaki bütün real-time geçmiş soruluyordu. Uzun ömürlü günlük serilerde bu yaklaşım JSON tarihsel sürüm sınırlarına çarpabilir.
+
+Bu nedenle verification-only collector şu şekilde daraltıldı:
+
+- `realtime_start` varsayılan olarak doğrulamanın `observation_start` tarihine,
+- `realtime_end` varsayılan olarak doğrulamanın `observation_end` tarihine bağlandı,
+- production `fetch_series()` davranışı değiştirilmedi,
+- hata mesajlarında API anahtarının istek URL'si üzerinden görünmesini engelleyen güvenli hata üretimi eklendi.
+
+Bu düzeltme henüz gerçek FRED verisi üzerinde yeniden doğrulanmadı. Dolayısıyla durum:
+
+```text
+Strict FRED doğrulama kodu      TESTED
+Gerçek FRED veri çekimi         RETEST REQUIRED
+Current-vs-strict karşılaştırma NOT YET PRODUCED
+Model / threshold / LIVE        UNCHANGED
+```
+
+Bir sonraki adım aynı read-only verification komutunu tekrar çalıştırmak ve gerçek FRED tarihsel verisinin artık alınabildiğini doğrulamaktır.
+
 ## Invariants retained
 
 - Model Version `1.2.0`
