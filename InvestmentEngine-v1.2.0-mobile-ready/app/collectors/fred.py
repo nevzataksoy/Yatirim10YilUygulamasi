@@ -31,6 +31,30 @@ class FredCollector:
             )
         return out
 
+    @staticmethod
+    def _raise_for_status_safe(response, series_id: str) -> None:
+        """Raise an error without exposing the API key embedded in request URLs."""
+        try:
+            response.raise_for_status()
+        except Exception:
+            message = ""
+            try:
+                payload = response.json()
+                if isinstance(payload, dict):
+                    message = str(
+                        payload.get("error_message")
+                        or payload.get("message")
+                        or ""
+                    ).strip()
+            except Exception:
+                message = ""
+            status = getattr(response, "status_code", None)
+            prefix = f"HTTP {status}" if status is not None else "HTTP request"
+            detail = f": {message}" if message else ""
+            raise RuntimeError(
+                f"FRED {series_id} isteği başarısız ({prefix}){detail}"
+            ) from None
+
     def fetch_series(self, series_id: str, limit: int = 1500) -> list[dict]:
         """Fetch the latest observations and return them oldest -> newest.
 
@@ -51,7 +75,7 @@ class FredCollector:
             "limit": min(max(int(limit), 1), 100000),
         }
         response = self.session.get(self.BASE, params=params, timeout=30)
-        response.raise_for_status()
+        self._raise_for_status_safe(response, series_id)
         data = response.json()
         out = self._normalize_rows(series_id, data.get("observations", []))
         out.sort(key=lambda item: item["date"])
@@ -63,12 +87,21 @@ class FredCollector:
         *,
         observation_start: str,
         observation_end: str,
+        realtime_start: str | None = None,
+        realtime_end: str | None = None,
     ) -> list[dict]:
-        """Fetch complete ALFRED real-time intervals for a validation window.
+        """Fetch ALFRED real-time intervals needed by a validation window.
 
-        FRED ``output_type=1`` returns observations by real-time period. Using
-        the complete real-time bounds exposes the historical validity interval
-        for every revision instead of returning only today's FRED view.
+        FRED ``output_type=1`` returns observations by real-time period. For
+        strict historical validation we only need the revisions that could have
+        been visible during the replay window. Requesting the entire FRED
+        real-time history from 1776 to 9999 can exceed FRED's JSON vintage-date
+        limits for long-lived daily series, so the real-time period defaults to
+        the requested observation window.
+
+        The returned validity intervals may therefore be clipped to the requested
+        real-time boundaries, which is sufficient for replay dates inside those
+        same boundaries.
 
         The production macro job does not call this method. It exists for
         Post-Shadow PIT verification and performs no database writes.
@@ -76,14 +109,16 @@ class FredCollector:
         limit = 100000
         offset = 0
         raw_rows: list[dict] = []
+        rt_start = realtime_start or observation_start
+        rt_end = realtime_end or observation_end
 
         while True:
             params = {
                 "series_id": series_id,
                 "api_key": self.api_key,
                 "file_type": "json",
-                "realtime_start": "1776-07-04",
-                "realtime_end": "9999-12-31",
+                "realtime_start": rt_start,
+                "realtime_end": rt_end,
                 "observation_start": observation_start,
                 "observation_end": observation_end,
                 "output_type": 1,
@@ -92,7 +127,7 @@ class FredCollector:
                 "offset": offset,
             }
             response = self.session.get(self.BASE, params=params, timeout=30)
-            response.raise_for_status()
+            self._raise_for_status_safe(response, series_id)
             data = response.json()
             page = list(data.get("observations", []))
             raw_rows.extend(page)
