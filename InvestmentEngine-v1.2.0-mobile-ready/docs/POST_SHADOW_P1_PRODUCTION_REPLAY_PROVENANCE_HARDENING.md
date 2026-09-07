@@ -160,6 +160,29 @@ Focused tests verify:
 2. a quiet event set carries health timestamp/status and exact event refs without inventing directional edge,
 3. directional event weighting remains unchanged after audit metadata is added.
 
+## Windows build acceptance
+
+The hardened branch was pulled on the Windows build host and rebuilt with the released OneDir packaging flow.
+
+Observed build acceptance:
+
+```text
+full Python tests       68 passed
+release check           OK
+PyInstaller OneDir      PASS
+Inno Setup 6.4.0        PASS
+installer               InvestmentEngineSetup-1.2.0.exe
+```
+
+Build artefact reference:
+
+```text
+file    dist\InvestmentEngine\InvestmentEngine.exe
+SHA256  91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
+```
+
+This SHA256 is the deployment identity for the provenance-hardened `1.2.0` runtime. Because the semantic model version remains intentionally `1.2.0`, production upgrade acceptance must compare the installed EXE hash against this artefact rather than relying only on the version string.
+
 ## Implementation classification
 
 ```text
@@ -172,6 +195,9 @@ URA historical exact event-set identity MISSING BEFORE HARDENING
 Audit-only code hardening                VERIFIED BY TESTS
 Full Python suite                        68 PASS
 Release check                            OK
+Windows OneDir build                     PASS
+Installer compile                        PASS
+Build EXE SHA256                         91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
 Production runtime deployment           PENDING
 Forward production decision check       PENDING
 Full production/replay parity            OPEN
