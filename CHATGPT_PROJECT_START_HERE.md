@@ -144,3 +144,26 @@ Zorunlu anlatım biçimi:
 10. Kullanıcıya proje bağlamı aktarılırken teknik doğruluk korunur ancak anlaşılabilir Türkçe önceliklidir.
 
 Bu kural yeni sohbetlerde de bağlayıcıdır ve proje iletişim standardının parçasıdır.
+
+## 12. Vazgeçilmez PowerShell komut sunum kuralı
+
+Kullanıcı Windows PowerShell üzerinden komutları doğrudan kopyalayıp çalıştırır. Bu nedenle komutların yalnız mantıksal olarak doğru olması yetmez; **kopyala-yapıştır biçimi de sözdizimsel olarak güvenli ve tek anlamlı olmalıdır.**
+
+Bağlayıcı kurallar:
+
+1. Birbirine bağlı PowerShell adımları kullanıcıya mümkün olduğunda **tek bir kopyala-yapıştır güvenli komut satırı** olarak verilir ve komut sınırları `;` ile açıkça ayrılır.
+2. Bir komutun `$LASTEXITCODE` sonucu kullanılacaksa değer **o komutun hemen arkasında** ayrı değişkene alınır; araya başka komut konulmaz.
+3. Çalıştırma komutu ile `Write-Host`, hash kontrolü veya exit-code gösterimi yalnız görsel satır sonuna güvenerek yan yana bırakılmaz. Aynı blokta verilecekse PowerShell açısından açık `;` ayraçları kullanılır.
+4. Sıralı adımlar birbirine bağımlıysa ayrı code block'lara bölünüp kullanıcının elle birleştirmesine bırakılmaz. Birincil öneri, tek seferde aynen yapıştırılabilecek biçimdir.
+5. Çok satırlı PowerShell gerekiyorsa her satır bağımsız olarak geçerli olacak şekilde veya açık continuation sözdizimiyle yazılır; prompt metni (`PS ...>`, `>>`) komut bloğuna konulmaz.
+6. `Start-Process`, call operator (`&`), quoted path, değişken ataması ve `$LASTEXITCODE` gibi PowerShell'e özgü yapılarda komutun hangi shell için yazıldığı açıkça korunur; CMD/Bash sözdizimi karıştırılmaz.
+7. Komut kullanıcı verisini değiştirecek, servisi durduracak/başlatacak, migration uygulayacak veya production job tetikleyecekse çalıştırmadan önce etkisi kısa biçimde belirtilir.
+8. Kullanıcı bir komut sunum hatası gösterirse sonraki komut yalnız düzeltilmekle kalmaz; aynı hata sınıfının tekrar etmemesi için bu bölümdeki kural uygulanır.
+
+Örnek güvenli desen:
+
+```powershell
+& "$App\InvestmentEngineCLI.cmd" --once ura; $uraExitCode = $LASTEXITCODE; Write-Host "URA manual ExitCode: $uraExitCode"
+```
+
+Bu kural yeni sohbetlerde de bağlayıcıdır ve proje çalışma standardının parçasıdır.
