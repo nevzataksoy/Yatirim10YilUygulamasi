@@ -19,11 +19,13 @@ DB'ye doğrulama kaydı yazıldı mı?       HAYIR
 Otomatik parametre değişikliği          HAYIR
 ```
 
-Bu koşu P1'in önemli bir sorusuna gerçek veriyle cevap verdi:
+Bu koşu P1'in önemli bir sorusuna gerçek veriyle ilk yanıtı verdi:
 
-> Bugün FRED'de görünen, sonradan düzeltilmiş geçmiş değerleri kullanmak yerine o tarihte gerçekten yayımlanmış değerleri kullansaydık ETH/BTC motorunun geçmiş değerlendirmesi değişir miydi?
+> Bugün FRED'de görünen geçmiş değerleri kullanmak yerine o tarihte gerçekten yayımlanmış ALFRED değerlerini kullansaydık ETH/BTC motorunun geçmiş değerlendirmesi değişir miydi?
 
-Cevap: **Evet, bazı günlerde iç değerlendirme değişiyor; ancak yayımlanmış edge=70 uygunluk durumu hiçbir günde değişmiyor.**
+İlk sonuç: **bazı günlerde iç değerlendirme değişiyor; ancak yayımlanmış edge=70 uygunluk durumu hiçbir günde değişmiyor.**
+
+Bununla birlikte ilk 23 replay gününde ALFRED'de bulunan serilerin bile tamamı mevcut değildir. Bu nedenle 1420 günlük ham karşılaştırmanın tamamını doğrudan "saf revision etkisi" diye adlandırmak doğru değildir. Temiz revision etkisi yalnız tam tarihsel kapsama bulunan günlerde ayrıca ölçülecektir.
 
 ## Veri kaynağı durumu
 
@@ -41,9 +43,10 @@ Tam tarihsel veri bulunan gün          1397
 Tam kapsama oranı                      %98.3803
 İlk tam gün                            2022-11-10
 Son tam gün                            2026-09-06
+Eksik tarihsel kapsamlı ilk günler     23
 ```
 
-İlk 23 replay gününde ALFRED'de mevcut yedi serinin en az biri eksiktir. Hangi serinin ve neden eksik olduğu ayrıca kapatılmadan FRED P1 alt aşaması tamamen kapanmış sayılmayacaktır.
+İlk 23 replay gününde ALFRED'de mevcut yedi serinin en az biri eksiktir. Bu günler artık temiz revision karşılaştırmasına dahil edilmeyecektir.
 
 ## Karşılaştırma 1 — SP500 tarihsel kaynak boşluğunun etkisi
 
@@ -65,9 +68,11 @@ Yorum:
 - 14 günde signed-edge yön işareti değişti; ancak bu günlerin hiçbiri yayımlanmış `edge=70` uygunluk sınırını değiştirmedi.
 - Dolayısıyla SP500 kaynak boşluğu mevcut evidence içinde yeni bir edge=70 sinyal üretmiyor veya mevcut bir edge=70 sinyali ortadan kaldırmıyor.
 
-## Karşılaştırma 2 — FRED'in sonradan düzeltilmiş değerlerinin etkisi
+## Karşılaştırma 2 — 1420 günlük ham tarihsel fark
 
-Bu karşılaştırmada yalnız ALFRED geçmişi bulunan seriler tutulur. Bir tarafta bugünkü FRED geçmiş değerleri, diğer tarafta geçmiş tarihte gerçekten yayımlanmış sürüm kullanılır. Böylece revision/yayın-zamanı etkisi SP500 boşluğundan ayrılır.
+Bu karşılaştırmada yalnız ALFRED geçmişi bulunan seriler tutulur. Bir tarafta bugünkü FRED geçmiş değerleri, diğer tarafta geçmiş tarihte yayımlanmış ALFRED değerleri kullanılır.
+
+İlk koşunun ham sonucu:
 
 ```text
 Karşılaştırılan gün                     1420
@@ -78,14 +83,12 @@ Yön işareti değişen gün                 5
 Edge=70 uygunluğu değişen gün           0
 ```
 
-Yorum:
+Bu sayıların tamamını henüz "revision etkisi" saymıyoruz. Çünkü ilk 23 günde ALFRED'de bulunan yedi seriden en az biri eksik. O günlerdeki farklar iki nedeni birlikte taşıyabilir:
 
-- Ortalama edge etkisi küçük olsa da bazı tekil günlerde fark büyüktür; en büyük fark `14.41` puandır.
-- 21 günde rejim sınıflandırması değişmiştir. Bu, FRED tarihsel sürüm farkının modelin iç yorumuna gerçekten etki ettiğini kanıtlar.
-- 5 günde signed-edge yön işareti değişmiştir.
-- Buna rağmen `edge=70` uygunluk durumu 1420 günün hiçbirinde değişmemiştir.
+1. gerçek tarihsel revision/yayın-zamanı farkı,
+2. eksik tarihsel seri nedeniyle kalite/puan farkı.
 
-Bu nedenle geçmiş bilgi sızıntısı etkisi **mevcuttur**, ancak mevcut kanıt production edge threshold'u düşürmeyi veya LIVE'a geçmeyi desteklememektedir.
+Bu nedenle verification kodu güncellendi. Yeni çıktı yalnız 7 serinin de mevcut olduğu 1397 günü ayrıca `vintage_comparison_complete_coverage` altında karşılaştıracaktır.
 
 ## Karşılaştırma 3 — Toplam etki
 
@@ -100,16 +103,39 @@ Yön işareti değişen gün                 13
 Edge=70 uygunluğu değişen gün           0
 ```
 
-Bu toplam fark hem SP500 kaynak boşluğunu hem diğer FRED serilerinin geçmiş revision/yayın-zamanı farkını içerir.
+Bu toplam fark hem `SP500` kaynak boşluğunu hem ALFRED-available serilerin tarihsel farklarını hem de ilk 23 gündeki eksik tarihsel kapsama etkisini içerir.
 
-## P1 açısından neyi kanıtladık?
+## P1 açısından şu anda neyi kanıtladık?
 
 1. Mevcut `macro.observations` tablosu strict geçmiş doğrulama için tek başına yeterli değildir.
-2. FRED tarihsel revision'ları gerçekten vardır ve modelin geçmiş rejim/yön değerlendirmesini bazı günlerde değiştirmektedir.
-3. ALFRED'de bulunan serilerle verification-only strict historical replay gerçek ortamda çalışmaktadır.
-4. `SP500` ALFRED tarihsel geçmişi olmadığı için açık bir kaynak boşluğudur; bugünkü değer geçmişe uydurulmamıştır.
-5. Mevcut 1420 replay gününde strict tarihsel makro kullanımı `edge=70` uygunluk durumunu hiçbir günde değiştirmemiştir.
-6. Bu sonuç, daha önce görülen edge=70 sinyal kıtlığını FRED revision kaynaklı sahte bir sonuç olarak açıklamıyor.
+2. ALFRED'de bulunan serilerle verification-only strict historical replay gerçek ortamda çalışmaktadır.
+3. `SP500` ALFRED tarihsel geçmişi olmadığı için açık bir kaynak boşluğudur; bugünkü değer geçmişe uydurulmamıştır.
+4. FRED/ALFRED kullanımı geçmiş model değerlendirmesinde fark yaratmaktadır; ancak bu farkın saf revision bileşeni temiz kapsama günleriyle ayrıca ayrıştırılmalıdır.
+5. İlk 1420 günlük karşılaştırmada `edge=70` uygunluk durumu hiçbir günde değişmemiştir.
+6. Bu nedenle şu ana kadarki kanıt, edge=70 sinyal kıtlığını yalnız FRED tarihsel revision sorunuyla açıklamıyor.
+
+## Temiz karşılaştırma neden gerekli?
+
+P1'in amacı yalnız fark bulmak değil, farkın nedenini doğru sınıflandırmaktır.
+
+İlk 23 günde tarihsel veri eksik olduğu halde bu günleri revision etkisine katarsak:
+
+- eksik veri nedeniyle düşen kaliteyi,
+- gerçekten farklı yayımlanmış bir FRED değerinin etkisiyle
+
+karıştırmış oluruz.
+
+Bu yüzden yeni doğrulama çıktısı iki ayrı alan üretecek:
+
+```text
+vintage_comparison
+    1420 günlük ham fark
+
+vintage_comparison_complete_coverage
+    yalnız 7 ALFRED serisinin de mevcut olduğu temiz günlerdeki fark
+```
+
+P1 FRED alt aşamasının revision etkisiyle ilgili nihai yorumu ikinci alan üzerinden yapılacaktır.
 
 ## Henüz neyi kanıtlamadık?
 
@@ -117,7 +143,8 @@ Bu çalışma production ACTION backtest değildir.
 
 Hâlâ açık olanlar:
 
-- İlk 23 gündeki ALFRED-available seri eksikliğinin hangi seri/yayın başlangıcı nedeniyle oluştuğunun açıklanması.
+- İlk 23 gündeki eksik ALFRED serisinin/serilerinin belirlenmesi.
+- Tam kapsamalı 1397 günlük temiz FRED tarihsel karşılaştırmanın yeniden çalıştırılması.
 - Current/comparable/strict walk-forward özetlerinin birbirleriyle son kez karşılaştırılması.
 - Production persistent K1/K2 state davranışının replay ile birebir eşitliği.
 - Historical derivatives/event PIT geçmişi.
