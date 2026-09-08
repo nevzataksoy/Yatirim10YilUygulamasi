@@ -22,6 +22,7 @@ from app.collectors.globalx_ura import GlobalXUraHoldingsCollector
 from app.collectors.sec import SecCollector
 from app.collectors.tcmb import TcmbCollector
 from app.database.db import DatabaseService
+from app.database.decision_persistence import persist_decision_outcome
 from app.database.repository import Repository
 from app.engines.decision import DecisionEngine
 from app.engines.factors import neutral, score_derivatives, score_flow, score_macro, score_momentum, score_trend, score_value, score_volatility
@@ -452,22 +453,17 @@ class InvestmentEngine:
             raise
 
     def _persist_decision(self, decision: Decision, provider: str) -> None:
-        self._apply_signal_state(decision)
-        decision_id=self.repo.insert_decision(decision)
-        self.repo.publish_decision_history(decision_id,decision,provider)
-        self.repo.publish_decision_snapshot(decision,provider)
+        decision_id=persist_decision_outcome(
+            self.db,
+            decision,
+            provider,
+            lambda raw_state: apply_signal_state(decision,raw_state,self.settings),
+        )
         if decision.action_event:
             if self.settings.engine_mode=="live":
                 self.telegram.send(self._decision_message(decision,decision_id))
             if decision.execution_required:
                 self._start_execution_worker(decision,decision_id)
-
-    def _apply_signal_state(self, decision: Decision) -> None:
-        state=apply_signal_state(decision,self.repo.get_signal_state(decision.system),self.settings)
-        self.repo.upsert_signal_state(
-            decision.system,state["active_direction"],state["stage"],
-            state["cumulative_size"],state["last_action_date"],state["reset_counter"],
-        )
 
     def _decision_message(self, d: Decision, decision_id: int) -> str:
         stage=f"Kademe {d.action_stage}" if d.action_stage else "Yeni kademe yok"
