@@ -137,7 +137,7 @@ Bu hardening aşağıdaki ayrı problemleri otomatik çözmez:
 3. **External side effects:** Telegram veya execution worker PostgreSQL transaction'ına katılamaz. Bunlar yalnız DB commit başarıyla döndükten sonra başlatılır. Tam exactly-once external delivery gerekirse ayrı transactional-outbox tasarımı gerekir.
 4. **Raw source snapshot/versioning:** `fundamentals.ura_holdings` immutable raw fetch history konusu bu görevden bağımsız ve OPEN kalır.
 
-## 7. Test kontratı
+## 7. Test kontratı ve gerçek ortam doğrulaması
 
 Yeni focused testler şu failure-injection senaryolarını kapsar:
 
@@ -148,13 +148,23 @@ Yeni focused testler şu failure-injection senaryolarını kapsar:
 - failed K1 state'i tüketmez; fresh retry tekrar K1 üretebilir,
 - failed reset transition önceki committed state'i korur.
 
-Full repository kabulü için kullanıcı development/production Shadow host'unda aşağıdaki üç kontrol çalıştırılır:
+08 Eylül 2026 tarihinde development/production Shadow host'unda kullanıcı tarafından çalıştırılan gerçek doğrulama sonucu:
 
 ```text
-focused transactional tests
-full Python pytest
-release check
+local HEAD                         d88d997
+compileall                         PASS / exit 0
+focused transactional+state tests 9 passed / exit 0
+full Python tests                 74 passed / exit 0
+release check                     OK / exit 0
 ```
+
+Final toplu exit özeti:
+
+```text
+COMPILE=0 FOCUSED=0 FULL=0 RELEASE=0
+```
+
+Bu sonuç code/test acceptance için yeterlidir. Test koşusu yeni migration gerektirmez ve model parametrelerini değiştirmez.
 
 ## 8. Kapanış sınıflandırması
 
@@ -166,16 +176,30 @@ Current state inconsistency           NONE OBSERVED
 RCA evidence stage                    CLOSED
 ```
 
-Hardening kapanışı, focused/full regression ve release check başarılı olduğunda:
+Hardening code/test kapanışı:
 
 ```text
 Atomic decision persistence           VERIFIED
 Failure rollback                      VERIFIED
 Same-system state serialization       VERIFIED
+Focused regression                    VERIFIED / 9 passed
+Full regression                       VERIFIED / 74 passed
+Release check                         VERIFIED / OK
 Model semantics changed               NO
 Migration required                    NO
 Transactional hardening substage      CLOSED
 LIVE                                  NO-GO
 ```
+
+Runtime deployment durumu ayrıca izlenir:
+
+```text
+Source code committed/pushed          YES / d88d997
+Development-host regression           VERIFIED
+Installed Windows service binary      NOT YET REBUILT/REDEPLOYED FROM d88d997
+Runtime forward verification          OPEN UNTIL DEPLOY
+```
+
+Dolayısıyla **RCA evidence** ve **transactional hardening code/test** kapanmıştır; fakat çalışan Windows service binary'sinin yeni transaction kodunu gerçekten kullandığı iddiası build/deploy + forward verification yapılmadan kurulmaz.
 
 Bu belge full production/replay parity'yi kapatmaz. Raw holdings immutable source snapshot/versioning başlığı ayrı OPEN araştırma olarak kalır.
