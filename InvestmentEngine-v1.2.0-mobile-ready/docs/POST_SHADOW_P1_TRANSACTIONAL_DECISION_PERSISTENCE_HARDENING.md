@@ -191,15 +191,73 @@ Transactional hardening substage      CLOSED
 LIVE                                  NO-GO
 ```
 
-Runtime deployment durumu ayrıca izlenir:
+## 9. Runtime deploy ve ileri yönlü doğrulama
+
+08 Eylül 2026 tarihinde `build.bat` ile branch HEAD `750ad69` üzerinden OneDir runtime ve Inno Setup installer başarıyla üretildi. Transactional kod commit'i bu build zincirinde `d88d997` olarak bulunur; `750ad69` yalnız doğrulama belgesini güncelleyen sonraki documentation commit'idir.
+
+Build kanıtı:
 
 ```text
-Source code committed/pushed          YES / d88d997
-Development-host regression           VERIFIED
-Installed Windows service binary      NOT YET REBUILT/REDEPLOYED FROM d88d997
-Runtime forward verification          OPEN UNTIL DEPLOY
+full Python tests                  74 passed
+release check                      OK
+PyInstaller OneDir                 SUCCESS
+Inno Setup                         SUCCESS
+built EXE SHA256                   73185707D2259D11640251A0B5EE34886919FC18C8E9EC5BC0E2A1C54ABD7C58
+installer SHA256                   D975EACB02EF477D799D305F98654FA678ABE0CAE5464AC4C9027AE1FB7316C9
 ```
 
-Dolayısıyla **RCA evidence** ve **transactional hardening code/test** kapanmıştır; fakat çalışan Windows service binary'sinin yeni transaction kodunu gerçekten kullandığı iddiası build/deploy + forward verification yapılmadan kurulmaz.
+Mevcut v1.2.0 kurulumunun üzerine upgrade yapıldı. Upgrade öncesi kurulu EXE hash'i farklıydı; upgrade sonrasında kurulu EXE hash'i build artefactıyla birebir eşleşti:
+
+```text
+pre-deploy installed EXE SHA256    91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
+post-deploy installed EXE SHA256   73185707D2259D11640251A0B5EE34886919FC18C8E9EC5BC0E2A1C54ABD7C58
+built EXE == installed EXE          TRUE
+settings preserved                  TRUE
+rosalock preserved                  TRUE
+RosaInvestmentEngine                RUNNING
+service StartType                    Automatic
+CLI --service-status                 exit 0
+```
+
+Yeni servis process başlangıcı:
+
+```text
+ProcessId        18196
+StartTimeLocal   2026-09-08 06:51:43 Europe/Istanbul
+StartTimeUtc     2026-09-08 03:51:43Z
+```
+
+Deploy sonrasında yapılan ilk read-only DB tutarlılık kontrolü iki sistem için de `fully_consistent=true` verdi; ancak latest decision zamanları yeni servis process başlangıcından öncedir:
+
+```text
+ETH/BTC
+  latest decision id      87
+  decision_created_at     2026-09-08 02:20:21.629156Z
+  service_start_utc       2026-09-08 03:51:43Z
+  fully_consistent        true
+  post-deploy decision    NO
+
+URA/USD
+  latest decision id      86
+  decision_created_at     2026-09-07 23:40:38.525416Z
+  service_start_utc       2026-09-08 03:51:43Z
+  fully_consistent        true
+  post-deploy decision    NO
+```
+
+Bu nedenle mevcut sınıflandırma:
+
+```text
+Runtime binary deployment            VERIFIED
+Built/installed binary identity      VERIFIED
+Service runtime                      VERIFIED / RUNNING
+Current persisted consistency        VERIFIED
+Post-deploy scheduler decision       NOT YET OBSERVED
+Runtime forward verification         OPEN
+```
+
+Görev takvimi normal durumda manuel `--once crypto/ura` çalıştırılmamasını söylediği için yalnız doğrulama amacıyla gereksiz manuel decision üretilmez. Bir sonraki doğal scheduler decision'ı servis başlangıcı `2026-09-08 03:51:43Z` sonrasında oluştuğunda aynı read-only state/history/snapshot tutarlılık kontrolü tekrarlanır. En az bir post-deploy decision için tam eşleşme görüldüğünde runtime forward verification kapatılabilir.
+
+Dolayısıyla **RCA evidence** ve **transactional hardening code/test** kapanmıştır; **runtime binary deployment** doğrulanmıştır; yalnız doğal post-deploy scheduler decision'ına bağlı **runtime forward verification** OPEN kalır.
 
 Bu belge full production/replay parity'yi kapatmaz. Raw holdings immutable source snapshot/versioning başlığı ayrı OPEN araştırma olarak kalır.
