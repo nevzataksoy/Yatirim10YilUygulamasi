@@ -1,6 +1,6 @@
 # BTC_ETH_URA_10YIL — Oturum Devir Kaydı
 
-Son güncelleme: 08 Eylül 2026  
+Son güncelleme: 09 Eylül 2026  
 Amaç: Yeni sohbetin güncel proje durumunu konuşma geçmişini yeniden keşfetmeden devralması.
 
 Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları root `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, checkpoint kanıtları `SHADOW_CHECKPOINT_LOG.md`, Post-Shadow kanıtları ise ilgili `POST_SHADOW_*.md` belgelerindedir.
@@ -500,14 +500,70 @@ Full production/replay parity              OPEN
 LIVE                                       NO-GO
 ```
 
-### 9.3 Sıradaki açık production/replay araştırmaları
+### 9.3 Transactional decision persistence hardening — KAPANDI
 
-İki konu birbirinden ayrı tutulmalıdır:
+İlgili belge:
 
-1. **Raw source snapshot/versioning gereksinimi:** `fundamentals.ura_holdings` aynı `(holding_date,ticker)` satırını overwrite ettiği için aynı güne ait her raw fetch immutable snapshot olarak tutulmuyor. Persisted decision-input snapshot'larının validation kontratı için yeterli olup olmadığı veya ayrı immutable source-snapshot storage gerekip gerekmediği kanıtla kararlaştırılacak.
-2. **Transactional state-before-decision risk analizi:** mevcut `_persist_decision` akışında signal state decision insert'ten önce commit edilir. Teorik olarak state commit başarılı olup decision insert başarısız olursa retry davranışı incelenmelidir. Bunun production'da gerçekleştiğine dair DB kanıtı yoktur; production incident olarak sınıflandırılmaz.
+- `docs/POST_SHADOW_P1_TRANSACTIONAL_DECISION_PERSISTENCE_HARDENING.md`
 
-Bu iki açık konu threshold düşürme veya model tuning gerekçesi değildir.
+Eski akışta `model.signal_state` ayrı commit ile decision'dan önce kalıcılaşabiliyordu. Kod seviyesinde atomiklik açığı doğrulandı; production geçmişinde gerçekleşmiş incident kanıtı bulunmadı.
+
+Uygulanan hardening:
+
+- aynı `system` state satırı `FOR UPDATE` ile kilitlenir,
+- state transition locked current state üzerinden hesaplanır,
+- `model.signal_state`, `model.decisions`, `public.decision_history` ve `public.decision_snapshot` tek connection / tek transaction içinde yazılır,
+- herhangi bir hata dört persistent outcome bileşeninin tamamını rollback eder,
+- model thresholds/weights/K1/K2/reset/sizing/scheduler/mode/version semantiği değişmez.
+
+Regression ve build/deploy kanıtı:
+
+```text
+focused transactional+state tests     9 passed
+full Python tests                      74 passed
+release check                          OK
+built EXE SHA256                       73185707D2259D11640251A0B5EE34886919FC18C8E9EC5BC0E2A1C54ABD7C58
+installed EXE SHA256                   same / VERIFIED
+service                                RUNNING / Automatic
+CLI --service-status                   exit 0
+```
+
+Yeni servis process başlangıcı:
+
+```text
+StartTimeUtc   2026-09-08 03:51:43Z
+```
+
+09 Eylül 2026 doğal scheduler ileri yönlü doğrulaması:
+
+```text
+ETH/BTC decision 89   created_at=2026-09-09 02:21:22.609961Z   fully_consistent=true
+URA/USD decision 88   created_at=2026-09-08 23:40:43.067080Z   fully_consistent=true
+```
+
+İki decision da servis başlangıcından sonra üretilmiştir. Her ikisinde history/snapshot/marker ve embedded signal-state kontrollerinin tamamı eşleşmiştir.
+
+Kapanış:
+
+```text
+Historical production incident       NO EVIDENCE
+Atomic decision persistence           VERIFIED
+Failure rollback                      VERIFIED
+Same-system state serialization       VERIFIED
+Runtime binary deployment             VERIFIED
+Runtime forward verification          VERIFIED
+Transactional persistence runtime     CLOSED
+Model semantics changed               NO
+LIVE                                  NO-GO
+```
+
+### 9.4 Sıradaki açık production/replay araştırması
+
+**Raw source snapshot/versioning gereksinimi** açık kalır: `fundamentals.ura_holdings` aynı `(holding_date,ticker)` satırını overwrite ettiği için aynı güne ait her raw fetch immutable snapshot olarak tutulmuyor. Persisted decision-input snapshot'larının validation kontratı için yeterli olup olmadığı veya ayrı immutable source-snapshot storage gerekip gerekmediği kanıtla kararlaştırılacak.
+
+Transactional state-before-decision başlığı artık açık araştırma değildir; 9.3 kapsamında code/test/build/deploy/forward verification ile kapatılmıştır.
+
+Bu açık raw holdings konusu threshold düşürme veya model tuning gerekçesi değildir.
 
 ## 10. P2 veri yaşam döngüsü — AÇIK
 
@@ -546,42 +602,47 @@ Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir. T
 
 Windows hedefi 24/7 servis çalışmasıdır. Bu projede development makinesi aynı zamanda çalışan Shadow service host'udur. Production kurulum/ayar dizinleri ve encrypted settings çözümlemesi verification komutlarında korunur.
 
-## 13. Oturum11 kapanışı ve Oturum12 başlangıç noktası
+## 13. Oturum12 güncel kapanış noktası
 
-Kullanıcı Oturum11'in son turunda kendisine verilen pull/yerel eşitleme komutlarının hiçbirini çalıştırmadığını açıkça belirtti. Bu nedenle kullanıcının yerel worktree'si için son kanıtlanan durum şudur:
+Oturum12 içinde transactional state-before-decision konusu araştırıldı, proaktif hardening uygulandı, regression testleri geçti, OneDir/installer build alındı, mevcut Windows service üzerine deploy edildi ve doğal scheduler kararlarıyla ileri yönlü doğrulama tamamlandı.
 
-```text
-local HEAD                  e67ffaf
-local git status --short    boş / temiz
-```
-
-Bundan sonraki dokümantasyon commit'leri remote branch'i yerelin önüne taşımıştır. Yeni sohbet local'in güncel olduğunu varsaymamalıdır.
-
-Oturum11 sonunda tamamlanan ana teknik kilometre taşı:
+Son kanıtlanan runtime durumu:
 
 ```text
-URA provenance hardening                 VERIFIED (Doğrulandı)
-Production runtime deployment            VERIFIED (Doğrulandı)
-Forward new-decision persistence          VERIFIED (Doğrulandı) / decision 85
-URA provenance hardening substage         CLOSED (Kapandı)
-Historical pre-hardening URA rows         NOT BACKFILLED (Geriye dönük doldurulmadı)
-Raw holdings immutable snapshot history   OPEN (Açık)
-Full production/replay parity             OPEN (Açık)
-LIVE                                      NO-GO (Canlıya geçiş yok)
+Service process start UTC                2026-09-08 03:51:43Z
+Built/installed EXE SHA256               73185707D2259D11640251A0B5EE34886919FC18C8E9EC5BC0E2A1C54ABD7C58
+RosaInvestmentEngine                     RUNNING / Automatic
+ETH/BTC post-deploy decision             89 / fully_consistent=true
+URA/USD post-deploy decision             88 / fully_consistent=true
+Transactional persistence runtime        CLOSED (Kapandı)
+Raw holdings immutable snapshot history  OPEN (Açık)
+Full production/replay parity            OPEN (Açık)
+LIVE                                     NO-GO (Canlıya geçiş yok)
 ```
 
-Decision 85 forward verification (ileri yönlü doğrulama) içinde `hardened_audit_payload_complete=true` ve tüm alt kontroller `true` çıkmıştır. Bu kapanış model threshold/weight/K1/K2/reset/sizing/mode/version davranışını değiştirmemiştir.
+Bu kapanış model threshold/weight/K1/K2/reset/sizing/mode/version davranışını değiştirmemiştir.
 
-### Oturum12'nin ilk adımı
+### Sonraki teknik araştırma yönü
 
-Yeni sohbet önce remote branch'in gerçek HEAD'ini ve aşağıdaki bağlam dosyalarının güncel halini okumalıdır:
+Sıradaki ana P1 konusu **URA raw holdings immutable snapshot/versioning (değişmez ham holdings anlık görüntü sürümleme)** araştırmasıdır.
+
+İlk amaç kod yazmak değil; şu soruyu kanıtla cevaplamaktır:
+
+- Mevcut persisted decision-input provenance replay/validation kontratı için yeterli mi?
+- Yoksa `fundamentals.ura_holdings` overwrite davranışı nedeniyle ayrıca immutable raw fetch snapshot/version storage gerekli mi?
+
+Bu araştırma threshold/model tuning'den ayrıdır. Sonuç ne olursa olsun released `1.2.0` davranışı açık kullanıcı onayı olmadan değiştirilmez.
+
+### Yeni sohbet başlangıç kuralı
+
+Yeni sohbet önce remote branch HEAD'ini ve en az aşağıdaki dosyaları okumalıdır:
 
 1. `CHATGPT_PROJECT_START_HERE.md`
 2. `InvestmentEngine-v1.2.0-mobile-ready/docs/PROJECT_MEMORY_BANK.md`
 3. `InvestmentEngine-v1.2.0-mobile-ready/docs/SIGNAL_ENGINE_DECISION_CONTRACT.md`
 4. `InvestmentEngine-v1.2.0-mobile-ready/docs/SESSION_HANDOFF.md`
-5. `InvestmentEngine-v1.2.0-mobile-ready/docs/POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
-6. Production/replay işi devam edecekse `InvestmentEngine-v1.2.0-mobile-ready/app/engine.py`, ilgili repository transaction/commit kodu ve testler.
+5. `InvestmentEngine-v1.2.0-mobile-ready/docs/POST_SHADOW_P1_TRANSACTIONAL_DECISION_PERSISTENCE_HARDENING.md`
+6. `InvestmentEngine-v1.2.0-mobile-ready/docs/POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
 
 Bunları okuduktan sonra kullanıcıya ilk çalıştırılacak komut olarak tek, kopyala-yapıştır güvenli PowerShell satırı verilmelidir:
 
@@ -589,15 +650,7 @@ Bunları okuduktan sonra kullanıcıya ilk çalıştırılacak komut olarak tek,
 cd D:\wamp64\www\Yatirim10YilUygulamasi; git pull --ff-only; git rev-parse --short HEAD; git status --short
 ```
 
-Yeni sohbet, kullanıcı bu çıktıyı vermeden yerel repo için `güncel/clean` iddiasında bulunmamalıdır. Pull sonucu incelendikten sonra teknik RCA'ya geçilmelidir.
-
-### Sonraki teknik araştırma yönü
-
-Oturum11 sonunda sıradaki teknik inceleme olarak **transactional state-before-decision risk analizi (işlemsel olarak state'in decision'dan önce yazılması riski)** önerilmiştir. Bu henüz başlanmış bir düzeltme değildir.
-
-Mevcut kodda `_persist_decision` içinde signal state önce upsert/commit edilmekte, decision insert daha sonra gerçekleşmektedir. Teorik pencere şudur: state commit başarılı olur, decision insert başarısız olur, retry aynı state'i yeniden ilerletebilir. Bunun production'da gerçekleştiğine dair `NO EVIDENCE (Kanıt yok)` vardır; konu production incident (üretim olayı) diye sunulmamalıdır.
-
-Oturum12 bu konuya geçerse ilk teknik iş kod değiştirmek değil; remote kodu okuyup transaction boundary (işlem sınırı), commit sırası, retry davranışı ve mevcut production DB kanıtını ayrı ayrı doğrulamaktır. Raw holdings immutable snapshot/versioning (değişmez ham kaynak anlık görüntü sürümleme) konusu bundan ayrı `OPEN (Açık)` araştırma olarak tutulmalıdır.
+Yeni sohbet, kullanıcı bu çıktıyı vermeden yerel repo için `güncel/clean` iddiasında bulunmamalıdır.
 
 ### GitHub çalışma biçimi
 
