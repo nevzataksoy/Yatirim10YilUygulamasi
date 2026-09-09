@@ -191,7 +191,7 @@ Transactional hardening substage      CLOSED
 LIVE                                  NO-GO
 ```
 
-## 9. Runtime deploy ve ileri yönlü doğrulama
+## 9. Runtime deploy ve ileri yönlü doğrulama — KAPANDI
 
 08 Eylül 2026 tarihinde `build.bat` ile branch HEAD `750ad69` üzerinden OneDir runtime ve Inno Setup installer başarıyla üretildi. Transactional kod commit'i bu build zincirinde `d88d997` olarak bulunur; `750ad69` yalnız doğrulama belgesini güncelleyen sonraki documentation commit'idir.
 
@@ -227,37 +227,57 @@ StartTimeLocal   2026-09-08 06:51:43 Europe/Istanbul
 StartTimeUtc     2026-09-08 03:51:43Z
 ```
 
-Deploy sonrasında yapılan ilk read-only DB tutarlılık kontrolü iki sistem için de `fully_consistent=true` verdi; ancak latest decision zamanları yeni servis process başlangıcından öncedir:
+Deploy sonrasında ilk read-only DB kontrolünde mevcut satırlar tutarlıydı fakat henüz yeni servis process'i tarafından üretilmiş decision yoktu. Görev takvimi kuralına uygun olarak yalnız doğrulama amacıyla manuel `--once crypto/ura` çalıştırılmadı; doğal scheduler kararları beklendi.
+
+09 Eylül 2026 tarihinde aynı servis process'i hâlâ çalışırken iki doğal scheduler kararı oluştu:
 
 ```text
 ETH/BTC
-  latest decision id      87
-  decision_created_at     2026-09-08 02:20:21.629156Z
+  latest decision id      89
+  decision_created_at     2026-09-09 02:21:22.609961Z
+  as_of                   2026-09-08
+  status                  WAIT
   service_start_utc       2026-09-08 03:51:43Z
+  post-deploy decision    YES
+  history_present         true
+  history_matches         true
+  snapshot_matches        true
+  marker_matches          true
+  signal_state matches    true
   fully_consistent        true
-  post-deploy decision    NO
 
 URA/USD
-  latest decision id      86
-  decision_created_at     2026-09-07 23:40:38.525416Z
+  latest decision id      88
+  decision_created_at     2026-09-08 23:40:43.067080Z
+  as_of                   2026-09-08
+  status                  WAIT
   service_start_utc       2026-09-08 03:51:43Z
+  post-deploy decision    YES
+  history_present         true
+  history_matches         true
+  snapshot_matches        true
+  marker_matches          true
+  signal_state matches    true
   fully_consistent        true
-  post-deploy decision    NO
 ```
 
-Bu nedenle mevcut sınıflandırma:
+Her iki yeni decision da servis başlangıcından sonradır. `model.signal_state.last_evaluated_as_of`, persistent state alanları, `model.decisions.rationale.signal_state`, `public.decision_history` ve `public.decision_snapshot` aynı decision outcome ile eşleşmektedir.
+
+Final runtime sınıflandırması:
 
 ```text
 Runtime binary deployment            VERIFIED
 Built/installed binary identity      VERIFIED
 Service runtime                      VERIFIED / RUNNING
-Current persisted consistency        VERIFIED
-Post-deploy scheduler decision       NOT YET OBSERVED
-Runtime forward verification         OPEN
+Post-deploy ETH/BTC scheduler run    VERIFIED / decision 89
+Post-deploy URA/USD scheduler run    VERIFIED / decision 88
+State/decision/history/snapshot      VERIFIED / fully_consistent=true
+Runtime forward verification         VERIFIED
+Transactional persistence runtime    CLOSED
+Model semantics changed              NO
+LIVE                                 NO-GO
 ```
 
-Görev takvimi normal durumda manuel `--once crypto/ura` çalıştırılmamasını söylediği için yalnız doğrulama amacıyla gereksiz manuel decision üretilmez. Bir sonraki doğal scheduler decision'ı servis başlangıcı `2026-09-08 03:51:43Z` sonrasında oluştuğunda aynı read-only state/history/snapshot tutarlılık kontrolü tekrarlanır. En az bir post-deploy decision için tam eşleşme görüldüğünde runtime forward verification kapatılabilir.
-
-Dolayısıyla **RCA evidence** ve **transactional hardening code/test** kapanmıştır; **runtime binary deployment** doğrulanmıştır; yalnız doğal post-deploy scheduler decision'ına bağlı **runtime forward verification** OPEN kalır.
+Dolayısıyla **RCA evidence**, **transactional hardening code/test**, **runtime binary deployment** ve **runtime forward verification** kapanmıştır. Transactional state-before-decision başlığı artık production/replay açık araştırma listesinde tutulmaz.
 
 Bu belge full production/replay parity'yi kapatmaz. Raw holdings immutable source snapshot/versioning başlığı ayrı OPEN araştırma olarak kalır.
