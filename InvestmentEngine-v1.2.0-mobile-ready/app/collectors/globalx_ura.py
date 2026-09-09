@@ -4,7 +4,7 @@ import csv
 import io
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.http import build_session
 
@@ -26,6 +26,8 @@ class UraHoldingsSnapshot:
     holding_date: str
     source_url: str
     holdings: list[UraHolding]
+    fetched_at: datetime | None = None
+    raw_csv: bytes = b""
 
 
 class GlobalXUraHoldingsCollector:
@@ -62,7 +64,12 @@ class GlobalXUraHoldingsCollector:
         url = override_url.strip() or self.discover_csv_url()
         response = self.session.get(url, timeout=30)
         response.raise_for_status()
-        return self.parse_csv(response.text, url)
+        return self.parse_csv(
+            response.text,
+            url,
+            raw_csv=bytes(response.content),
+            fetched_at=datetime.now(timezone.utc),
+        )
 
     @staticmethod
     def _number(value: str | None) -> float:
@@ -72,7 +79,14 @@ class GlobalXUraHoldingsCollector:
         return float(text)
 
     @classmethod
-    def parse_csv(cls, text: str, source_url: str = "") -> UraHoldingsSnapshot:
+    def parse_csv(
+        cls,
+        text: str,
+        source_url: str = "",
+        *,
+        raw_csv: bytes | None = None,
+        fetched_at: datetime | None = None,
+    ) -> UraHoldingsSnapshot:
         lines = text.replace("\ufeff", "").splitlines()
         if len(lines) < 3:
             raise RuntimeError("Global X URA holdings CSV beklenen yapıda değil.")
@@ -107,4 +121,10 @@ class GlobalXUraHoldingsCollector:
             )
         if not holdings:
             raise RuntimeError("Global X URA holdings CSV içinde constituent bulunamadı.")
-        return UraHoldingsSnapshot(holding_date, source_url, holdings)
+        return UraHoldingsSnapshot(
+            holding_date,
+            source_url,
+            holdings,
+            fetched_at=fetched_at or datetime.now(timezone.utc),
+            raw_csv=raw_csv if raw_csv is not None else text.encode("utf-8"),
+        )

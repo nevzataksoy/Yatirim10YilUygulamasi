@@ -24,6 +24,10 @@ from app.collectors.tcmb import TcmbCollector
 from app.database.db import DatabaseService
 from app.database.decision_persistence import persist_decision_outcome
 from app.database.repository import Repository
+from app.database.ura_holdings_persistence import (
+    get_ura_holdings_snapshot_refs,
+    persist_ura_holdings_snapshot,
+)
 from app.engines.decision import DecisionEngine
 from app.engines.factors import neutral, score_derivatives, score_flow, score_macro, score_momentum, score_trend, score_value, score_volatility
 from app.engines.regime import detect_regime
@@ -172,10 +176,12 @@ class InvestmentEngine:
             # must remain usable if the issuer site is temporarily unavailable.
             try:
                 holdings=self.globalx.fetch(self.settings.ura_holdings_csv_url)
-                self.repo.upsert_ura_holdings(holdings)
+                snapshot_meta=persist_ura_holdings_snapshot(self.db,holdings)
                 breadth_row=self.repo.calculate_and_upsert_ura_breadth(as_of)
                 self.repo.publish_health("URA_HOLDINGS","OK",f"Global X holdings {holdings.holding_date}",{
                     "holding_date":holdings.holding_date,"constituents":len(holdings.holdings),"source_url":holdings.source_url,
+                    "snapshot_id":snapshot_meta["id"],"snapshot_sha256":snapshot_meta["content_sha256"],
+                    "snapshot_fetched_at":snapshot_meta["fetched_at"],
                     "breadth_quality":float((breadth_row or {}).get("quality") or 0),
                 })
             except Exception as holdings_exc:
@@ -190,9 +196,11 @@ class InvestmentEngine:
                 self.sec_event_job()
                 event_health=self.repo.get_health("SEC_EVENTS",max_age_hours=30)
             recent_events=self.repo.recent_events("URA",168)
+            fundamentals_factor=score_ura_holdings_fundamentals(holdings_summary)
+            fundamentals_factor.details["source_snapshots"]=get_ura_holdings_snapshot_refs(self.db,holdings_summary)
             factors={
                 "value":score_value(f),"trend":score_trend(f),"momentum":score_momentum(f),"volatility":score_volatility(f),"macro":macro_factor,
-                "fundamentals":score_ura_holdings_fundamentals(holdings_summary),
+                "fundamentals":fundamentals_factor,
                 "breadth":score_ura_breadth(breadth,as_of),
                 "event":score_event_monitor(event_health,recent_events),
             }
@@ -298,12 +306,14 @@ class InvestmentEngine:
             # holdings/breadth and SEC filing monitoring are refreshed.
             self.macro_job()
             holdings=self.globalx.fetch(self.settings.ura_holdings_csv_url)
-            self.repo.upsert_ura_holdings(holdings)
+            snapshot_meta=persist_ura_holdings_snapshot(self.db,holdings)
             breadth=self.repo.calculate_and_upsert_ura_breadth(holdings.holding_date)
             self.sec_event_job()
             details={
                 "holdings_date":holdings.holding_date,
                 "holdings_count":len(holdings.holdings),
+                "holdings_snapshot_id":snapshot_meta["id"],
+                "holdings_snapshot_sha256":snapshot_meta["content_sha256"],
                 "breadth_quality":float((breadth or {}).get("quality") or 0),
             }
             self.repo.publish_health("WEEKLY","OK","Haftalık veri bakımı tamamlandı",details)
