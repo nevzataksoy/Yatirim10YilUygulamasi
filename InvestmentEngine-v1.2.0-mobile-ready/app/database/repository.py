@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from app.database.db import DatabaseService
 from app.database.feature_rows import build_feature_rows
 from app.models import Decision, FactorScore, PriceBar
+from app.schedule_contract import expected_run_counts
 from app.version import MODEL_VERSION
 
 
@@ -866,16 +867,58 @@ class Repository:
             """, (MODEL_VERSION,))
             by_system = {str(r["system"]): r for r in cur.fetchall()}
 
+            # Shadow readiness job health must represent natural scheduler
+            # execution only. Manual/test/backfill/dependency/maintenance rows
+            # are observability evidence, not scheduler availability evidence.
+            # The denominator is the scheduler contract's expected fire count
+            # inside the active Shadow Epoch, capped to the released 7-day
+            # readiness window.
+            cur.execute("select now() as now_utc")
+            now_utc = (cur.fetchone() or {}).get("now_utc") or datetime.now(timezone.utc)
             cur.execute("""
-                select count(*) as jobs,
-                       count(*) filter(where status in ('OK','DEGRADED','SKIPPED')) as successful
+                select id, started_at
+                from model.shadow_epochs
+                where status='ACTIVE' and model_version=%s
+                order by started_at desc limit 1
+            """, (MODEL_VERSION,))
+            shadow_epoch = cur.fetchone()
+            if not shadow_epoch:
+                raise RuntimeError(
+                    "Aktif Shadow Epoch bulunamadı. Önce migration 0010 uygulanmalıdır."
+                )
+
+            job_window_start = max(
+                shadow_epoch["started_at"],
+                now_utc - timedelta(days=7),
+            )
+            expected_by_job = expected_run_counts(
+                job_window_start,
+                now_utc,
+                self.db.settings.timezone,
+            )
+            scheduled_job_names = set(expected_by_job)
+
+            cur.execute("""
+                select job_name,status,count(*) as n
                 from system.job_runs
-                where started_at >= now()-interval '7 days'
-                  and job_name not in ('realtime_test')
-            """)
-            jobs = cur.fetchone() or {}
-            job_count = int(jobs.get("jobs") or 0)
-            job_success = int(jobs.get("successful") or 0)
+                where shadow_epoch_id=%s
+                  and started_at >= %s and started_at <= %s
+                  and run_kind = any(%s)
+                group by job_name,status
+            """, (
+                shadow_epoch["id"],
+                job_window_start,
+                now_utc,
+                ["scheduled", "scheduled_legacy"],
+            ))
+            scheduler_rows = cur.fetchall()
+            job_count = sum(int(value or 0) for value in expected_by_job.values())
+            job_success = sum(
+                int(row["n"] or 0)
+                for row in scheduler_rows
+                if str(row["job_name"]) in scheduled_job_names
+                and str(row["status"]) in {"OK", "DEGRADED", "SKIPPED"}
+            )
 
             cur.execute("""
                 select finished_at
