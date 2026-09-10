@@ -21,6 +21,7 @@ from app.collectors.fred import FredCollector
 from app.collectors.globalx_ura import GlobalXUraHoldingsCollector
 from app.collectors.sec import SecCollector
 from app.collectors.tcmb import TcmbCollector
+from app.database.data_lifecycle import read_data_lifecycle_snapshot
 from app.database.db import DatabaseService
 from app.database.decision_persistence import persist_decision_outcome
 from app.database.repository import Repository
@@ -326,9 +327,27 @@ class InvestmentEngine:
         try:
             performance=self.repo.evaluate_mature_decisions((5,20,60))
             validation=self.model_validation_job(log_job=False)
+            try:
+                lifecycle=read_data_lifecycle_snapshot(
+                    self.db,
+                    full_fidelity_days=90,
+                    timezone_name=self.settings.timezone,
+                )
+            except Exception as lifecycle_exc:
+                LOG.warning("data lifecycle observability failed: %s", lifecycle_exc, exc_info=True)
+                lifecycle={
+                    "status":"DEGRADED",
+                    "error":str(lifecycle_exc)[:500],
+                    "timezone":self.settings.timezone,
+                    "full_fidelity_days":90,
+                    "maintenance_action":"OBSERVABILITY_FAILED_NO_MUTATION",
+                    "mutation_performed":False,
+                    "delete_authorized":False,
+                }
             details={
                 **performance,
                 "validation":validation,
+                "data_lifecycle":lifecycle,
                 "weights_changed":False,
                 "note":"Performance ve validation ölçülür; factor ağırlıkları/thresholdlar otomatik değiştirilmez.",
             }
