@@ -9,9 +9,10 @@
 - Hardened runtime build: **VERIFIED**
 - Installer build: **VERIFIED**
 - Artifact SHA-256 identity: **VERIFIED**
-- Production runtime deployment: **OPEN**
+- Production runtime deployment: **VERIFIED**
 - Production migration 0015 execution: **OPEN**
 - Post-migration verification: **OPEN**
+- Natural macro duplicate-prevention forward verification: **OPEN**
 - Model semantics: **UNCHANGED**
 - LIVE: **NO-GO**
 
@@ -79,7 +80,7 @@ Full regression                      87/87 PASS
 Runtime duplicate prevention         VERIFIED / DEVELOPMENT
 Deterministic macro reads            VERIFIED / DEVELOPMENT
 0015 migration contract              VERIFIED / DEVELOPMENT
-Production runtime deploy            OPEN
+Production runtime deploy            VERIFIED
 Production 0015 migration            OPEN
 Post-migration forward verification  OPEN
 Model semantics                      UNCHANGED
@@ -118,34 +119,60 @@ Build warnings observed but non-blocking for this artifact because the build com
 
 These warnings remain maintenance observations, not P2.3 blockers unless runtime evidence shows failure.
 
+## Production runtime deployment evidence
+
+Hardened installer production makinede çalıştırıldı. Post-install doğrulama:
+
+```text
+Expected EXE SHA256
+B426B6D452B0AAA8773747DE693B4EF8F9DB7E12412DA19ADCA5A16E290E1012
+
+Installed EXE SHA256
+B426B6D452B0AAA8773747DE693B4EF8F9DB7E12412DA19ADCA5A16E290E1012
+
+settings exists    True
+rosalock exists    True
+Service            RosaInvestmentEngine
+State              RUNNING
+StartType          Automatic
+WIN32_EXIT_CODE    0
+SERVICE_EXIT_CODE  0
+```
+
+Binary identity exact match olduğu için hardened runtime production deployment **VERIFIED** kabul edilir. Generated `settings` ve `rosalock` korunmuştur; Windows Service çalışır durumdadır.
+
 Updated classification:
 
 ```text
-Focused macro tests                  7/7 PASS
-Full regression pre-build            87/87 PASS
-Full regression in build             87/87 PASS
-Release check                        VERIFIED
-PyInstaller runtime build            VERIFIED
-Inno Setup installer build           VERIFIED
-Runtime EXE SHA256                    VERIFIED
-Installer SHA256                      VERIFIED
-Production runtime deploy            OPEN
-Production 0015 migration            OPEN
-Post-migration forward verification  OPEN
-Model semantics                      UNCHANGED
-LIVE                                 NO-GO
+Focused macro tests                    7/7 PASS
+Full regression pre-build              87/87 PASS
+Full regression in build               87/87 PASS
+Release check                          VERIFIED
+PyInstaller runtime build              VERIFIED
+Inno Setup installer build             VERIFIED
+Runtime EXE SHA256                      VERIFIED
+Installer SHA256                        VERIFIED
+Installed binary identity              VERIFIED
+Windows Service runtime                VERIFIED
+settings/rosalock preserved            VERIFIED
+Production runtime deploy              VERIFIED
+Production 0015 migration              OPEN
+Post-migration verification            OPEN
+Natural macro prevention verification  OPEN
+Model semantics                        UNCHANGED
+LIVE                                   NO-GO
 ```
 
 ## Deployment order
 
 Production güvenliği için sıra:
 
-1. hardened runtime build + installer oluştur,
-2. artifact SHA-256 al,
-3. yeni runtime'ı deploy et ve Windows Service/binari identity doğrula,
-4. ardından migration 0015'i production DB'ye uygula,
+1. hardened runtime build + installer oluştur — **DONE**,
+2. artifact SHA-256 al — **DONE**,
+3. yeni runtime'ı deploy et ve Windows Service/binari identity doğrula — **DONE**,
+4. migration 0015'i production DB'ye uygula — **NEXT**,
 5. `verification/verify_macro_observations_p2_3_post_migration.sql` çalıştır,
 6. natural macro scheduler koşusundan sonra aynı-value refetch'in yeni row üretmediğini forward verify et,
 7. ancak bu kanıtlardan sonra P2.3 production implementation CLOSED yapılabilir.
 
-Migration runtime'dan önce uygulanmamalıdır; hardened runtime her iki schema ile uyumludur ve güvenli geçiş sırası runtime-first olarak belirlenmiştir.
+Migration runtime'dan önce uygulanmamıştır; runtime-first deployment sırası korunmuştur.
