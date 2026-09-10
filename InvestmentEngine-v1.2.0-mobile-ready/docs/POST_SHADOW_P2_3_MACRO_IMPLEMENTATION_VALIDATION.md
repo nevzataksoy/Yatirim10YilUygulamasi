@@ -2,17 +2,18 @@
 
 ## Status
 
-- Runtime duplicate prevention implementation: **VERIFIED / DEVELOPMENT**
-- Deterministic latest-read contract: **VERIFIED / DEVELOPMENT**
-- Deterministic macro history projection: **VERIFIED / DEVELOPMENT**
-- Migration 0015 contract tests: **VERIFIED / DEVELOPMENT**
+- Runtime duplicate prevention implementation: **VERIFIED**
+- Deterministic latest-read contract: **VERIFIED**
+- Deterministic macro history projection: **VERIFIED**
+- Migration 0015 contract tests: **VERIFIED**
 - Hardened runtime build: **VERIFIED**
 - Installer build: **VERIFIED**
 - Artifact SHA-256 identity: **VERIFIED**
 - Production runtime deployment: **VERIFIED**
 - Production migration 0015 execution: **VERIFIED**
 - Post-migration verification: **VERIFIED**
-- Natural macro duplicate-prevention forward verification: **OPEN**
+- Natural macro duplicate-prevention forward verification: **VERIFIED**
+- P2.3 production implementation: **CLOSED**
 - Model semantics: **UNCHANGED**
 - LIVE: **NO-GO**
 
@@ -64,7 +65,7 @@ Migration production'a runtime-first sıra korunarak uygulanmıştır.
 
 Kullanıcı local repo:
 
-- HEAD: `0a62eb0`
+- implementation HEAD: `0a62eb0`
 - focused tests:
   - `tests/test_macro_observations_persistence.py`
   - `tests/test_macro_observations_migration_contract.py`
@@ -72,25 +73,9 @@ Kullanıcı local repo:
 - full regression:
   - result: **87 passed in 8.88s**
 
-Classification:
-
-```text
-Focused macro tests                  7/7 PASS
-Full regression                      87/87 PASS
-Runtime duplicate prevention         VERIFIED / DEVELOPMENT
-Deterministic macro reads            VERIFIED / DEVELOPMENT
-0015 migration contract              VERIFIED / DEVELOPMENT
-Production runtime deploy            VERIFIED
-Production 0015 migration            VERIFIED
-Post-migration verification          VERIFIED
-Natural forward verification         OPEN
-Model semantics                      UNCHANGED
-LIVE                                 NO-GO
-```
-
 ## Build and artifact validation evidence
 
-Kullanıcı local repo build öncesinde `d979a6e` HEAD'e fast-forward edildi. `build.bat` çıktısı:
+`build.bat` çıktısı:
 
 - Python compile kontrolü: **PASS**
 - full regression during build: **87 passed in 2.85s**
@@ -113,16 +98,14 @@ Size   54,582,223 bytes
 SHA256 AB87DE9D32F8C874908B94FBF6DCDBEF72D579E1A370A66794C1BD6BE43593AF
 ```
 
-Build warnings observed but non-blocking for this artifact because the build completed successfully and required PyQt5 SIP binary was packaged:
+Build warnings observed but non-blocking for this artifact because build completed and required PyQt5 SIP binary was packaged:
 
 - PyInstaller admin-mode deprecation warning
 - `Hidden import "sip" not found!`
 
-These warnings remain maintenance observations, not P2.3 blockers unless runtime evidence shows failure.
-
 ## Production runtime deployment evidence
 
-Hardened installer production makinede çalıştırıldı. Post-install doğrulama:
+Post-install doğrulama:
 
 ```text
 Expected EXE SHA256
@@ -140,23 +123,17 @@ WIN32_EXIT_CODE    0
 SERVICE_EXIT_CODE  0
 ```
 
-Binary identity exact match olduğu için hardened runtime production deployment **VERIFIED** kabul edilir. Generated `settings` ve `rosalock` korunmuştur; Windows Service çalışır durumdadır.
+Binary identity exact match olduğu için hardened runtime production deployment **VERIFIED** kabul edilir.
 
 ## Production migration 0015 evidence
 
-Migration `0015_macro_observations_transition_dedup.sql` production Supabase üzerinde başarıyla çalıştırıldı:
+Migration `0015_macro_observations_transition_dedup.sql` production Supabase üzerinde başarıyla çalıştırıldı.
 
-```text
-Success. No rows returned
-```
-
-Hemen ardından `verification/verify_macro_observations_p2_3_post_migration.sql` çalıştırıldı.
-
-Check time:
+Post-migration check time:
 
 - `2026-09-10T00:55:41.210674+00:00`
 
-Post-migration evidence:
+Evidence:
 
 | Metric | Result |
 |---|---:|
@@ -172,53 +149,66 @@ Post-migration evidence:
 | version_index_present | true |
 | safe_cleanup_complete | true |
 
-Bu sonuç dry-run ile öngörülen retained transition setini production'da birebir doğrulamıştır. Persisted decision reference parity korunmuş, ardışık same-value current-view tekrarları tamamen kaldırılmış, legacy unique constraint kaldırılmış ve deterministic version index etkinleştirilmiştir.
+Bu sonuç dry-run ile öngörülen retained transition setini production'da birebir doğrulamıştır.
 
-Production cleanup/schema classification:
+## Natural scheduler forward verification evidence
+
+`verification/verify_macro_observations_p2_3_forward.sql` doğal scheduler koşusundan sonra çalıştırıldı.
+
+Forward check:
+
+- checked_at: `2026-09-10T04:48:51.925231+00:00`
+- baseline boundary: `2026-09-10T00:55:41.210674+00:00`
+- latest natural `macro_job` id: `2304`
+- run_kind: `scheduled`
+- status: `OK`
+- message: `FRED serileri güncel (quality 97.5)`
+- started_at: `2026-09-10T03:15:00.006946+00:00` = `10.09.2026 06:15 TRT`
+- finished_at: `2026-09-10T03:15:25.572946+00:00`
+
+Forward result:
+
+| Metric | Result |
+|---|---:|
+| baseline_total_rows | 20,433 |
+| total_rows | 20,434 |
+| total_row_delta | +1 |
+| post_boundary new_rows | 1 |
+| post_boundary new_observation_rows | 1 |
+| post_boundary value_transition_rows | 0 |
+| post_boundary duplicate_same_value_rows | 0 |
+| consecutive_same_value_rows | 0 |
+| decision_refs_checked | 680 |
+| decision_refs_preserved | 680 |
+| decision_refs_lost | 0 |
+| legacy_unique_constraint_present | false |
+| version_index_present | true |
+| forward_contract_complete | true |
+
+`+1` row gerçek yeni observation'dır. Hardened writer doğal macro akışında same-value current-view refetch üretmemiştir. Decision reference parity korunmuş ve cleanup sonrası schema kontratı bozulmamıştır.
+
+## Final classification
 
 ```text
-Production migration 0015             VERIFIED
-Production retained rows               20433
-Consecutive same-value rows             0
-Decision refs preserved                 672/672
-Decision refs lost                      0
-Legacy unique constraint                REMOVED
-Deterministic version index             PRESENT
-Safe cleanup contract                   true
-Natural duplicate-prevention proof      OPEN
-Model semantics                         UNCHANGED
-LIVE                                    NO-GO
+P2.3 safe dedup dry-run                  VERIFIED / CLOSED
+Runtime duplicate prevention            VERIFIED / DEPLOYED
+Deterministic macro reads                VERIFIED / DEPLOYED
+Migration 0015                           VERIFIED / APPLIED
+Production retained rows after cleanup   20433
+Natural scheduled macro_job              VERIFIED / id 2304
+Legitimate post-boundary new rows         1
+Post-boundary same-value duplicates       0
+Global consecutive same-value rows        0
+Decision refs preserved                  680/680
+Decision refs lost                        0
+Forward contract                         true
+P2.3 production implementation           CLOSED
+Model semantics                          UNCHANGED
+LIVE                                     NO-GO
 ```
 
-## Remaining forward verification
+## Next scope
 
-P2.3 production implementation'ın kapanması için yalnız hardened writer'ın doğal scheduler koşusunda yeni same-value duplicate üretmediğinin kanıtı kalmıştır.
+P2.3 kapanmıştır. Sonraki ayrı iş **P2.4 macro retention policy + maintenance**'tır ve Oturum12 içinde başlatılmamıştır.
 
-Migration sonrası doğrulama sınırı:
-
-- `2026-09-10T00:55:41.210674+00:00`
-
-Bir sonraki doğal `macro_job` sonrasında forward verification şunları kanıtlamalıdır:
-
-1. `macro_job` bu sınırdan sonra doğal scheduled run olarak tamamlanmış olmalı.
-2. Yeni yazılan hiçbir row, kendi `(series_id, observation_date)` transition zincirinde previous value ile aynı olmamalı.
-3. Global `consecutive_same_value_rows` tekrar `0` kalmalı.
-4. Decision reference parity kaybolmamalı.
-5. Legacy unique constraint geri gelmemeli ve deterministic version index mevcut kalmalı.
-6. Legitimate new observation veya value revision satırları kabul edilir; beklenen kontrat `total_rows hiç artmasın` değildir.
-
-Bu forward evidence alınana kadar P2.3 production implementation **OPEN** kalır.
-
-## Deployment order
-
-Production güvenliği için sıra:
-
-1. hardened runtime build + installer oluştur — **DONE**,
-2. artifact SHA-256 al — **DONE**,
-3. yeni runtime'ı deploy et ve Windows Service/binari identity doğrula — **DONE**,
-4. migration 0015'i production DB'ye uygula — **DONE**,
-5. `verification/verify_macro_observations_p2_3_post_migration.sql` çalıştır — **DONE / VERIFIED**,
-6. natural macro scheduler koşusundan sonra same-value refetch'in yeni row üretmediğini forward verify et — **NEXT**,
-7. ancak bu kanıtlardan sonra P2.3 production implementation CLOSED yapılabilir.
-
-Migration runtime'dan önce uygulanmamıştır; runtime-first deployment sırası korunmuştur.
+P2.4, P2.3 dedup problemini yeniden çözmeye çalışmamalıdır. Legitimate value-transition/revision lineage ve decision/replay evidence korunmalı; blind age-based delete uygulanmamalıdır. Fiziksel alan geri kazanımı veya `VACUUM FULL` gibi agresif bakım işlemleri ayrıca değerlendirilmelidir. Autonomous maintenance için mevcut `monthly_audit_job`, bounded batch, dry-run/count mode, summary logging ve güvenli transaction boundary tercih edilmelidir.
