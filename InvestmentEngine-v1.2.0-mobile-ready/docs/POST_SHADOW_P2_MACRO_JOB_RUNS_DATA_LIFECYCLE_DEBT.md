@@ -2,7 +2,7 @@
 
 Tarih: 09 Eylül 2026  
 Son durum güncellemesi: 10 Eylül 2026  
-Durum: `OPEN — P2.1/P2.2/P2.3/P2.4/P2.5/P2.6 CLOSED; P2.7 NEXT`  
+Durum: `CLOSED — P2.1/P2.2/P2.3/P2.4/P2.5/P2.6/P2.7 CLOSED`  
 Model version: `1.2.0`  
 Mode: `SHADOW`  
 LIVE: `NO-GO`
@@ -299,21 +299,55 @@ Canonical evidence:
 - `verification/verify_job_runs_p2_6_retention_policy_dry_run.sql`
 - `docs/POST_SHADOW_P2_6_JOB_RUNS_RETENTION_POLICY_CONTRACT.md`
 
-### P2.7 — Autonomous bounded maintenance integration — NEXT / OPEN
+### P2.7 — Autonomous bounded maintenance integration — CLOSED
 
-P2.4 macro kontratı ve P2.6 job-runs kontratı birlikte değerlendirilerek mevcut scheduler mimarisine gerçekten gerekli en küçük maintenance/observability entegrasyonu yapılır.
+P2.4 macro kontratı ve P2.6 job-runs kontratı mevcut scheduler mimarisine observability-first ve mutation-free biçimde entegre edildi.
 
-Accepted integration boundary:
+Uygulanan integration boundary:
 
+- lifecycle observability için tek amaçlı `read_data_lifecycle_snapshot(...)` helper'ı eklendi,
+- helper yalnız read-only SQL çalıştırır,
 - P2.4 gereği macro tarafında recurring DELETE yoktur,
-- P2.6 gereği job_runs için 90 günlük full-fidelity + evidence-aware candidate classifier vardır,
-- yeni scheduler/queue katmanı eklenmez,
-- ilk doğal entegrasyon noktası mevcut `monthly_audit_job`dır,
-- önce bounded growth/physical-health observability tercih edilir,
-- candidate yoksa maintenance `NO-OP` olabilir,
-- candidate varsa bile bounded batch + safety invariant doğrulanmadan mutation yapılmaz,
-- `VACUUM FULL` otomatik maintenance değildir,
-- scheduler cadence ve model semantics değişmez.
+- P2.6 gereği job_runs için 90 günlük full-fidelity + evidence-aware candidate classifier izlenir,
+- yeni scheduler/queue katmanı eklenmedi,
+- mevcut `monthly_audit_job` entegrasyon noktası olarak kullanıldı,
+- candidate yoksa maintenance action `NO_OP`,
+- candidate varsa yalnız `OBSERVE_CANDIDATES_ONLY`,
+- candidate hiçbir durumda DELETE yetkisi değildir,
+- mutation yapılmaz ve `delete_authorized=false` kalır,
+- otomatik `VACUUM FULL` yoktur,
+- lifecycle observability hatası ana `MODEL_AUDIT` job'unu ERROR'a çeviren yeni readiness gate oluşturmaz,
+- scheduler cadence ve model semantics değişmedi.
+
+Production closure evidence:
+
+```text
+Implementation                         PASS
+Targeted tests                         4/4 PASS
+Full test suite                        91/91 PASS
+Production read-only validation        PASS
+Windows deployment                     PASS
+Service Running/Automatic              PASS
+Natural scheduled hourly_job           PASS
+Natural scheduled sec_event_job        PASS
+Maintenance action                     NO_OP
+Production mutation                    NONE
+Delete authorization                   FALSE
+```
+
+Canonical evidence:
+
+- `docs/POST_SHADOW_P2_7_DATA_LIFECYCLE_OBSERVABILITY_PRODUCTION_DEPLOYMENT.md`
+- `verification/verify_data_lifecycle_p2_7_production_readonly.sql`
+
+İlk doğal `monthly_audit_job` lifecycle observation'ı **1 Ekim 2026 09:00 Europe/Istanbul** zamanında beklenmektedir. Bu gelecekteki operational forward observation'dır; P2.7 kapanış blocker'ı değildir. Natural scheduler evidence'i kirletmemek için manuel monthly tetikleme yapılmamıştır ve bu kapanış için gerekmemektedir.
+
+Sonuç:
+
+```text
+P2.7 autonomous bounded maintenance integration     CLOSED
+P2 lifecycle debt                                   CLOSED
+```
 
 ## 4. Güncel görev sırası
 
@@ -325,8 +359,11 @@ P2.3  macro dedup + future duplicate prevention      CLOSED
 P2.4  macro retention policy + maintenance           CLOSED
 P2.5  job_runs production baseline                   CLOSED
 P2.6  job_runs evidence-aware retention policy       CLOSED
-P2.7  autonomous bounded maintenance integration     NEXT / OPEN
+P2.7  autonomous bounded maintenance integration     CLOSED
+P2     overall data lifecycle debt                    CLOSED
 ```
+
+P2 sonrasındaki ayrı teknik borç, `shadow_readiness_stats()` içindeki provenance/run-kind kapsamının read-only production baseline ile analiz edilmesidir. Bu yeni konu P2 retention çalışmasının parçası değildir; önce mevcut readiness consumer'ları ve son 7/30 günlük `run_kind` etkisi ölçülmeden runtime SQL veya readiness semantiği değiştirilmemelidir.
 
 ## 5. Model/LIVE sınırı
 
