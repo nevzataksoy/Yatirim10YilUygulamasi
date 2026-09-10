@@ -2,7 +2,7 @@
 
 Tarih: 09 Eylül 2026  
 Son durum güncellemesi: 10 Eylül 2026  
-Durum: `OPEN — P2.1/P2.2/P2.3/P2.4/P2.5 CLOSED; P2.6 NEXT`  
+Durum: `OPEN — P2.1/P2.2/P2.3/P2.4/P2.5/P2.6 CLOSED; P2.7 NEXT`  
 Model version: `1.2.0`  
 Mode: `SHADOW`  
 LIVE: `NO-GO`
@@ -220,34 +220,100 @@ Canonical evidence:
 - `verification/verify_job_runs_p2_5_production_baseline.sql`
 - `docs/POST_SHADOW_P2_5_JOB_RUNS_PRODUCTION_BASELINE.md`
 
-### P2.6 — Evidence-aware retention policy — NEXT / OPEN
+### P2.6 — Evidence-aware retention policy — CLOSED
 
-P2.5 kanıtı, tek tip age-based retention'ın güvenli olmadığını gösterir. P2.6 en az şu sınıfları ayrı ele almalıdır:
+P2.6 production üzerinde READ-ONLY classifier/dry-run ile tamamlandı.
+
+Accepted full-fidelity window:
 
 ```text
-ROUTINE SUCCESS TELEMETRY
-ROUTINE DEGRADED TELEMETRY
-ERROR / INCIDENT EVIDENCE
-MANUAL / BACKFILL / TEST EVIDENCE
-RELEASE / SHADOW MILESTONE EVIDENCE
+90 days
 ```
 
-P2.6 minimum güvenlik sınırları:
+Dry-run safety sonucu:
 
-- current 7-day readiness window kesin korunur,
-- ERROR/incident evidence kör age cutoff ile silinmez,
-- DEGRADED telemetry `OK` ile otomatik aynı sınıfa konmaz,
-- manual/backfill/test evidence düşük hacimli yüksek değerli kanıt olarak ayrılır,
-- pre-epoch/release/bootstrap history doğrudan routine telemetry kabul edilmez,
-- `scheduled_legacy` provenance limitation retention gerekçesi değildir,
-- deletion candidate set varsa önce read-only/dry-run ile ölçülür,
-- herhangi bir DELETE/migration/scheduler change ancak evidence sonrası ayrıca onaylanır.
+```text
+groups checked                                      73
+groups missing daily anchor                          0
+classifier safety complete                        true
+incident rows candidate                            false
+milestone rows candidate                           false
+provenance gaps candidate                          false
+non-scheduler evidence candidate                   false
+status/message boundaries candidate                false
+current readiness window touched                   false
+```
 
-### P2.7 — Autonomous bounded maintenance integration — OPEN
+30 günlük agresif simülasyon yalnız classifier safety testi olarak kullanıldı:
+
+```text
+rows older than cutoff             675
+compaction candidates              511
+protected rows                     164
+candidate OK                       270
+candidate DEGRADED                 241
+candidate payload bytes        230,365
+```
+
+Protected evidence dağılımı:
+
+```text
+daily first/last anchors             89
+status/message boundaries            42
+provenance gaps                      13
+non-scheduler evidence               12
+incident/unknown status               7
+milestone job                         1
+```
+
+Accepted policy:
+
+- son 90 gün full-fidelity korunur,
+- ERROR/unknown status her yaşta korunur,
+- manual/test/backfill/development korunur,
+- maintenance/dependency/legacy routine-delete adayı değildir,
+- `shadow_epoch_id IS NULL` provenance boşlukları korunur,
+- release/audit/milestone job'ları korunur,
+- status/message transition boundaries korunur,
+- Europe/Istanbul gününde her `job_name + run_kind + status + root_job_name` grubunun ilk/son satırı korunur,
+- yalnız 90 günden eski `scheduled/scheduled_legacy + OK/DEGRADED/SKIPPED` intra-day repetition, tüm koruma kuralları geçildikten sonra `COMPACTION_CANDIDATE` olabilir.
+
+DEGRADED telemetry bütünüyle routine OK gibi ele alınmaz. Yeni degradation/boundary/daily anchor korunur; yalnız aynı semantic segment içindeki eski tekrarlı satırlar candidate olabilir.
+
+Current production sonucu:
+
+```text
+90d rows older than cutoff            0
+90d compaction candidate              0
+production DELETE                     NONE
+production compaction                 NOT REQUIRED
+VACUUM FULL                           NOT JUSTIFIED
+```
+
+10 yıllık unbounded projection yaklaşık `200,993` row ve `89,306,010` payload byte seviyesindedir. Bu, bugün agresif cleanup gerektiren storage pressure kanıtı değildir.
+
+Bu nedenle P2.6 accepted contract bir zorunlu DELETE takvimi değil, gelecekte uygulanabilecek güvenli eligibility sınırıdır. P2.7 candidate yoksa `NO-OP` davranabilmeli; sırf 90 gün doldu diye mutation üretmemelidir.
+
+Canonical evidence:
+
+- `verification/verify_job_runs_p2_6_retention_policy_dry_run.sql`
+- `docs/POST_SHADOW_P2_6_JOB_RUNS_RETENTION_POLICY_CONTRACT.md`
+
+### P2.7 — Autonomous bounded maintenance integration — NEXT / OPEN
 
 P2.4 macro kontratı ve P2.6 job-runs kontratı birlikte değerlendirilerek mevcut scheduler mimarisine gerçekten gerekli en küçük maintenance/observability entegrasyonu yapılır.
 
-P2.4 gereği macro tarafında bugün kanıtlanmış recurring DELETE yoktur. P2.7 macro için cleanup uydurmamalı; gerekirse yalnız bounded/read-only growth/physical-health observability eklemelidir.
+Accepted integration boundary:
+
+- P2.4 gereği macro tarafında recurring DELETE yoktur,
+- P2.6 gereği job_runs için 90 günlük full-fidelity + evidence-aware candidate classifier vardır,
+- yeni scheduler/queue katmanı eklenmez,
+- ilk doğal entegrasyon noktası mevcut `monthly_audit_job`dır,
+- önce bounded growth/physical-health observability tercih edilir,
+- candidate yoksa maintenance `NO-OP` olabilir,
+- candidate varsa bile bounded batch + safety invariant doğrulanmadan mutation yapılmaz,
+- `VACUUM FULL` otomatik maintenance değildir,
+- scheduler cadence ve model semantics değişmez.
 
 ## 4. Güncel görev sırası
 
@@ -258,8 +324,8 @@ P2.2  macro deterministic read/version contract      CLOSED
 P2.3  macro dedup + future duplicate prevention      CLOSED
 P2.4  macro retention policy + maintenance           CLOSED
 P2.5  job_runs production baseline                   CLOSED
-P2.6  job_runs evidence-aware retention policy       NEXT / OPEN
-P2.7  autonomous bounded maintenance integration     OPEN
+P2.6  job_runs evidence-aware retention policy       CLOSED
+P2.7  autonomous bounded maintenance integration     NEXT / OPEN
 ```
 
 ## 5. Model/LIVE sınırı
