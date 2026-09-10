@@ -1,7 +1,8 @@
 # Post-Shadow P2 — Macro Observations ve Job Runs Veri Yaşam Döngüsü Görev Borcu
 
 Tarih: 09 Eylül 2026  
-Durum: `OPEN (Açık)`  
+Son durum güncellemesi: 10 Eylül 2026  
+Durum: `OPEN — P2.1/P2.2/P2.3 CLOSED; P2.4 NEXT`  
 Model version: `1.2.0`  
 Mode: `SHADOW`  
 LIVE: `NO-GO`
@@ -13,221 +14,161 @@ Bu görev borcu iki büyüyen production tablosunun veri yaşam döngüsünü ka
 1. `macro.observations`
 2. `system.job_runs`
 
-Amaç tabloyu yalnız küçültmek değildir. Önce hangi satırların karar, validation, readiness ve operasyonel RCA tarafından gerçekten kullanıldığını ayırmak; sonra güvenli dedup/retention politikasını uygulamaktır.
+Amaç yalnız tablo küçültmek değildir. Karar, validation, readiness ve operasyonel RCA için gereken kanıt korunurken semantik olarak gereksiz veri üretiminin engellenmesi ve güvenli retention/maintenance politikasının kurulmasıdır.
 
-Bu başlık FRED strict-PIT/ALFRED doğrulamasından ayrıdır. Strict-PIT verification sub-stage daha önce kapanmıştır. Buradaki konu released production collector'ın current-view verisini nasıl sakladığı ve production telemetry geçmişinin ne kadar tutulması gerektiğidir.
+Bu başlık strict FRED/ALFRED PIT doğrulamasından ayrıdır. Threshold, factor weight, K1/K2, reset, sizing, scheduler cadence veya SHADOW/LIVE davranışını otomatik değiştirmez.
 
-Bu görev threshold, factor weight, K1/K2, reset, sizing, scheduler cadence veya SHADOW/LIVE davranışını otomatik değiştirmez.
+## 2. Tamamlanan macro.observations aşamaları
 
----
+### P2.1 — Production baseline / duplicate sınıflandırması — CLOSED
 
-## 2. `macro.observations` — mevcut üretici akışları
+Production baseline şu problemi doğruladı:
 
-### 2.1 Production collector
+- toplam row: `295,123`
+- `(series_id, observation_date)` grubu: `11,809`
+- dominant problem: aynı value'nun farklı current-view fetch günlerinde tekrar kalıcılaştırılması
+- gerçek FRED value revision geçmişi de mevcut; özellikle `STLFSI4` geniş revision lineage taşır
+- conflict UPDATE churn de production'da doğrulandı
 
-`FredCollector.fetch_series(series_id, limit=1500)` FRED current real-time view'dan her seri için en fazla son 1500 observation'ı çeker.
+Blind `UNIQUE(series_id, observation_date)` yaklaşımı gerçek revision bilgisini kaybedeceği için reddedildi.
 
-Production path strict ALFRED history çekmez. `fetch_realtime_history()` yalnız verification/PIT çalışmaları içindir ve DB'ye yazmaz.
+Canonical evidence:
 
-### 2.2 Scheduler üretimi
+- `docs/POST_SHADOW_P2_1_MACRO_OBSERVATIONS_PRODUCTION_BASELINE.md`
 
-`macro_job` scheduler contract'ta günde dört kez çalışır:
+### P2.2 — Deterministic production/validation read contract — CLOSED
 
-```text
-00:15
-06:15
-12:15
-18:15
-Europe/Istanbul
-```
+FRED current-view collector `realtime_start/realtime_end` parametrelerini göndermediğinden bu alanların gün değiştirmesi tek başına ekonomik value revision kabul edilmez.
 
-Her çalışmada configured FRED serilerinin tamamı için:
+Kontrat:
 
-```text
-fetch_series(series_id)
- -> upsert_macro(...)
-```
+- historical karar için bugünkü current-latest row authoritative değildir,
+- live karar için evaluation anında gerçekten mevcut latest current-view bilgi esastır,
+- pre-hardening exact intraday first-seen provenance'ın önemli bölümü artık reconstruct edilemez,
+- strict ALFRED/PIT doğrulaması ayrı doğrulama yolu olarak kalır,
+- deterministic tie-break gerekir.
 
-akışı çalışır.
+Canonical evidence:
 
-Ayrıca `weekly_job` kendi içinde tekrar `macro_job()` çağırır. Bu nedenle Cumartesi haftalık bakım akışı normal dört günlük macro schedule'ına ilave bir macro fetch/persistence çalıştırabilir.
+- `docs/POST_SHADOW_P2_2_MACRO_DETERMINISTIC_READ_CONTRACT.md`
 
-### 2.3 Mevcut persistence anahtarı
+### P2.3 — Safe dedup + future duplicate prevention — CLOSED
 
-`macro.observations` schema:
+Dry-run value-transition classifier production üzerinde doğrulandı:
 
-```text
-id
-series_id
-observation_date
-value
-realtime_start
-realtime_end
-fetched_at
-UNIQUE(series_id, observation_date, realtime_start)
-```
+- dry-run total: `295,123`
+- retained transition rows: `20,433`
+- candidate delete rows: `274,690`
+- delete candidate oranı: yaklaşık `%93.08`
+- revision groups: `1,505`
+- value-reversion groups: `57`
+- decision refs preserved: `672/672`
+- decision refs lost: `0`
+- `safe_dedup_contract_complete=true`
 
-Repository persistence:
+`A -> A -> B -> B -> A` örneğinde yalnız ardışık aynı-value tekrarları redundant kabul edilir; gerçek `A -> B -> A` reversion lineage korunur.
 
-```sql
-on conflict(series_id,observation_date,realtime_start) do update set
-  value=excluded.value,
-  realtime_end=excluded.realtime_end,
-  fetched_at=now()
-```
+Runtime hardening:
 
-Bu yapı aynı `(series_id, observation_date, realtime_start)` satırını tekrar üretmez; ancak `realtime_start` farklıysa aynı observation date/value için ayrı satır tutulabilir.
+- incoming value latest retained value ile aynıysa INSERT yok,
+- same-value refetch UPDATE yapmaz ve `fetched_at`ı ileri taşımaz,
+- value değişmişse yeni immutable transition row yazılır,
+- same-series writer'lar transaction advisory lock ile serialize edilir,
+- latest/history okumaları explicit deterministic ordering kullanır.
 
-FRED current-view çağrılarının farklı fetch günlerinde aynı observation için farklı `realtime_start` üretip üretmediği production DB üzerinde nicelleştirilmeden bu satırlar "mükerrer" diye silinmez.
+Migration `0015_macro_observations_transition_dedup.sql` production'a uygulanmıştır:
 
----
+- retained rows: `20,433`
+- consecutive same-value rows: `0`
+- decision refs: `672/672` preserved
+- legacy `UNIQUE(series_id, observation_date,realtime_start)`: removed
+- deterministic version index: present
+- `safe_cleanup_complete=true`
 
-## 3. `macro.observations` — mevcut tüketici akışları
+Natural scheduler forward verification da tamamlandı:
 
-### 3.1 Güncel karar akışı
+- natural `macro_job` id: `2304`
+- run_kind: `scheduled`
+- status: `OK`
+- start: `2026-09-10T03:15:00.006946+00:00` = `10.09.2026 06:15 TRT`
+- baseline rows: `20,433`
+- post-run rows: `20,434`
+- new legitimate observation: `1`
+- post-boundary same-value duplicate: `0`
+- global consecutive same-value rows: `0`
+- decision refs: `680/680` preserved
+- `forward_contract_complete=true`
 
-`get_latest_macro_observations(series_ids, as_of)` her seri için:
+Dolayısıyla hem mevcut şişkinlik temizlenmiş hem de aynı problemin normal production ingest ile yeniden üretilmesini engelleyen writer kontratı forward-verified olmuştur.
 
-```sql
-where observation_date <= as_of
-order by observation_date desc
-limit 1
-```
+Canonical evidence:
 
-kullanır.
+- `docs/POST_SHADOW_P2_3_MACRO_SAFE_DEDUP_DRY_RUN.md`
+- `docs/POST_SHADOW_P2_3_MACRO_IMPLEMENTATION_VALIDATION.md`
+- `verification/verify_macro_observations_p2_3_forward.sql`
 
-Bu sonuç:
+## 3. P2.4 — Macro retention policy + maintenance — NEXT / OPEN
 
-- `daily_crypto_job` -> `score_macro()` -> ETH/BTC decision,
-- `daily_ura_job` -> `score_macro()` -> URA/USD decision,
-- `macro_job` health/freshness hesabı
+P2.4 Oturum12 içinde **başlatılmamıştır**. Oturum13'ün ilk yeni görevidir.
 
-için kullanılır.
+P2.4'ün görevi P2.3 dedup problemini tekrar çözmek değildir. Aynı-value duplicate prevention artık production'da CLOSED'dur.
 
-Önemli görev borcu: sorgu aynı `observation_date` için birden çok row varsa `realtime_start`, `fetched_at` veya `id` ile explicit tie-break yapmaz. Production duplicate/version yapısı ölçüldükten sonra deterministic selection kontratı belirlenmelidir.
+Retention tasarımı minimum şu kanıtları korumalıdır:
 
-### 3.2 Historical validation/replay
-
-`get_macro_history()` şu anda requested series için `macro.observations` satırlarının tamamını döndürür:
-
-```sql
-order by series_id, observation_date
-```
-
-`model_validation_job()` bunu `replay_ethbtc_core()` içine verir.
-
-Replay tarafında `_prepare_macro_history()` satırları yalnız `observation_date` ile sıralar; `_macro_asof()` aynı tarihte son sırada kalan satırı seçer. Aynı observation date için birden fazla production-current version bulunuyorsa seçim explicit bir version kontratına bağlı değildir.
-
-Bu nedenle `macro.observations` şişmesi yalnız storage problemi değildir; mükerrer/version semantiği deterministic replay davranışını da etkileyebilir.
-
----
-
-## 4. `macro.observations` için P2 görev sırası
-
-### P2.1 — Production baseline / duplicate sınıflandırması
-
-İlk iş read-only SQL ile şunları ölçmektir:
-
-- tablo toplam row ve physical size,
-- series bazında row sayıları,
-- `(series_id, observation_date)` başına version sayısı,
-- aynı `(series_id, observation_date, value)` için kaç farklı `realtime_start` bulunduğu,
-- aynı observation date içinde gerçekten farklı `value` taşıyan revision sayısı,
-- exact/current duplicate adaylarının yaş dağılımı,
-- latest-decision makro observation_date kapsamı,
-- validation/replay'in gerçekten ihtiyaç duyduğu en eski tarih.
-
-Classification en az şu ayrımı yapmalıdır:
-
-```text
-ACTUAL VALUE REVISION
-IDENTICAL CURRENT-VIEW REFETCH VERSION
-SINGLE OBSERVATION
-UNRESOLVED
-```
-
-### P2.2 — Deterministic production/validation read contract
-
-Silme veya UNIQUE migration'dan önce şu sorular kapanmalıdır:
-
-- current decision için hangi version authoritative?
-- released current-view collector için `realtime_start` semantiği korunmalı mı?
-- historical validation current production table'dan hangi canonical row'u okumalı?
-- strict ALFRED verification ile production-current storage kesin olarak nasıl ayrılmalı?
-
-`(series_id, observation_date)` üzerine doğrudan UNIQUE eklenmez. Gerçek FRED revision kanıtı daha önce bulunduğu için kör dedup revision bilgisini silebilir.
-
-### P2.3 — Safe dedup / future duplicate prevention
-
-Baseline sonrası yalnız semantik olarak redundant olduğu kanıtlanan satırlar için:
-
-- dry-run candidate query,
-- korunacak canonical/version kuralı,
-- migration öncesi/sonrası row count + replay parity kontrolü,
-- future ingest'te aynı gereksiz version'ın yeniden oluşmasını engelleyen idempotent persistence kontratı
-
-tasarlanır.
-
-### P2.4 — Retention
-
-Retention yalnız decision/validation açısından artık gerekli olmayan satırlara uygulanır.
-
-Minimum koruma kontratı belirlenmeden gün sayısı seçilmez. Özellikle:
-
+- legitimate value-transition/revision lineage,
+- released decision payload'larının macro provenance/evidence ihtiyacı,
+- historical validation/replay gereksinimleri,
 - 10 yıllık yatırım/validation hedefi,
-- model replay ihtiyaçları,
-- strict source/revision audit gereksinimi,
-- released decision payload'ındaki macro provenance
+- strict source/revision audit gereksinimleri.
 
-birlikte değerlendirilir.
+Bu nedenle:
 
----
+- blind age-based delete uygulanmaz,
+- `(series_id, observation_date)` bazında revision'ları ezen cleanup yapılmaz,
+- `VACUUM FULL` gibi agresif ve tablo kilitleyen fiziksel bakım işlemleri ihtiyaç/etki analizi olmadan çalıştırılmaz,
+- önce mevcut retained transition tarihçesinin yaş/consumer ihtiyacı read-only olarak ölçülür.
 
-## 5. `system.job_runs` — mevcut üretici/tüketici akışı
+Bakımın otonomlaştırılması gerekirse ilk tercih yeni scheduler katmanı eklemek değil mevcut `monthly_audit_job` içine bounded data-lifecycle maintenance entegre etmektir.
 
-### 5.1 Üretim
+Aday güvenlik kontratı:
 
-`Repository.log_job()` her job sonucu için yeni satır INSERT eder. Unique/idempotency anahtarı yoktur; bu tablo append-only telemetry gibi davranır.
+```text
+monthly_audit_job
+  -> existing model audit/validation
+  -> bounded data-lifecycle maintenance
+```
 
-Scheduler ve manuel/verification akışları zaman içinde çok sayıda `OK`, `DEGRADED`, `ERROR`, `SKIPPED` veya test run kaydı oluşturabilir.
+Maintenance özellikleri:
 
-### 5.2 Runtime tüketimi
+- bounded batch,
+- explicit cutoff,
+- protected evidence predicate,
+- dry-run/count mode,
+- silinen/korunan row sayısı summary logging,
+- açık transaction boundary,
+- failure halinde decision path'i bozmama,
+- model parameterlerine dokunmama.
 
-Released runtime'ın sürekli kullandığı historical pencere sınırlıdır:
+## 4. system.job_runs açık görevleri
 
-`shadow_readiness_stats()`:
+### P2.5 — Production baseline — OPEN
 
-- son **7 günlük** `job_runs` kayıtlarından success rate hesaplar,
-- `realtime_test` için latest successful row'u bulur.
+Ölçülecekler:
 
-`get_latest_job_run(job_name)` de yalnız en yeni satırı ister.
-
-Bununla birlikte eski `job_runs` kayıtları Post-Shadow/P0 RCA çalışmalarında gerçek historical kanıt olarak kullanılmıştır. Örneğin isolated scheduler failures ve pool-timeout incident ailesi eski run ID'lerinden doğrulanmıştır.
-
-Bu nedenle "runtime son 7 günü kullanıyor, 7 günden eski her şeyi sil" yaklaşımı kabul edilmez.
-
----
-
-## 6. `system.job_runs` için P2 görev sırası
-
-### P2.5 — Production baseline ve evidence sınıflandırması
-
-Read-only baseline ile:
-
-- toplam row/physical size,
-- job_name + status bazında sayılar,
+- total row / physical size,
+- job_name + status dağılımı,
 - günlük/aylık growth,
-- en eski/en yeni kayıt,
+- oldest/latest timestamps,
 - ERROR/DEGRADED/OK/SKIPPED dağılımı,
-- manuel/test/backfill run oranı,
-- son 7/30/90 gün dışındaki row sayıları,
-- details/message payload boyut dağılımı
+- manual/test/backfill oranı,
+- 7/30/90 gün dışındaki row sayıları,
+- details/message payload boyutları.
 
-ölçülür.
+Released runtime son 7 günü readiness için yoğun kullanıyor olsa da daha eski `job_runs` kayıtları P0/RCA ve historical incident evidence olarak kullanılmıştır. Bu nedenle `7 günden eski her şeyi sil` kabul edilmez.
 
-### P2.6 — Retention policy
+### P2.6 — Evidence-aware retention policy — OPEN
 
-Kayıtlar tek retention sınıfına alınmaz. Tasarım en az şu kategorileri ayırmalıdır:
+En az şu sınıflar ayrılmalıdır:
 
 ```text
 ROUTINE SUCCESS TELEMETRY
@@ -237,89 +178,31 @@ MANUAL / BACKFILL / TEST EVIDENCE
 RELEASE / SHADOW MILESTONE EVIDENCE
 ```
 
-Routine telemetry için daha kısa retention mümkünken ERROR/incident ve önemli validation/deploy dönemleri daha uzun veya kalıcı tutulabilir.
+### P2.7 — Autonomous bounded maintenance integration — OPEN
 
-Gerekirse eski telemetry silinmeden önce günlük/aylık aggregate tabloya özetlenebilir; bunun gerçekten gerekli olup olmadığı baseline sonrası belirlenir. Yeni katman yalnız kanıtla ihtiyaç varsa eklenir.
+P2.4 ve P2.6 retention kontratları kanıtlandıktan sonra bounded maintenance mevcut scheduler mimarisine en az yeni katmanla entegre edilir.
 
-### P2.7 — Otonom maintenance
-
-Ayrı ve gereksiz bir scheduler job eklemek ilk tercih değildir.
-
-Mevcut akıştan kopmamak için aday tasarım:
+## 5. Güncel görev sırası
 
 ```text
-monthly_audit_job
-  -> model audit/validation
-  -> bounded data-lifecycle maintenance
+P1    URA immutable raw holdings source snapshot     CLOSED
+P2.1  macro.observations production baseline         CLOSED
+P2.2  macro deterministic read/version contract      CLOSED
+P2.3  macro dedup + future duplicate prevention      CLOSED
+P2.4  macro retention policy + maintenance           NEXT / OPEN
+P2.5  job_runs production baseline                   OPEN
+P2.6  job_runs evidence-aware retention policy       OPEN
+P2.7  autonomous bounded maintenance integration     OPEN
 ```
 
-veya kanıtlanan ihtiyaç daha sık ise mevcut `weekly_job` içinde sınırlı bakım adımıdır.
+## 6. Model/LIVE sınırı
 
-Nihai cadence, retention window ve batch boyutu production row-growth baseline'ı görülmeden seçilmez.
-
-Maintenance şu güvenlik özelliklerine sahip olmalıdır:
-
-- küçük bounded batch'ler,
-- explicit cutoff,
-- protected evidence predicate,
-- dry-run/count mode,
-- silinen row sayısı audit/log özeti,
-- transaction sınırı,
-- failure halinde model karar akışını bozmama,
-- threshold/model parametrelerine dokunmama.
-
----
-
-## 7. Görev borcu öncelik sırası
-
-Mevcut Post-Shadow akışını bozmadan sıra:
+Bu veri yaşam döngüsü çalışmaları model davranışı tuning işi değildir.
 
 ```text
-P1  URA immutable raw holdings source snapshot
-    -> code/test
-    -> migration
-    -> deploy
-    -> natural forward verification
-    -> CLOSE
-
-P2.1 macro.observations production baseline
-P2.2 macro deterministic read/version contract
-P2.3 macro safe dedup + future duplicate prevention
-P2.4 macro retention policy + maintenance
-P2.5 job_runs production baseline
-P2.6 job_runs evidence-aware retention policy
-P2.7 autonomous bounded maintenance integration
-```
-
-`macro.observations` daha önce açık bırakılmış FRED current/revision/dedup/retention P2 borcunun somutlaştırılmış devamıdır. `job_runs` retention ise bu belgeyle yeni ve açık bir P2 görev borcu olarak kaydedilmiştir.
-
----
-
-## 8. Şu anda yapılmayanlar
-
-Bu görev borcunun kaydı sırasında:
-
-- production satırı silinmez,
-- dedup migration uygulanmaz,
-- retention günü belirlenmez,
-- `macro.observations` constraint'i değiştirilmez,
-- `job_runs` schema'sı değiştirilmez,
-- yeni scheduler job eklenmez,
-- threshold/weight/state/sizing değiştirilmez,
-- LIVE açılmaz.
-
-Önce production read-only baseline ve dry-run evidence gerekir.
-
-Final mevcut durum:
-
-```text
-macro.observations duplicate semantics analysis   OPEN
-macro deterministic consumer contract             OPEN
-macro dedup / duplicate prevention                OPEN
-macro retention                                   OPEN
-job_runs retention baseline                       OPEN
-job_runs evidence-aware cleanup                   OPEN
-autonomous maintenance                            OPEN
-model semantics changed                           NO
-LIVE                                              NO-GO
+Threshold/weights/K1/K2/reset/sizing     UNCHANGED
+Model version                            1.2.0
+Mode                                     SHADOW
+Realtime execution                       OFF
+LIVE                                     NO-GO
 ```
