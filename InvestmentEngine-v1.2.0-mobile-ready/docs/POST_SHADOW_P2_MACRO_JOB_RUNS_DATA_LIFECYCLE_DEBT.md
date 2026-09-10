@@ -2,7 +2,7 @@
 
 Tarih: 09 Eylül 2026  
 Son durum güncellemesi: 10 Eylül 2026  
-Durum: `OPEN — P2.1/P2.2/P2.3 CLOSED; P2.4 NEXT`  
+Durum: `OPEN — P2.1/P2.2/P2.3/P2.4 CLOSED; P2.5 NEXT`  
 Model version: `1.2.0`  
 Mode: `SHADOW`  
 LIVE: `NO-GO`
@@ -76,21 +76,13 @@ Runtime hardening:
 - same-series writer'lar transaction advisory lock ile serialize edilir,
 - latest/history okumaları explicit deterministic ordering kullanır.
 
-Migration `0015_macro_observations_transition_dedup.sql` production'a uygulanmıştır:
+Migration `0015_macro_observations_transition_dedup.sql` production'a uygulanmıştır.
 
-- retained rows: `20,433`
-- consecutive same-value rows: `0`
-- decision refs: `672/672` preserved
-- legacy `UNIQUE(series_id, observation_date,realtime_start)`: removed
-- deterministic version index: present
-- `safe_cleanup_complete=true`
-
-Natural scheduler forward verification da tamamlandı:
+Natural scheduler forward verification:
 
 - natural `macro_job` id: `2304`
 - run_kind: `scheduled`
 - status: `OK`
-- start: `2026-09-10T03:15:00.006946+00:00` = `10.09.2026 06:15 TRT`
 - baseline rows: `20,433`
 - post-run rows: `20,434`
 - new legitimate observation: `1`
@@ -99,59 +91,70 @@ Natural scheduler forward verification da tamamlandı:
 - decision refs: `680/680` preserved
 - `forward_contract_complete=true`
 
-Dolayısıyla hem mevcut şişkinlik temizlenmiş hem de aynı problemin normal production ingest ile yeniden üretilmesini engelleyen writer kontratı forward-verified olmuştur.
-
 Canonical evidence:
 
 - `docs/POST_SHADOW_P2_3_MACRO_SAFE_DEDUP_DRY_RUN.md`
 - `docs/POST_SHADOW_P2_3_MACRO_IMPLEMENTATION_VALIDATION.md`
 - `verification/verify_macro_observations_p2_3_forward.sql`
 
-## 3. P2.4 — Macro retention policy + maintenance — NEXT / OPEN
+### P2.4 — Macro retention policy + maintenance — CLOSED
 
-P2.4 Oturum12 içinde **başlatılmamıştır**. Oturum13'ün ilk yeni görevidir.
+P2.4 production üzerinde önce read-only baseline ile yürütüldü. P2.3 sonrası retained setin yaş dağılımı, revision/value-transition lineage, released decision evidence, current replay dependency ve physical maintenance durumu ölçüldü.
 
-P2.4'ün görevi P2.3 dedup problemini tekrar çözmek değildir. Aynı-value duplicate prevention artık production'da CLOSED'dur.
-
-Retention tasarımı minimum şu kanıtları korumalıdır:
-
-- legitimate value-transition/revision lineage,
-- released decision payload'larının macro provenance/evidence ihtiyacı,
-- historical validation/replay gereksinimleri,
-- 10 yıllık yatırım/validation hedefi,
-- strict source/revision audit gereksinimleri.
-
-Bu nedenle:
-
-- blind age-based delete uygulanmaz,
-- `(series_id, observation_date)` bazında revision'ları ezen cleanup yapılmaz,
-- `VACUUM FULL` gibi agresif ve tablo kilitleyen fiziksel bakım işlemleri ihtiyaç/etki analizi olmadan çalıştırılmaz,
-- önce mevcut retained transition tarihçesinin yaş/consumer ihtiyacı read-only olarak ölçülür.
-
-Bakımın otonomlaştırılması gerekirse ilk tercih yeni scheduler katmanı eklemek değil mevcut `monthly_audit_job` içine bounded data-lifecycle maintenance entegre etmektir.
-
-Aday güvenlik kontratı:
+Final production baseline:
 
 ```text
-monthly_audit_job
-  -> existing model audit/validation
-  -> bounded data-lifecycle maintenance
+retained rows                         20,435
+observation-date groups               11,811
+base observation rows                 11,811
+legitimate value-transition rows       8,624
+same-value repeat rows                     0
+released decision refs                680/680 preserved
+current replay unresolved                  0
+consumer-unreferenced rows            13,381
+consumer-unreferenced transitions      8,420
+>10y retained rows                     6,672
+>10y transition rows                   5,687
+n_dead_tup                                 0
+relation total size                    57 MB
 ```
 
-Maintenance özellikleri:
+Kritik bulgular:
 
-- bounded batch,
-- explicit cutoff,
-- protected evidence predicate,
-- dry-run/count mode,
-- silinen/korunan row sayısı summary logging,
-- açık transaction boundary,
-- failure halinde decision path'i bozmama,
-- model parameterlerine dokunmama.
+- P2.3 duplicate problemi tekrar oluşmamıştır; same-value repeat sınıfı `0`dır.
+- `STLFSI4` gerçek revision lineage'ın baskın kaynağıdır.
+- 10 yıldan eski satırların önemli bölümü legitimate value transition'dır.
+- consumer tarafından doğrudan seçilmeyen 13,381 satırın 8,420'si genuine transition'dır.
+- released decision evidence eksiksizdir.
+- current model replay bütün series/evaluation kombinasyonlarını resolve etmektedir.
+- autovacuum/autoanalyze cleanup sonrası çalışmış ve `n_dead_tup=0` durumuna gelmiştir.
 
-## 4. system.job_runs açık görevleri
+Accepted retention/maintenance kontratı:
 
-### P2.5 — Production baseline — OPEN
+```text
+SAFE LOGICAL DELETE CLASS            NONE PROVEN
+BLIND AGE CUTOFF                     REJECTED
+CONSUMER-UNREFERENCED DELETE         REJECTED
+VALUE-TRANSITION PRUNING             REJECTED
+CURRENT BASE-ROW PRUNING             NOT JUSTIFIED
+normal autovacuum/autoanalyze        SUFFICIENT CURRENTLY
+manual VACUUM                        NOT PROVEN NECESSARY
+VACUUM FULL                          NOT JUSTIFIED
+production mutation                  NONE
+scheduler change                     NONE
+```
+
+P2.4 sonucu macro tarafında recurring DELETE işi üretmemiştir. P2.7 sırf maintenance framework oluşturmak için macro cleanup eklememelidir. Gerekirse yalnız bounded/read-only growth ve physical-health observability mevcut scheduler mimarisinde değerlendirilir. Gelecekte kanıtlanmış bir mutation ihtiyacı doğarsa ilk entegrasyon noktası mevcut `monthly_audit_job` olmalıdır; yeni scheduler/queue katmanı eklenmemelidir.
+
+Canonical evidence:
+
+- `verification/verify_macro_observations_p2_4_retention_baseline.sql`
+- `docs/POST_SHADOW_P2_4_MACRO_RETENTION_PRODUCTION_BASELINE.md`
+- `docs/POST_SHADOW_P2_4_MACRO_RETENTION_MAINTENANCE_CONTRACT.md`
+
+## 3. system.job_runs açık görevleri
+
+### P2.5 — Production baseline — NEXT / OPEN
 
 Ölçülecekler:
 
@@ -180,22 +183,24 @@ RELEASE / SHADOW MILESTONE EVIDENCE
 
 ### P2.7 — Autonomous bounded maintenance integration — OPEN
 
-P2.4 ve P2.6 retention kontratları kanıtlandıktan sonra bounded maintenance mevcut scheduler mimarisine en az yeni katmanla entegre edilir.
+P2.4 macro kontratı ve P2.6 job-runs kontratı birlikte değerlendirilerek mevcut scheduler mimarisine gerçekten gerekli en küçük maintenance/observability entegrasyonu yapılır.
 
-## 5. Güncel görev sırası
+P2.4 gereği macro tarafında bugün kanıtlanmış recurring DELETE yoktur. P2.7 macro için cleanup uydurmamalı; gerekirse yalnız bounded/read-only growth/physical-health observability eklemelidir.
+
+## 4. Güncel görev sırası
 
 ```text
 P1    URA immutable raw holdings source snapshot     CLOSED
 P2.1  macro.observations production baseline         CLOSED
 P2.2  macro deterministic read/version contract      CLOSED
 P2.3  macro dedup + future duplicate prevention      CLOSED
-P2.4  macro retention policy + maintenance           NEXT / OPEN
-P2.5  job_runs production baseline                   OPEN
+P2.4  macro retention policy + maintenance           CLOSED
+P2.5  job_runs production baseline                   NEXT / OPEN
 P2.6  job_runs evidence-aware retention policy       OPEN
 P2.7  autonomous bounded maintenance integration     OPEN
 ```
 
-## 6. Model/LIVE sınırı
+## 5. Model/LIVE sınırı
 
 Bu veri yaşam döngüsü çalışmaları model davranışı tuning işi değildir.
 
