@@ -6,6 +6,9 @@
 - Deterministic latest-read contract: **VERIFIED / DEVELOPMENT**
 - Deterministic macro history projection: **VERIFIED / DEVELOPMENT**
 - Migration 0015 contract tests: **VERIFIED / DEVELOPMENT**
+- Hardened runtime build: **VERIFIED**
+- Installer build: **VERIFIED**
+- Artifact SHA-256 identity: **VERIFIED**
 - Production runtime deployment: **OPEN**
 - Production migration 0015 execution: **OPEN**
 - Post-migration verification: **OPEN**
@@ -76,6 +79,56 @@ Full regression                      87/87 PASS
 Runtime duplicate prevention         VERIFIED / DEVELOPMENT
 Deterministic macro reads            VERIFIED / DEVELOPMENT
 0015 migration contract              VERIFIED / DEVELOPMENT
+Production runtime deploy            OPEN
+Production 0015 migration            OPEN
+Post-migration forward verification  OPEN
+Model semantics                      UNCHANGED
+LIVE                                 NO-GO
+```
+
+## Build and artifact validation evidence
+
+Kullanıcı local repo build öncesinde `d979a6e` HEAD'e fast-forward edildi. `build.bat` çıktısı:
+
+- Python compile kontrolü: **PASS**
+- full regression during build: **87 passed in 2.85s**
+- release structure check: **Release check: OK**
+- PyInstaller one-dir runtime build: **SUCCESS**
+- Inno Setup installer compile: **SUCCESS**
+- final marker: **BUILD TAMAMLANDI**
+
+Generated artifacts:
+
+```text
+Runtime EXE
+Path   dist/InvestmentEngine/InvestmentEngine.exe
+Size   13,386,018 bytes
+SHA256 B426B6D452B0AAA8773747DE693B4EF8F9DB7E12412DA19ADCA5A16E290E1012
+
+Installer
+Path   installer/InvestmentEngineSetup-1.2.0.exe
+Size   54,582,223 bytes
+SHA256 AB87DE9D32F8C874908B94FBF6DCDBEF72D579E1A370A66794C1BD6BE43593AF
+```
+
+Build warnings observed but non-blocking for this artifact because the build completed successfully and required PyQt5 SIP binary was packaged:
+
+- PyInstaller admin-mode deprecation warning
+- `Hidden import "sip" not found!`
+
+These warnings remain maintenance observations, not P2.3 blockers unless runtime evidence shows failure.
+
+Updated classification:
+
+```text
+Focused macro tests                  7/7 PASS
+Full regression pre-build            87/87 PASS
+Full regression in build             87/87 PASS
+Release check                        VERIFIED
+PyInstaller runtime build            VERIFIED
+Inno Setup installer build           VERIFIED
+Runtime EXE SHA256                    VERIFIED
+Installer SHA256                      VERIFIED
 Production runtime deploy            OPEN
 Production 0015 migration            OPEN
 Post-migration forward verification  OPEN
