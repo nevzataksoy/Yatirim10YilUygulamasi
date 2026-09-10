@@ -1,9 +1,11 @@
 # BTC_ETH_URA_10YIL — Oturum Devir Kaydı
 
-Son güncelleme: 09 Eylül 2026  
+Son güncelleme: 11 Eylül 2026  
 Amaç: Yeni sohbetin güncel proje durumunu konuşma geçmişini yeniden keşfetmeden devralması.
 
-Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları root `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, checkpoint kanıtları `SHADOW_CHECKPOINT_LOG.md`, Post-Shadow kanıtları ise ilgili `POST_SHADOW_*.md` belgelerindedir.
+Kalıcı bağlam `PROJECT_MEMORY_BANK.md`, normatif motor gerçeği `SIGNAL_ENGINE_DECISION_CONTRACT.md`, Shadow adımları `INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`, checkpoint kanıtları `SHADOW_CHECKPOINT_LOG.md`, Post-Shadow kanıtları ise ilgili `POST_SHADOW_*.md` belgelerindedir.
+
+Kod ile eski belge çelişirse güncel branch'teki yayımlanmış kod, migration, test ve gerçek runtime/Supabase kanıtı önceliklidir.
 
 ## 1. Aktif repo / branch
 
@@ -20,32 +22,27 @@ Kullanıcının yerel repo yolu:
 D:\wamp64\www\Yatirim10YilUygulamasi
 ```
 
-Asistan kullanıcının Windows worktree'sine doğrudan erişemediği için yerel `git status clean` iddiası yapmaz. Remote gerçeklik GitHub branch/commit/blob SHA ile, yerel durum kullanıcının verdiği `git rev-parse` / `git status` çıktısıyla doğrulanır.
+11 Eylül 2026 Oturum15 başlangıcında kullanıcı tarafından verilen kontrol sonucu:
 
-Her mantıksal değişiklik ayrı commit edilir ve hemen push edilir. Kullanıcıya short SHA, full SHA ve commit mesajı bildirilir. Raw telemetry/log/generated verification çıktıları commit edilmez.
+```text
+LOCAL_HEAD   aadefba
+REMOTE_HEAD  aadefba
+BRANCH       agent/portfolio-audit-reset
+STATUS       clean
+```
 
-## 2. Zorunlu anlatım ve PowerShell sunum kuralı
+Bu yalnız kontrol anındaki yerel durumu kanıtlar. Yeni sohbet yine remote HEAD'i ve kullanıcı local worktree durumunu yeniden doğrulamalıdır.
 
-Bu proje için iletişim yalnız komut/kod vermekten ibaret değildir. Her teknik adımda mümkün olduğunca sade Türkçe ile:
+Her mantıksal değişiklik ayrı commit edilir ve aynı branch'e push edilir. Yeni commit mesajları Türkçe yazılır. Raw telemetry/log/generated verification çıktıları sırf kanıt olsun diye commit edilmez.
 
-- hangi sorunun çözüldüğü,
-- kontrolün neden yapıldığı,
-- sonucun hangi aşama veya durumu etkilediği,
-- hangi kararı henüz değiştirmediği,
-- bir sonraki adımın neden gerekli olduğu
-
-anlatılır.
-
-PowerShell komutları kullanıcıya doğrudan kopyala-yapıştır güvenli biçimde verilir. Birbirine bağlı komutlar mümkünse tek blokta ve açık `;` ayırıcılarıyla yazılır. `$LASTEXITCODE` gibi geçici değerler ilgili komuttan hemen sonra yakalanır. `PS ...>` veya `>>` promptları komut bloğuna karıştırılmaz. Bu kural `CHATGPT_PROJECT_START_HERE.md` içinde bağlayıcıdır.
-
-## 3. Değişmez released durum
+## 2. Değişmez released model durumu
 
 ```text
 Model Version        1.2.0
 Mode                 SHADOW
 Realtime Execution   OFF
 SHADOW_READINESS     READY
-LIVE Graduation      OPEN / NO-GO
+LIVE                  NO-GO
 ```
 
 Released ayarlar:
@@ -63,67 +60,84 @@ base tranche         25%
 max regime           50%
 ```
 
-Factor weights, K1/K2, reversal/reset/sizing davranışı değişmemiştir.
+Factor weights, K1/K2, reversal, reset, sizing, scheduler cadence, SHADOW/LIVE mode ve model version kullanıcı açıkça onaylamadan değiştirilmez.
 
-`direction` emir değildir. `ACTION` tek başına yeni kademe değildir; yeni kademe davranışı için ayrıca `action_event=true` gerekir. Python kullanıcı portföy bakiyesine göre karar vermez, otomatik exchange order göndermez ve readiness sonucundan otomatik LIVE'a geçmez.
+`READY` otomatik LIVE değildir. `direction` emir değildir. `ACTION` tek başına yeni kademe değildir; yeni kademe için ayrıca `action_event=true` gerekir. Python kullanıcı portföy bakiyesine göre karar vermez ve otomatik exchange order göndermez.
 
-Bu released davranışlarda değişiklik ancak ayrı kullanıcı onayı + yeni model version + test + deploy + yeni Shadow Epoch ile yapılabilir.
+Model davranışı değişecekse ayrı kullanıcı onayı + model version kararı + test + gerekiyorsa migration + deploy + yeni Shadow Epoch birlikte değerlendirilir.
 
-## 4. Shadow görev takvimi sonucu
+## 3. Shadow görev takvimi ve readiness — CLOSED / VERIFIED
 
-Görev 1–6: `PASS`.
+30 günlük Shadow görev takvimi tamamlandı. Released model `READY` durumuna ulaştı; LIVE açılmadı.
 
-Görev 7:
+Shadow Readiness job provenance contamination başlığı ayrıca kapatıldı.
 
-```text
-Checkpoint              PASS
-30 günlük görev takvimi TAMAMLANDI
-SHADOW_READINESS        READY
-LIVE                    AÇILMADI
-Mode                    SHADOW
-Realtime Execution      OFF
-```
+Eski `Repository.shadow_readiness_stats()` geniş job row sayımından dolayı `manual`, `test`, `backfill`, `dependency` ve `maintenance` kayıtlarıyla readiness oranını kirletebiliyordu.
 
-Readiness kanıtı:
+Uygulanan dar düzeltme:
 
 ```text
-Shadow calendar days       36
-ETH/BTC decision days      35
-URA/USD decision days      25
-ETH/BTC median quality     90.83
-URA/USD median quality     87.71
-URA holdings dates         24
-URA breadth dates          24
-Recent job success         99.2126%
-Realtime test              OK / 8 snapshots / max_trade_gap=0
-waiting_reasons            []
-blockers                   []
+active Shadow Epoch
++ scheduler contract expected fires
++ aynı shadow_epoch_id
++ run_kind in ('scheduled','scheduled_legacy')
++ success statuses OK/DEGRADED/SKIPPED
 ```
 
-## 5. LIVE neden hâlâ NO-GO
-
-Shadow epoch boyunca gerçek ACTION/WATCH davranışı yeterince egzersiz edilmedi:
+7 günlük RCA penceresi:
 
 ```text
-ETH/BTC WAIT              35 / 35 gün
-URA/USD WAIT              33 karar / 24 gün
-URA/USD NO_ACTION_DATA    2 karar / 1 gün
-Crypto ACTION/WATCH       0 / 0
-URA ACTION/WATCH          0 / 0
-performance               []
+expected fires       384
+captured/completed   378
+missing                6
+duplicate extra        0
+off-cadence            0
+job success rate       0.984375
+job success percent   98.4375%
+released minimum       0.98
 ```
 
-Historical replay yönsel doğrulama sağlar fakat production ACTION/state davranışını birebir doğrulamaz. `edge=70` için yeterli bağımsız sinyal kanıtı yoktur. Bu durum threshold düşürme gerekçesi değildir.
-
-URA full exact PIT/replay de ham holdings/breadth/event source snapshot geçmişi açısından hâlâ tam değildir.
-
-## 6. Post-Shadow P0 — KAPANDI
+İlgili commitler:
 
 ```text
-P0 Development Reliability   CLOSED / NON-BLOCKING
+81f1c09  Shadow Readiness scheduler provenance hesabını düzelt
+aadefba  Shadow Readiness provenance regresyon testini ekle
 ```
 
-Detaylar:
+Son regression:
+
+```text
+targeted tests   5 passed
+full pytest      94 passed
+release check    OK
+```
+
+Son Supabase `SHADOW_READINESS` snapshot:
+
+```text
+model_version        1.2.0
+status               READY
+engine_mode          shadow
+job_count            384
+job_success_rate     0.984375
+job_success_percent  98.437500
+blockers             []
+calendar_days        43
+crypto_decision_days 42
+ura_decision_days    28
+```
+
+Kapanış:
+
+```text
+Shadow Readiness provenance contamination   CLOSED / VERIFIED
+threshold/model semantics change             NONE
+LIVE                                         NO-GO
+```
+
+## 4. Post-Shadow P0 reliability — CLOSED / NON-BLOCKING
+
+İlgili belgeler:
 
 - `docs/POST_SHADOW_P0_CONNECTION_POOL_RCA.md`
 - `docs/POST_SHADOW_P0_RUNTIME_RELIABILITY_CLOSURE.md`
@@ -136,530 +150,471 @@ Detaylar:
 - `max_size=6`, `timeout=10s` değiştirilmedi,
 - generic DB retry eklenmedi,
 - scheduler serialize edilmedi,
-- historical production gözlem borcu GitHub Issue #2'de açık kaldı.
+- historical production observation borcu GitHub Issue #2'de kaldı.
 
-Scheduler ERROR RCA:
+Bu başlık model davranışı tuning işi değildir.
 
-- ID 5: pre-Shadow Alpha Vantage free API quota — non-blocking.
-- ID 477: isolated unexpected Alpha Vantage response shape, sonraki run otomatik toparlandı — non-blocking.
-- ID 1642: SEC job içindeki 10s DB pool timeout, Issue #2 ailesi.
-- SEC `DEGRADED` kayıtlarının çoğu crash değil, yaklaşık %19–20 fund-weight coverage semantiğidir.
+## 5. P1 walk-forward ve FRED strict historical validation
 
-## 7. P1 — Walk-forward doğrulaması
+### 5.1 Expanding walk-forward implementation — CLOSED / evidence LIMITED
 
-Expanding walk-forward altyapısı teknik olarak doğrulanmış ve implementation adımı kapatılmıştır.
+Expanding walk-forward altyapısı teknik olarak doğrulandı.
 
 Ana sonuç:
 
 ```text
-observations                   1420
-folds                          12
-configured edge=70 OOS signal 0
+configured edge=70 OOS signal   0
+signal evidence                 LIMITED / SIGNAL-STARVED
+threshold change                NOT SUPPORTED
+LIVE                            NO-GO
 ```
 
-Daha düşük keşif eşikleriyle yapılan hassasiyet koşusunda yalnız 4 OOS sinyal görülmüş, hit rate %25 ve ortalama signed return yaklaşık `-0.0382` olmuştur.
+Daha düşük keşif eşiklerinde bulunan sınırlı OOS sinyaller released edge=70 threshold'unu düşürmeyi desteklememektedir.
 
-Doğru yorum:
+Sinyal kıtlığı threshold veya factor-weight değişikliği için otomatik gerekçe değildir.
+
+### 5.2 FRED strict historical validation — CLOSED / VERIFIED
+
+Verification-only ALFRED yolu gerçek FRED historical real-time verisini kullanır ve production collector davranışını değiştirmez.
+
+Doğrulanan ana sonuç:
 
 ```text
-Walk-forward implementation  VERIFIED / CLOSED as implementation
-Evidence                     LIMITED / SIGNAL-STARVED
-Threshold change             NOT SUPPORTED
-LIVE                         NO-GO
+configured series             8
+ALFRED-available              7
+ALFRED-unavailable            SP500
+complete-coverage days        1397
+complete ratio                98.3803%
+edge=70 qualification changes 0
 ```
 
-P1 ortak kanıt sınıflandırması:
+FRED revision/yayın-zamanı farkı edge ve rejim yorumunu bazı tarihlerde değiştirebilse de released `edge=70` qualification kıtlığını açıklamamaktadır.
 
-```text
-LIMITED_TRAIN_SIGNAL_COUNT
-LIMITED_OOS_SIGNAL_COUNT
-EVIDENCE_AVAILABLE
-```
+## 6. Production/replay persistence hardening
 
-`selection_status=OK` yalnız aday seçim mekanizmasının çalışabildiğini gösterir; tek başına yeterli model kanıtı değildir.
-
-## 8. P1 — FRED strict tarihsel doğrulama — KAPANDI
-
-İlgili belgeler:
-
-- `docs/POST_SHADOW_P1_FRED_PIT_BASELINE.md`
-- `docs/POST_SHADOW_P1_FRED_STRICT_PIT_COMPARISON.md`
-
-### 8.1 Baseline sonucu
-
-Mevcut `macro.observations` tablosu strict ALFRED validity history değildir. Tekrar tekrar alınmış FRED-current/fetch-day snapshot'larıdır. Historical cutoff testlerinde local strict PIT coverage yoktur.
-
-Gerçek value revision kanıtlanmıştır:
-
-- `STLFSI4` çok sayıda revision taşır,
-- `DTWEXBGS` için de revision örneği vardır.
-
-Bu nedenle `(series_id, observation_date)` bazında kör dedup yapılmaz ve mevcut tablo strict PIT store diye yorumlanmaz.
-
-### 8.2 Verification-only ALFRED yolu
-
-Production collector davranışı değiştirilmeden ayrı doğrulama yolu kurulmuştur:
-
-- FRED tarihsel real-time verisi memory içinde çekilir,
-- historical `realtime_start/realtime_end` dönemine göre o tarihte gerçekten yayımlanmış değer seçilir,
-- DB'ye yazılmaz,
-- threshold/weight/state/mode değiştirilmez.
-
-`SP500` FRED'de vardır fakat ALFRED historical history'si yoktur. Strict replay'de bugünkü SP500 geçmişe uydurulmaz; kaynak boşluğu kabul edilir.
-
-### 8.3 Son gerçek ortam doğrulaması
-
-```text
-FRED PIT focused tests       10 passed
-Full Python tests            64 passed
-Release check                OK
-verification stderr          empty
-```
-
-ALFRED durumu:
-
-```text
-configured series            8
-ALFRED-available             7
-ALFRED-unavailable           SP500
-replay days                  1420
-7-seri complete days         1397
-complete ratio               %98.3803
-first complete date          2022-11-10
-last complete date           2026-09-06
-excluded incomplete dates    23
-```
-
-Eksik 23 günün tamamı `2022-10-18..2022-11-09` ve yalnız `STLFSI4` eksiktir. Resmî ALFRED kaydına göre `STLFSI4` ilk kez `2022-11-10` tarihinde yayımlanmıştır.
-
-### 8.4 Temiz 1397 günlük tarihsel fark
-
-```text
-common dates                         1397
-mean abs edge delta                  0.5222834646
-max abs edge delta                   14.27
-regime change dates                  19
-direction-sign change dates          5
-edge=70 qualification change dates   0
-```
-
-Ana yorum:
-
-- FRED revision/yayın-zamanı farkı motorun iç edge ve rejim yorumunu bazı günlerde gerçekten değiştirir.
-- Ancak tam kapsamalı 1397 günün hiçbirinde released `edge=70` uygunluğu değişmez.
-- Dolayısıyla mevcut edge=70 sinyal kıtlığı FRED revision etkisiyle açıklanamamaktadır.
-
-### 8.5 Son walk-forward sınıflandırması
-
-```text
-current_walk_forward
-  evidence_status          LIMITED_TRAIN_SIGNAL_COUNT
-  edge70_signals           0
-  selected_candidate_folds 0
-  selected_oos_signals     0
-
-comparable_current_walk_forward
-  evidence_status          LIMITED_TRAIN_SIGNAL_COUNT
-  edge70_signals           0
-  selected_candidate_folds 0
-  selected_oos_signals     0
-
-strict_walk_forward
-  evidence_status          LIMITED_OOS_SIGNAL_COUNT
-  edge70_signals           0
-  selected_candidate_folds 7
-  selected_oos_signals     1
-
-comparable_complete_coverage_walk_forward
-  evidence_status          LIMITED_TRAIN_SIGNAL_COUNT
-  observations             1397
-  edge70_signals           0
-  selected_candidate_folds 0
-  selected_oos_signals     0
-
-strict_complete_coverage_walk_forward
-  evidence_status          LIMITED_OOS_SIGNAL_COUNT
-  observations             1397
-  edge70_signals           0
-  selected_candidate_folds 7
-  selected_oos_signals     0
-```
-
-Karar için esas alınan satır tam kapsamalı `strict_complete_coverage_walk_forward` sonucudur.
-
-Sonuç:
-
-```text
-Verification implementation     VERIFIED
-Real ALFRED fetch               VERIFIED
-Source-gap handling             VERIFIED
-Complete-coverage separation    VERIFIED
-Evidence classification         VERIFIED IN REAL ENVIRONMENT
-FRED strict-PIT sub-stage       CLOSED
-Threshold/model change          NONE
-LIVE impact                     NONE / NO-GO unchanged
-```
-
-FRED current/revision/dedup/retention veri yaşam döngüsü ayrı P2 başlığıdır.
-
-## 9. P1 — Production vs replay parity
-
-### 9.1 Same-market-date signal-state idempotency — KAPANDI
-
-İlgili belge:
-
-- `docs/POST_SHADOW_P1_PRODUCTION_REPLAY_STATE_IDEMPOTENCY.md`
-
-Production baseline:
-
-```text
-ETH/BTC decisions              39
-ETH/BTC unique market dates    39
-ETH/BTC repeated market dates  0
-URA/USD decisions              38
-URA/USD unique market dates    26
-URA/USD repeated market dates  7
-max decisions / one URA date   3
-```
-
-Aynı `as_of` tekrarlarında production geçmişinde:
-
-```text
-same_asof_state_moves             []
-same_asof_reset_advances          []
-same_asof_multiple_action_events  []
-```
-
-Production geçmişinde state corruption görülmedi; fakat aktif rejim/reset dalı doğal production ACTION geçmişinde egzersiz edilmemişti.
-
-Kod RCA'sında `reset_counter` aynı market `as_of` tekrarında yeniden artabilecek latent risk olarak doğrulandı. Scheduler tekrarları körlemesine engellenmedi; çünkü aynı `as_of` farklı evaluation zamanlarında farklı macro/fundamentals/breadth/event girdileri görebilir.
-
-Uygulanan hardening:
-
-- `model.signal_state.last_evaluated_as_of` eklendi,
-- `reset_counter` yalnız yeni market `as_of` geldiğinde +1 ilerler,
-- aynı `as_of` tekrarında ikinci kez artmaz,
-- aynı gün aktif yön edge'i reset eşiği üzerine geri çıkarsa sayaç yine 0'a dönebilir,
-- K1/K2, reversal, sizing, thresholds, scheduler cadence ve SHADOW/LIVE semantiği değişmedi.
+### 6.1 Same-market-date signal-state idempotency — CLOSED / VERIFIED
 
 Migration:
 
-- `migrations/0013_signal_state_market_date_idempotency.sql`
-- `supabase-migrations/0013_signal_state_market_date_idempotency.sql`
-
-Doğrulama:
-
 ```text
-focused signal-state tests  3 passed
-full Python tests           65 passed
-release check               OK
+0013_signal_state_market_date_idempotency.sql
 ```
 
-Production migration sonrası read-only DB doğrulaması:
+`model.signal_state.last_evaluated_as_of` eklenmiştir ve trigger ile latest decision market date'e senkron tutulur.
+
+Güncel production doğrulaması:
 
 ```text
-column_present                           true
-trigger.present                          true
-trigger.enabled                          true
-signal_state_rows                        2
-rows_with_last_evaluated_as_of           2
-rows_matching_latest_decision_as_of      2
-rows_not_matching_latest_decision_as_of  0
+ETH/BTC
+last_evaluated_as_of = 2026-09-09
+latest_decision_as_of = 2026-09-09
+MATCH
+
+URA/USD
+last_evaluated_as_of = 2026-09-09
+latest_decision_as_of = 2026-09-09
+MATCH
 ```
 
-Doğrulama anındaki marker eşleşmeleri:
+Aynı `as_of` tekrarında reset counter ikinci kez ilerlemez. Threshold, K1/K2, reversal, sizing, scheduler cadence ve mode semantiği değişmemiştir.
+
+### 6.2 Evaluation-time provenance hardening — CLOSED / VERIFIED
+
+URA karar payload'ına audit-only olarak breadth numeric scoring inputs, breadth timestamp/date, exact `event_refs`, event health timestamp/status ve evaluated event count eklenmiştir.
+
+Historical pre-hardening satırlar geriye dönük uydurulmamıştır.
+
+Bu hardening scoring formülü veya model davranışı değiştirmez.
+
+### 6.3 Transactional decision persistence — CLOSED / VERIFIED
+
+Güncel runtime `app/database/decision_persistence.py` içindeki `persist_decision_outcome()` akışını kullanır.
+
+Akış:
 
 ```text
-ETH/BTC latest decision 83  as_of=2026-09-06  marker=2026-09-06
-URA/USD latest decision 82  as_of=2026-09-04  marker=2026-09-04
+signal_state row
+→ FOR UPDATE lock
+→ state transition
+→ model.signal_state UPDATE
+→ model.decisions INSERT
+→ public.decision_history INSERT
+→ public.decision_snapshot UPSERT
+→ tek COMMIT
+```
+
+Herhangi bir persistence hatasında transaction bütünü rollback olur. Telegram/execution side-effect'leri yalnız transaction başarıyla tamamlandıktan sonra başlar.
+
+Regression kapsamı:
+
+```text
+decision failure rollback
+history failure rollback
+snapshot failure rollback
+failed K1 retry
+failed reset transition
+```
+
+Production DB bütünlük sonucu:
+
+```text
+DECISION_WITHOUT_HISTORY    0 / PASS
+DECISION_HISTORY_MISMATCH   0 / PASS
+LATEST_SNAPSHOT ETH/BTC     PASS
+LATEST_SNAPSHOT URA/USD     PASS
 ```
 
 Kapanış:
 
 ```text
-Historical production corruption observed  NO
-Repeated same-as-of evaluations             CONFIRMED
-Latent reset idempotency risk                CONFIRMED
-Hardening                                    VERIFIED
-Migration                                    VERIFIED
-Same-as-of state idempotency substage        CLOSED
-```
-
-### 9.2 Evaluation-time provenance hardening — KAPANDI
-
-İlgili belge:
-
-- `docs/POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
-
-Production reconstructibility baseline:
-
-```text
-ETH/BTC historical decisions                       39
-ETH/BTC persisted audit coverage                   strong / 39 of 39
-URA/USD historical decisions                       38
-URA directional fundamentals complete              36 of 36 positive-quality rows
-URA positive-quality breadth rows                   36
-historical breadth rows with numeric inputs         0 of 36
-historical rows with exact event-set identity       0 of 38
-historical rows with breadth/event timestamps       0 of 38
-```
-
-Aynı market `as_of` tekrarlarında URA faktör payload'ının gerçekten değişebildiği de doğrulandı:
-
-```text
-repeated market dates                    7
-repeated decision rows                  19
-factor-payload peer difference rows     17 / 19
-regime peer difference rows              0
-```
-
-Bu nedenle repeated decision history deduplicate edilmez.
-
-Dar audit-only hardening ile yeni URA decision payload'ına şunlar eklendi:
-
-- breadth numeric scoring inputs,
-- `breadth_date`,
-- breadth row `created_at`,
-- exact `event_refs` array,
-- `health_checked_at`,
-- `health_status`,
-- evaluated event count.
-
-Scoring formülü, factor weight, threshold, confidence, K1/K2, reset, sizing, scheduler, mode ve model version değişmedi.
-
-Regression:
-
-```text
-focused provenance tests  3 passed
-full Python tests          68 passed
-release check              OK
-```
-
-Windows build/deploy kabulü:
-
-```text
-PyInstaller OneDir                       PASS
-Inno Setup                               PASS
-build EXE SHA256                         91300423EA360C11E923C1AC74F437581BAAEF0DC23CFBA3458B60FB8A29890A
-installed EXE SHA256                     same / PASS
-service                                  RUNNING / Auto
-CLI service-status                       RUNNING / exit 0
-settings preservation                    PASS
-rosalock preservation                    PASS
-post-deploy manual URA runs              2 x OK / exit 0
-```
-
-Forward read-only verification sonucu:
-
-```text
-latest decision id                       85
-system                                   URA/USD
-model_version                            1.2.0
-as_of                                    2026-09-04
-created_at                               2026-09-07T22:30:02.725709+00:00
-decision_evaluated_at                    2026-09-07T22:30:00.362158+00:00
-status                                   WAIT
-direction                                USD→URA
-action_event                             false
-edge_score                               1.03
-confidence                               23.77
-data_quality                             90.51
-hardened_audit_payload_complete          true
-```
-
-Aşağıdaki check'lerin tamamı `true` çıktı:
-
-```text
-has_decision_evaluated_at
-has_embedded_signal_state
-has_breadth_numeric_keys
-has_breadth_created_at
-has_breadth_date
-has_event_refs_array
-has_event_health_checked_at
-has_event_health_status
-has_event_count
-fundamentals_directional_inputs_complete
-has_macro_values
-has_macro_observation_dates
-has_macro_freshness_quality
-```
-
-Breadth içindeki 50DMA/200DMA değerlerinin `null` olması hata değildir; history henüz olgunlaşmamışken anahtarların ve gerçek null değerlerin korunması audit kontratının parçasıdır. Event tarafında `event_refs=[]` gerçek evaluated set'in boş olduğunu gösterir; historical pre-hardening satırlardaki alan yokluğuyla aynı şey değildir.
-
-Kapanış sınıflandırması:
-
-```text
-Audit-only code hardening                 VERIFIED
-Production runtime deployment             VERIFIED
-Forward new-decision persistence           VERIFIED / decision 85
-URA provenance hardening substage          CLOSED
-Historical pre-hardening URA rows          NOT BACKFILLED
-Raw holdings immutable snapshot history    OPEN
-Full production/replay parity              OPEN
-LIVE                                       NO-GO
-```
-
-### 9.3 Transactional decision persistence hardening — KAPANDI
-
-İlgili belge:
-
-- `docs/POST_SHADOW_P1_TRANSACTIONAL_DECISION_PERSISTENCE_HARDENING.md`
-
-Eski akışta `model.signal_state` ayrı commit ile decision'dan önce kalıcılaşabiliyordu. Kod seviyesinde atomiklik açığı doğrulandı; production geçmişinde gerçekleşmiş incident kanıtı bulunmadı.
-
-Uygulanan hardening:
-
-- aynı `system` state satırı `FOR UPDATE` ile kilitlenir,
-- state transition locked current state üzerinden hesaplanır,
-- `model.signal_state`, `model.decisions`, `public.decision_history` ve `public.decision_snapshot` tek connection / tek transaction içinde yazılır,
-- herhangi bir hata dört persistent outcome bileşeninin tamamını rollback eder,
-- model thresholds/weights/K1/K2/reset/sizing/scheduler/mode/version semantiği değişmez.
-
-Regression ve build/deploy kanıtı:
-
-```text
-focused transactional+state tests     9 passed
-full Python tests                      74 passed
-release check                          OK
-built EXE SHA256                       73185707D2259D11640251A0B5EE34886919FC18C8E9EC5BC0E2A1C54ABD7C58
-installed EXE SHA256                   same / VERIFIED
-service                                RUNNING / Automatic
-CLI --service-status                   exit 0
-```
-
-Yeni servis process başlangıcı:
-
-```text
-StartTimeUtc   2026-09-08 03:51:43Z
-```
-
-09 Eylül 2026 doğal scheduler ileri yönlü doğrulaması:
-
-```text
-ETH/BTC decision 89   created_at=2026-09-09 02:21:22.609961Z   fully_consistent=true
-URA/USD decision 88   created_at=2026-09-08 23:40:43.067080Z   fully_consistent=true
-```
-
-İki decision da servis başlangıcından sonra üretilmiştir. Her ikisinde history/snapshot/marker ve embedded signal-state kontrollerinin tamamı eşleşmiştir.
-
-Kapanış:
-
-```text
+Transactional decision persistence   CLOSED / VERIFIED
 Historical production incident       NO EVIDENCE
-Atomic decision persistence           VERIFIED
-Failure rollback                      VERIFIED
-Same-system state serialization       VERIFIED
-Runtime binary deployment             VERIFIED
-Runtime forward verification          VERIFIED
-Transactional persistence runtime     CLOSED
-Model semantics changed               NO
-LIVE                                  NO-GO
+Model semantics changed              NO
+LIVE                                 NO-GO
 ```
 
-### 9.4 Sıradaki açık production/replay araştırması
+## 7. URA immutable raw holdings source snapshot — CLOSED / VERIFIED
 
-**Raw source snapshot/versioning gereksinimi** açık kalır: `fundamentals.ura_holdings` aynı `(holding_date,ticker)` satırını overwrite ettiği için aynı güne ait her raw fetch immutable snapshot olarak tutulmuyor. Persisted decision-input snapshot'larının validation kontratı için yeterli olup olmadığı veya ayrı immutable source-snapshot storage gerekip gerekmediği kanıtla kararlaştırılacak.
+Bu başlık artık OPEN değildir.
 
-Transactional state-before-decision başlığı artık açık araştırma değildir; 9.3 kapsamında code/test/build/deploy/forward verification ile kapatılmıştır.
-
-Bu açık raw holdings konusu threshold düşürme veya model tuning gerekçesi değildir.
-
-## 10. P2 veri yaşam döngüsü — AÇIK
-
-FRED current/revision/dedup/retention çözümü ayrı araştırma başlığıdır.
-
-Doğrudan `(series_id, observation_date)` UNIQUE migration uygulanmaz. Uygulanmış `0001` migration geriye dönük değiştirilmez. Silme/dedup/backfill migration'ı dry-run ve açık kanıt olmadan çalıştırılmaz.
-
-## 11. P3 model davranışı — yalnız ayrı onayla
-
-Aşağıdakiler PROPOSED kalır:
-
-1. kademeler arasında minimum 5 karar seansı,
-2. reversal için iki ardışık qualified karşı-yön kapanışı,
-3. production/replay için tek versioned state machine,
-4. yeni `max_regime_pct` / sizing yaklaşımı,
-5. reset sonrası same-direction K1 değişikliği,
-6. threshold/factor-weight değişiklikleri.
-
-Bunlardan biri seçilirse açık kullanıcı onayı + yeni model version + test + deploy + yeni Shadow Epoch gerekir. Mevcut v1.2.0 Shadow kanıtı yeni semantiğe otomatik taşınmaz.
-
-## 12. Mimari süreklilik
-
-Ana akış:
+Kanonik belge:
 
 ```text
-External data
-  -> Python Investment Engine
-  -> Supabase/PostgreSQL
-  -> Signal Engine
-  -> public snapshot/API
-  -> Quasar
-  -> notification / user decision
+docs/POST_SHADOW_P1_URA_HOLDINGS_SOURCE_SNAPSHOT_HARDENING.md
 ```
 
-Quasar aynı ana repo altında `tr-rosayazilim-yatirimdashboard` dizinindedir. Tek Auth kullanıcısı + çoklu portföy mimarisi korunur. Quasar gerçek kullanıcı ledger'ını taşır; Python global sistem değerlendirmesini yapar.
-
-Windows hedefi 24/7 servis çalışmasıdır. Bu projede development makinesi aynı zamanda çalışan Shadow service host'udur. Production kurulum/ayar dizinleri ve encrypted settings çözümlemesi verification komutlarında korunur.
-
-## 13. Oturum12 güncel kapanış noktası
-
-Oturum12 içinde transactional state-before-decision konusu araştırıldı, proaktif hardening uygulandı, regression testleri geçti, OneDir/installer build alındı, mevcut Windows service üzerine deploy edildi ve doğal scheduler kararlarıyla ileri yönlü doğrulama tamamlandı.
-
-Son kanıtlanan runtime durumu:
+Migration:
 
 ```text
-Service process start UTC                2026-09-08 03:51:43Z
-Built/installed EXE SHA256               73185707D2259D11640251A0B5EE34886919FC18C8E9EC5BC0E2A1C54ABD7C58
-RosaInvestmentEngine                     RUNNING / Automatic
-ETH/BTC post-deploy decision             89 / fully_consistent=true
-URA/USD post-deploy decision             88 / fully_consistent=true
-Transactional persistence runtime        CLOSED (Kapandı)
-Raw holdings immutable snapshot history  OPEN (Açık)
-Full production/replay parity            OPEN (Açık)
-LIVE                                     NO-GO (Canlıya geçiş yok)
+0014_ura_holdings_source_snapshots.sql
 ```
 
-Bu kapanış model threshold/weight/K1/K2/reset/sizing/mode/version davranışını değiştirmemiştir.
+`fundamentals.ura_holdings_snapshots` her gerçek Global X fetch event'ini immutable olarak saklar:
 
-### Sonraki teknik araştırma yönü
+```text
+id
+holding_date
+source_url
+fetched_at
+content_sha256
+raw_csv
+constituent_count
+```
 
-Sıradaki ana P1 konusu **URA raw holdings immutable snapshot/versioning (değişmez ham holdings anlık görüntü sürümleme)** araştırmasıdır.
+Aynı bytes yeniden fetch edilse bile ayrı gerçek fetch event'i olduğu için yeni snapshot ID alması bilinçlidir.
 
-İlk amaç kod yazmak değil; şu soruyu kanıtla cevaplamaktır:
+Raw snapshot insert + canonical `fundamentals.ura_holdings` replacement aynı transaction içindedir.
 
-- Mevcut persisted decision-input provenance replay/validation kontratı için yeterli mi?
-- Yoksa `fundamentals.ura_holdings` overwrite davranışı nedeniyle ayrıca immutable raw fetch snapshot/version storage gerekli mi?
+İlk doğal hardened scheduler kanıtı:
 
-Bu araştırma threshold/model tuning'den ayrıdır. Sonuç ne olursa olsun released `1.2.0` davranışı açık kullanıcı onayı olmadan değiştirilmez.
+```text
+daily_ura_job id     2295
+started_at           2026-09-09T23:40:00Z
+status               OK
 
-### Yeni sohbet başlangıç kuralı
+snapshot id          1
+holding_date         2026-09-08
+constituent_count    57
+raw_size_bytes       5473
+```
 
-Yeni sohbet önce remote branch HEAD'ini ve en az aşağıdaki dosyaları okumalıdır:
+Snapshot SHA256:
+
+```text
+58ba159a7636a0e2360af1a88abf2cf6364de0d538f072995c715b5de7100f40
+```
+
+Yeni doğal URA decision:
+
+```text
+decision_id  90
+as_of        2026-09-09
+status       WAIT
+```
+
+Decision provenance doğrulaması:
+
+```text
+referenced_snapshot_id     1
+actual_snapshot_id         1
+referenced_holding_date    2026-09-08
+actual_holding_date        2026-09-08
+referenced SHA256          MATCH
+constituent_count          57 / 57
+raw_size_bytes             5473 / 5473
+provenance_match           PASS
+```
+
+Pre-0014 kararların exact raw HTTP bytes ref taşımaması beklenen tarihsel durumdur. Sahte backfill yapılmaz.
+
+`previous_snapshot_id=NULL` mevcut P1 kapanışını engellemez; previous holding date pre-0014 dönemdedir ve exact HTTP bytes geriye dönük reconstruct edilemez.
+
+Gelecekte ikinci farklı immutable holdings tarihi oluşunca current + previous snapshot bağının ikisini birlikte görmek ekstra forward evidence olacaktır; kapanış blocker'ı değildir.
+
+Manuel `--once ura` ile doğal evidence taklit edilmez.
+
+## 8. P2 macro/job-runs data lifecycle — CLOSED
+
+P2.1–P2.7 tamamlandı.
+
+Kanonik belge:
+
+```text
+docs/POST_SHADOW_P2_MACRO_JOB_RUNS_DATA_LIFECYCLE_DEBT.md
+```
+
+Kapanış commit'i:
+
+```text
+209b5b225ec2bc733512b771f6d7ead825afeaa3
+P2.7 lifecycle görev borcunu kapat
+```
+
+Özet:
+
+```text
+P2.1  macro.observations production baseline         CLOSED
+P2.2  macro deterministic read/version contract      CLOSED
+P2.3  macro dedup + future duplicate prevention      CLOSED
+P2.4  macro retention policy + maintenance           CLOSED
+P2.5  job_runs production baseline                   CLOSED
+P2.6  job_runs evidence-aware retention policy       CLOSED
+P2.7  bounded lifecycle observability integration    CLOSED
+P2     overall data lifecycle debt                    CLOSED
+```
+
+Migration `0015_macro_observations_transition_dedup.sql` uygulanmıştır.
+
+P2.7 mevcut `monthly_audit_job` içinde observability-only çalışır:
+
+```text
+new scheduler/queue       NONE
+macro recurring DELETE    NONE
+job_runs DELETE           NOT AUTHORIZED
+VACUUM FULL               NONE
+mutation                  NONE
+candidate yoksa           NO_OP
+```
+
+İlk doğal `monthly_audit_job` lifecycle observation'ı:
+
+```text
+1 Ekim 2026 09:00 Europe/Istanbul
+```
+
+beklenmektedir. Bu yalnız forward operational observation'dır; P2.7 kapanış blocker'ı değildir ve `--once monthly` ile taklit edilmemelidir.
+
+## 9. Güncel Windows runtime / deploy identity
+
+Son build ve development Windows makinesindeki upgrade deployment doğrulaması:
+
+```text
+Built EXE SHA256
+FA945EDB69B57C0D9CE305430BFB1815CA74780065A91C9BCC8259C8642EF295
+
+Installer SHA256
+6C52BAAF9A2590AD14FEF72E68A11F87E29E71FA3354A84CA37125B05AB8129D
+
+EXE_HASH_MATCH=True
+```
+
+Windows Service:
+
+```text
+Name       RosaInvestmentEngine
+State      Running
+StartMode  Auto
+ProcessId  6272
+StartTime  10.09.2026 23:34:28 Europe/Istanbul
+```
+
+Kurulu runtime üzerinden model validation:
+
+```text
+model_validation: OK
+core=OK
+observations=1423
+shadow=READY
+VALIDATION_EXIT_CODE=0
+SERVICE_PID_UNCHANGED=True
+```
+
+Bu deployment'da settings/rosalock korunmuştur.
+
+Bu güncel runtime identity, eski P1/P2 deployment hash'lerinin yerine current deployed baseline olarak alınmalıdır.
+
+## 10. LIVE neden hâlâ NO-GO
+
+`SHADOW_READINESS=READY` yalnız manuel production review kapısıdır.
+
+LIVE hâlâ NO-GO çünkü:
+
+- production ACTION/WATCH örneklemi yeterli değildir,
+- bağımsız OOS signal evidence sınırlı/signal-starved durumdadır,
+- historical replay production K1/K2/reset/reversal/event/data-quality zincirini birebir doğrulamaz,
+- URA full PIT replay için holdings/breadth/event point-in-time history henüz yeterli değildir.
+
+Bu durum threshold düşürmek, factor weights değiştirmek veya LIVE açmak için otomatik gerekçe değildir.
+
+## 11. Gelecekte yalnız forward observation olarak izlenecekler
+
+Aşağıdakiler mevcut kapanışları yeniden OPEN yapmaz:
+
+1. `1 Ekim 2026 09:00 Europe/Istanbul` ilk doğal `monthly_audit_job` lifecycle observation'ı.
+2. İleride ikinci post-0014 farklı URA holdings tarihi oluşunca current + previous immutable raw snapshot refs zincirinin birlikte görülmesi.
+3. Historical connection-pool timeout ailesi için GitHub Issue #2 observation borcu.
+
+Doğal scheduler evidence'i manuel job ile taklit edilmez.
+
+## 12. Sıradaki teknik çalışma — Windows build pipeline elevation RCA
+
+İlk yeni bağımsız teknik çalışma, build pipeline'ın zorunlu Administrator elevation davranışını araştırmaktır.
+
+Mevcut problem:
+
+```text
+build.bat
+```
+
+build'in tamamını Administrator seviyesine yükseltiyor. Son PyInstaller build sırasında elevated build davranışının deprecated olduğuna ve gelecekte PyInstaller 7 ile engellenebileceğine ilişkin uyarı görülmüştür.
+
+Bu şu anda build'i bozmadı; EXE ve installer başarıyla üretildi ve deploy edildi. Ancak packaging reliability borcudur.
+
+İlk aşamada kod değiştirme.
+
+Önce tamamen incelenecek dosyalar:
+
+```text
+build.bat
+installer/investmentengine_setup.iss
+scripts/release_check.py
+docs/BUILD_AND_INSTALLER.md
+```
+
+Araştırma soruları:
+
+```text
+1. PyInstaller build gerçekten Administrator gerektiriyor mu?
+2. Inno Setup compile gerçekten Administrator gerektiriyor mu?
+3. --uac-admin yalnız üretilen EXE manifest davranışı mı?
+4. build.bat içindeki net session / auto-elevation kaldırılabilir mi?
+5. Service install/upgrade elevation yalnız installer runtime aşamasında bırakılabilir mi?
+6. Değişiklik OneDir startup, installer service davranışı, settings/rosalock veya release_check'i etkiler mi?
+```
+
+Hedef mimari:
+
+```text
+build process             mümkünse normal user
+installer/service install gerektiğinde Administrator
+```
+
+Bu araştırma model semantics, threshold, weights, K1/K2, scheduler cadence, SHADOW/LIVE veya model version ile ilgili değildir.
+
+## 13. Installer kullanım tercihi
+
+Development deployment'larda kullanıcı installer penceresini görmek istiyor.
+
+Yeni runtime gerçekten deploy edilecekse tercih edilen PowerShell:
+
+```powershell
+Start-Process "D:\wamp64\www\Yatirim10YilUygulamasi\InvestmentEngine-v1.2.0-mobile-ready\installer\InvestmentEngineSetup-1.2.0.exe" -Verb RunAs -Wait
+```
+
+Sessiz `/VERYSILENT` yöntemini varsayılan kullanma.
+
+Read-only SQL, belge değişikliği veya yalnız analiz için installer çalıştırılmaz.
+
+Deployment sonrası mümkünse doğrula:
+
+```text
+installer exit
+service Running
+StartMode Auto
+service PID/start time
+installed EXE SHA256 == built EXE SHA256
+settings/rosalock preserved
+```
+
+## 14. Kod revizyon çalışma biçimi
+
+Bağlayıcı yöntem:
+
+```text
+önce mevcut dosya ve mimariyi incele
+→ veri akışını anla
+→ gereksiz yeni layer/queue/scheduler ekleme
+→ mevcut veri akışını koru
+→ değişiklikleri yalnız ilgili fonksiyonlarla sınırla
+→ model semantiğini istemeden değiştirme
+→ focused test
+→ full test
+→ release check
+→ gerekiyorsa gerçek runtime/Supabase doğrulaması
+→ değişen/yeni dosyaları açıkça listele
+```
+
+Bir sorun kodda zaten çözülmüşse yeniden implement etme. Önce test/runtime evidence ile kapanıp kapanmadığını kontrol et.
+
+`kodlandı`, `test edildi`, `production DB'de doğrulandı`, `runtime deploy edildi`, `ürün kararı olarak onaylandı` durumlarını birbirine karıştırma.
+
+## 15. PowerShell ve GitHub çalışma kuralı
+
+PowerShell komutları doğrudan kopyala-yapıştır güvenli biçimde verilir. Birbirine bağlı komutlar mümkünse tek satırda `;` ile ayrılır. `$LASTEXITCODE` ilgili komuttan hemen sonra yakalanır. `PS ...>` ve `>>` prompt metinleri code block içine yazılmaz.
+
+Migration, service stop/start, production job, installer veya data mutation komutu verilecekse etkisi önceden açıkça anlatılır.
+
+GitHub için:
+
+- yeni değişiklikten hemen önce remote branch ve dosyanın son hali yeniden okunur,
+- stale blob SHA üzerinden yazılmaz,
+- her mantıksal değişiklik ayrı commit edilir,
+- tüm yeni commit mesajları Türkçe olur,
+- force push yapılmaz,
+- kullanıcı ayrıca istemedikçe master merge/rebase/history rewrite yapılmaz,
+- commit/push sonrası short SHA, full SHA ve değişen/yeni dosyalar bildirilir,
+- kullanıcıya `git pull --ff-only` komutu verilir.
+
+## 16. Yeni sohbet başlangıç kuralı
+
+Yeni sohbet önce remote `agent/portfolio-audit-reset` HEAD'ini doğrular ve şu kaynakları güncel branch'ten okur:
 
 1. `CHATGPT_PROJECT_START_HERE.md`
 2. `InvestmentEngine-v1.2.0-mobile-ready/docs/PROJECT_MEMORY_BANK.md`
 3. `InvestmentEngine-v1.2.0-mobile-ready/docs/SIGNAL_ENGINE_DECISION_CONTRACT.md`
 4. `InvestmentEngine-v1.2.0-mobile-ready/docs/SESSION_HANDOFF.md`
-5. `InvestmentEngine-v1.2.0-mobile-ready/docs/POST_SHADOW_P1_TRANSACTIONAL_DECISION_PERSISTENCE_HARDENING.md`
-6. `InvestmentEngine-v1.2.0-mobile-ready/docs/POST_SHADOW_P1_PRODUCTION_REPLAY_PROVENANCE_HARDENING.md`
+5. `InvestmentEngine-v1.2.0-mobile-ready/docs/INVESTMENT_ENGINE_SHADOW_GOREV_TAKVIMI_2026-07-31.md`
+6. `InvestmentEngine-v1.2.0-mobile-ready/docs/SHADOW_CHECKPOINT_LOG.md`
+7. ilgili `POST_SHADOW_*.md` kanıt belgeleri
+8. değiştirilecek gerçek kod/migration/test dosyaları
 
-Bunları okuduktan sonra kullanıcıya ilk çalıştırılacak komut olarak tek, kopyala-yapıştır güvenli PowerShell satırı verilmelidir:
+Kullanıcının local worktree'si için yalnız kullanıcı çıktısına dayanılır.
+
+Güvenli başlangıç kontrolü:
 
 ```powershell
-cd D:\wamp64\www\Yatirim10YilUygulamasi; git pull --ff-only; git rev-parse --short HEAD; git status --short
+cd D:\wamp64\www\Yatirim10YilUygulamasi; git fetch origin; Write-Host "LOCAL_HEAD=$(git rev-parse --short HEAD)"; Write-Host "REMOTE_HEAD=$(git rev-parse --short origin/agent/portfolio-audit-reset)"; Write-Host "BRANCH=$(git branch --show-current)"; Write-Host "=== STATUS ==="; git status --short
 ```
 
-Yeni sohbet, kullanıcı bu çıktıyı vermeden yerel repo için `güncel/clean` iddiasında bulunmamalıdır.
+## 17. Oturum15 güncel kapanış noktası
 
-### GitHub çalışma biçimi
+Oturum15 başlangıcında remote/local branch senkronizasyonu doğrulandı ve `SESSION_HANDOFF.md` güncel runtime/DB/test kanıtlarıyla reconcile edildi.
 
-Oturum12 ve sonraki sohbetlerde:
+Güncel özet:
 
-- Her teknik aksiyon öncesi remote HEAD ve değiştirilecek dosyanın güncel SHA'sı okunur.
-- Her mantıksal değişiklik ayrı commit edilir ve mevcut `agent/portfolio-audit-reset` branch'ine hemen push edilir.
-- **Tüm yeni GitHub commit mesajları Türkçe yazılır.** Dosya/kod sembolleri özgün kalabilir, cümle Türkçe olur.
-- Commit/push sonrası kullanıcıya short SHA, full SHA ve Türkçe commit mesajı bildirilir.
-- Asistan push ettikten sonra kullanıcı pull/test eder; kullanıcı çıktısı olmadan local repo'nun clean/güncel olduğu varsayılmaz.
-- Sonuç sınıflandırmaları ve teknik terimler ilk anlamlı kullanımda kanonik terim + parantez içinde Türkçe karşılığıyla verilir; kod/SQL/literal alan adları çevrilmez.
-- PowerShell komutları tek seferde yapıştırılabilir, sözdizimsel olarak güvenli biçimde sunulur.
+```text
+Model                                  1.2.0 / SHADOW
+SHADOW_READINESS                       READY
+LIVE                                   NO-GO
+Shadow Readiness provenance            CLOSED / VERIFIED
+Transactional decision persistence     CLOSED / VERIFIED
+URA immutable raw source snapshot P1   CLOSED / VERIFIED
+P2.1-P2.7 lifecycle                    CLOSED
+Full pytest                            94 PASS
+Release check                          OK
+Installed runtime identity             VERIFIED
+Next technical work                    build.bat Administrator/PyInstaller RCA
+Model semantics change                 NONE
+```
+
+Bu handoff senkronizasyonu yalnız dokümantasyon değişikliğidir. Yeni build, installer, migration, production job veya model davranışı değişikliği gerektirmez.
