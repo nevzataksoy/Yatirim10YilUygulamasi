@@ -2,7 +2,7 @@
 
 Tarih: 09 Eylül 2026  
 Son durum güncellemesi: 10 Eylül 2026  
-Durum: `OPEN — P2.1/P2.2/P2.3/P2.4 CLOSED; P2.5 NEXT`  
+Durum: `OPEN — P2.1/P2.2/P2.3/P2.4/P2.5 CLOSED; P2.6 NEXT`  
 Model version: `1.2.0`  
 Mode: `SHADOW`  
 LIVE: `NO-GO`
@@ -99,7 +99,7 @@ Canonical evidence:
 
 ### P2.4 — Macro retention policy + maintenance — CLOSED
 
-P2.4 production üzerinde önce read-only baseline ile yürütüldü. P2.3 sonrası retained setin yaş dağılımı, revision/value-transition lineage, released decision evidence, current replay dependency ve physical maintenance durumu ölçüldü.
+P2.4 production üzerinde read-only baseline ile yürütüldü. P2.3 sonrası retained setin yaş dağılımı, revision/value-transition lineage, released decision evidence, current replay dependency ve physical maintenance durumu ölçüldü.
 
 Final production baseline:
 
@@ -119,16 +119,6 @@ n_dead_tup                                 0
 relation total size                    57 MB
 ```
 
-Kritik bulgular:
-
-- P2.3 duplicate problemi tekrar oluşmamıştır; same-value repeat sınıfı `0`dır.
-- `STLFSI4` gerçek revision lineage'ın baskın kaynağıdır.
-- 10 yıldan eski satırların önemli bölümü legitimate value transition'dır.
-- consumer tarafından doğrudan seçilmeyen 13,381 satırın 8,420'si genuine transition'dır.
-- released decision evidence eksiksizdir.
-- current model replay bütün series/evaluation kombinasyonlarını resolve etmektedir.
-- autovacuum/autoanalyze cleanup sonrası çalışmış ve `n_dead_tup=0` durumuna gelmiştir.
-
 Accepted retention/maintenance kontratı:
 
 ```text
@@ -144,7 +134,7 @@ production mutation                  NONE
 scheduler change                     NONE
 ```
 
-P2.4 sonucu macro tarafında recurring DELETE işi üretmemiştir. P2.7 sırf maintenance framework oluşturmak için macro cleanup eklememelidir. Gerekirse yalnız bounded/read-only growth ve physical-health observability mevcut scheduler mimarisinde değerlendirilir. Gelecekte kanıtlanmış bir mutation ihtiyacı doğarsa ilk entegrasyon noktası mevcut `monthly_audit_job` olmalıdır; yeni scheduler/queue katmanı eklenmemelidir.
+P2.4 sonucu macro tarafında recurring DELETE işi üretmemiştir. P2.7 sırf maintenance framework oluşturmak için macro cleanup eklememelidir. Gerekirse yalnız bounded/read-only growth ve physical-health observability mevcut scheduler mimarisinde değerlendirilir.
 
 Canonical evidence:
 
@@ -152,26 +142,87 @@ Canonical evidence:
 - `docs/POST_SHADOW_P2_4_MACRO_RETENTION_PRODUCTION_BASELINE.md`
 - `docs/POST_SHADOW_P2_4_MACRO_RETENTION_MAINTENANCE_CONTRACT.md`
 
-## 3. system.job_runs açık görevleri
+## 3. system.job_runs aşamaları
 
-### P2.5 — Production baseline — NEXT / OPEN
+### P2.5 — Production baseline — CLOSED
 
-Ölçülecekler:
+P2.5 production üzerinde yalnız READ-ONLY ölçüm ile tamamlandı.
 
-- total row / physical size,
-- job_name + status dağılımı,
-- günlük/aylık growth,
-- oldest/latest timestamps,
-- ERROR/DEGRADED/OK/SKIPPED dağılımı,
-- manual/test/backfill oranı,
-- 7/30/90 gün dışındaki row sayıları,
-- details/message payload boyutları.
+Overall baseline:
 
-Released runtime son 7 günü readiness için yoğun kullanıyor olsa da daha eski `job_runs` kayıtları P0/RCA ve historical incident evidence olarak kullanılmıştır. Bu nedenle `7 günden eski her şeyi sil` kabul edilmez.
+```text
+total rows                         2,327
+oldest started_at                  2026-07-30T00:32:13.964357+00:00
+latest started_at                  2026-09-10T13:35:00.015676+00:00
+rows last 1d                          55
+rows last 7d                         386
+rows last 30d                      1,652
+rows older than 30d                  675
+rows older than 90d                    0
+unfinished rows                        0
+negative-duration rows                 0
+relation total                     ~4 MB
+n_dead_tup                             0
+```
 
-### P2.6 — Evidence-aware retention policy — OPEN
+Status/evidence dağılımı:
 
-En az şu sınıflar ayrılmalıdır:
+```text
+OK                               1,305
+DEGRADED                         1,010
+ERROR                               12
+SKIPPED                              0
+explicit manual/test/backfill       15
+```
+
+Hacmin baskın kaynakları:
+
+```text
+sec_event_job     1,007 rows / 1,004 DEGRADED
+hourly_job        1,000 rows /   992 OK / 8 ERROR-or-other
+macro_job           174 rows /   168 OK / 6 DEGRADED
+```
+
+Provenance:
+
+```text
+scheduled_legacy    1,941
+scheduled             357
+maintenance            12
+manual                 10
+test                    4
+dependency              2
+backfill                 1
+unresolved legacy        0
+```
+
+Shadow evidence:
+
+```text
+shadow-1.2.0-initial / epoch 1     2,306 rows
+pre-epoch / no shadow_epoch_id        21 rows
+```
+
+Current readiness contract son 7 günü kullanır, `realtime_test`i dışlar ve `OK/DEGRADED/SKIPPED` statülerini successful sayar. Baseline anında readiness seti `385/385` successful'dır. Bu nedenle `DEGRADED` operational evidence olmasıyla readiness başarısızlığı olması aynı şey değildir.
+
+P2.5 sonucu:
+
+```text
+baseline_complete                 true
+production mutation               none
+retention delete authorized       false
+VACUUM FULL authorized            false
+blind 7/30/90 day delete          not justified
+```
+
+Canonical evidence:
+
+- `verification/verify_job_runs_p2_5_production_baseline.sql`
+- `docs/POST_SHADOW_P2_5_JOB_RUNS_PRODUCTION_BASELINE.md`
+
+### P2.6 — Evidence-aware retention policy — NEXT / OPEN
+
+P2.5 kanıtı, tek tip age-based retention'ın güvenli olmadığını gösterir. P2.6 en az şu sınıfları ayrı ele almalıdır:
 
 ```text
 ROUTINE SUCCESS TELEMETRY
@@ -180,6 +231,17 @@ ERROR / INCIDENT EVIDENCE
 MANUAL / BACKFILL / TEST EVIDENCE
 RELEASE / SHADOW MILESTONE EVIDENCE
 ```
+
+P2.6 minimum güvenlik sınırları:
+
+- current 7-day readiness window kesin korunur,
+- ERROR/incident evidence kör age cutoff ile silinmez,
+- DEGRADED telemetry `OK` ile otomatik aynı sınıfa konmaz,
+- manual/backfill/test evidence düşük hacimli yüksek değerli kanıt olarak ayrılır,
+- pre-epoch/release/bootstrap history doğrudan routine telemetry kabul edilmez,
+- `scheduled_legacy` provenance limitation retention gerekçesi değildir,
+- deletion candidate set varsa önce read-only/dry-run ile ölçülür,
+- herhangi bir DELETE/migration/scheduler change ancak evidence sonrası ayrıca onaylanır.
 
 ### P2.7 — Autonomous bounded maintenance integration — OPEN
 
@@ -195,8 +257,8 @@ P2.1  macro.observations production baseline         CLOSED
 P2.2  macro deterministic read/version contract      CLOSED
 P2.3  macro dedup + future duplicate prevention      CLOSED
 P2.4  macro retention policy + maintenance           CLOSED
-P2.5  job_runs production baseline                   NEXT / OPEN
-P2.6  job_runs evidence-aware retention policy       OPEN
+P2.5  job_runs production baseline                   CLOSED
+P2.6  job_runs evidence-aware retention policy       NEXT / OPEN
 P2.7  autonomous bounded maintenance integration     OPEN
 ```
 
