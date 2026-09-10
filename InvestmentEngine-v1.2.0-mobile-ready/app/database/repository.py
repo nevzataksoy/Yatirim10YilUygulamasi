@@ -52,20 +52,56 @@ class Repository:
             conn.commit()
 
     def upsert_macro(self, observations: list[dict]) -> None:
-        if not observations:
+        """Persist only new current-view value transitions.
+
+        FRED current-view requests change realtime_start/realtime_end with the
+        query real-time date even when the economic value did not change.  A
+        same-value refetch is therefore not a new version and must not create a
+        row or mutate fetched_at.  A real value change is inserted as a new
+        immutable transition row.  The advisory lock serializes concurrent
+        writers per series.  Generic ON CONFLICT keeps this code deployable
+        before migration 0015 removes the legacy realtime_start uniqueness.
+        """
+        rows = [
+            (
+                str(x["series_id"]),
+                x["date"],
+                x["value"],
+                x.get("realtime_start") or x["date"],
+                x.get("realtime_end"),
+            )
+            for x in observations
+        ]
+        if not rows:
             return
+
         sql = """
         insert into macro.observations
           (series_id, observation_date, value, realtime_start, realtime_end)
-        values (%s,%s,%s,%s,%s)
-        on conflict (series_id, observation_date, realtime_start) do update set
-          value=excluded.value, realtime_end=excluded.realtime_end, fetched_at=now()
+        select %s,%s,%s,%s,%s
+        where (
+          select m.value
+          from macro.observations m
+          where m.series_id=%s and m.observation_date=%s
+          order by m.realtime_start desc, m.fetched_at desc, m.id desc
+          limit 1
+        ) is distinct from %s
+        on conflict do nothing
         """
+        insert_rows = [
+            (series_id, observation_date, value, realtime_start, realtime_end,
+             series_id, observation_date, value)
+            for series_id, observation_date, value, realtime_start, realtime_end in rows
+        ]
+        series_ids = sorted({series_id for series_id, *_ in rows})
+
         with self.db.connection() as conn, conn.cursor() as cur:
-            cur.executemany(sql, [
-                (x["series_id"], x["date"], x["value"], x.get("realtime_start") or x["date"], x.get("realtime_end"))
-                for x in observations
-            ])
+            for series_id in series_ids:
+                cur.execute(
+                    "select pg_advisory_xact_lock(hashtextextended(%s,0))",
+                    (f"macro.observations:{series_id}",),
+                )
+            cur.executemany(sql, insert_rows)
             conn.commit()
 
     def upsert_features(self, system: str, as_of: str, features: dict[str, dict]) -> None:
@@ -304,22 +340,33 @@ class Repository:
         }
 
     def get_latest_macro_observations(self, series_ids: list[str], as_of: str | None = None) -> dict[str,dict]:
+        """Return one deterministic latest current-view row per series."""
         out: dict[str,dict] = {}
         with self.db.connection() as conn, conn.cursor() as cur:
             for series_id in series_ids:
                 if as_of:
                     cur.execute("""
-                        select series_id, observation_date, value, fetched_at
+                        select series_id, observation_date, value,
+                               realtime_start, realtime_end, fetched_at
                         from macro.observations
                         where series_id=%s and observation_date <= %s
-                        order by observation_date desc limit 1
+                        order by observation_date desc,
+                                 realtime_start desc,
+                                 fetched_at desc,
+                                 id desc
+                        limit 1
                     """, (series_id, as_of))
                 else:
                     cur.execute("""
-                        select series_id, observation_date, value, fetched_at
+                        select series_id, observation_date, value,
+                               realtime_start, realtime_end, fetched_at
                         from macro.observations
                         where series_id=%s
-                        order by observation_date desc limit 1
+                        order by observation_date desc,
+                                 realtime_start desc,
+                                 fetched_at desc,
+                                 id desc
+                        limit 1
                     """, (series_id,))
                 row=cur.fetchone()
                 if row:
@@ -770,14 +817,23 @@ class Repository:
         ]
 
     def get_macro_history(self, series_ids: list[str]) -> dict[str, list[dict]]:
+        """Return one deterministic latest current-view version per observation date."""
         out: dict[str, list[dict]] = {key: [] for key in series_ids}
         with self.db.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                select series_id,observation_date,value,fetched_at
-                from macro.observations
-                where series_id = any(%s)
-                order by series_id,observation_date
+                select series_id, observation_date, value,
+                       realtime_start, realtime_end, fetched_at
+                from (
+                  select distinct on (series_id, observation_date)
+                         series_id, observation_date, value,
+                         realtime_start, realtime_end, fetched_at, id
+                  from macro.observations
+                  where series_id = any(%s)
+                  order by series_id, observation_date,
+                           realtime_start desc, fetched_at desc, id desc
+                ) latest
+                order by series_id, observation_date
                 """,
                 (series_ids,),
             )
