@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js'
-import { ASSETS } from './portfolioAnalytics.js'
+import { ASSETS, INVESTMENT_ASSETS, SETTLEMENT_ASSETS } from './portfolioAnalytics.js'
 
 const BALANCE_EPSILON = new Decimal('0.0000000001')
 const NUMERIC_FIELDS = [
@@ -199,8 +199,6 @@ export function assertTransactionRequestShape(row) {
     return row
   }
 
-  const cashAssets = ['TRY', 'USD']
-  const investmentAssets = ['BTC', 'ETH', 'URA']
   const hasSource = sourceAsset && sourceQuantity.gt(0)
   const hasTarget = targetAsset && targetQuantity.gt(0)
 
@@ -210,31 +208,31 @@ export function assertTransactionRequestShape(row) {
         throw new Error('OPENING yalnız pozitif hedef bakiyesi eklemelidir.')
       break
     case 'CASH_IN':
-      if (hasSource || !hasTarget || !cashAssets.includes(targetAsset))
-        throw new Error('CASH_IN yalnız TRY veya USD nakit bakiyesi eklemelidir.')
+      if (hasSource || !hasTarget || !SETTLEMENT_ASSETS.includes(targetAsset))
+        throw new Error('CASH_IN yalnız USD, TRY, USDT veya USDC bakiyesi eklemelidir.')
       break
     case 'CASH_OUT':
-      if (!hasSource || hasTarget || !cashAssets.includes(sourceAsset))
-        throw new Error('CASH_OUT yalnız TRY veya USD nakit bakiyesinden düşmelidir.')
+      if (!hasSource || hasTarget || !SETTLEMENT_ASSETS.includes(sourceAsset))
+        throw new Error('CASH_OUT yalnız USD, TRY, USDT veya USDC bakiyesinden düşmelidir.')
       break
     case 'BUY':
       if (
         !hasSource ||
         !hasTarget ||
-        !cashAssets.includes(sourceAsset) ||
-        !investmentAssets.includes(targetAsset)
+        !SETTLEMENT_ASSETS.includes(sourceAsset) ||
+        !INVESTMENT_ASSETS.includes(targetAsset)
       )
-        throw new Error('BUY, TRY/USD nakitten BTC/ETH/URA varlığına yapılmalıdır.')
+        throw new Error('BUY, settlement bakiyesinden BTC/ETH/URA varlığına yapılmalıdır.')
       break
     case 'SELL':
     case 'EXIT':
       if (
         !hasSource ||
         !hasTarget ||
-        !investmentAssets.includes(sourceAsset) ||
-        !cashAssets.includes(targetAsset)
+        !INVESTMENT_ASSETS.includes(sourceAsset) ||
+        !SETTLEMENT_ASSETS.includes(targetAsset)
       )
-        throw new Error('SELL/EXIT, BTC/ETH/URA varlığından TRY/USD nakde yapılmalıdır.')
+        throw new Error('SELL/EXIT, BTC/ETH/URA varlığından settlement bakiyesine yapılmalıdır.')
       break
     case 'CONVERSION':
       if (!hasSource || !hasTarget)

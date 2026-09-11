@@ -1,6 +1,8 @@
 import Decimal from 'decimal.js'
 
-export const ASSETS = ['BTC', 'ETH', 'URA', 'USD', 'TRY']
+export const INVESTMENT_ASSETS = Object.freeze(['BTC', 'ETH', 'URA'])
+export const SETTLEMENT_ASSETS = Object.freeze(['USD', 'TRY', 'USDT', 'USDC'])
+export const ASSETS = Object.freeze([...INVESTMENT_ASSETS, ...SETTLEMENT_ASSETS])
 const EPSILON = new Decimal('0.000000000001')
 
 function amount(value) {
