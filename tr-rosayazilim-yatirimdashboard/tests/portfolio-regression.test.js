@@ -185,6 +185,8 @@ test('100,000 TRY ledger matches capital, fee and profit regression values', () 
   const ledger = buildPortfolioLedger(build100kTryScenario())
   closeTo(ledger.assets.TRY.quantity, 6098.02)
   closeTo(ledger.assets.USD.quantity, 63.97555696202533)
+  closeTo(ledger.assets.USDT.quantity, 0)
+  closeTo(ledger.assets.USDC.quantity, 0)
   closeTo(ledger.assets.BTC.quantity, 0.00794305)
   closeTo(ledger.assets.ETH.quantity, 0.2852)
   closeTo(ledger.assets.URA.quantity, 10)
@@ -192,7 +194,15 @@ test('100,000 TRY ledger matches capital, fee and profit regression values', () 
   closeTo(ledger.realizedPnlUsd, 19.26901860603975)
   closeTo(ledger.totalFeesUsd, 1.946954936708861)
 
-  const prices = { TRY: 1 / USD_TRY, USD: 1, BTC: 64800, ETH: 1920, URA: 37.5 }
+  const prices = {
+    TRY: 1 / USD_TRY,
+    USD: 1,
+    USDT: 1,
+    USDC: 1,
+    BTC: 64800,
+    ETH: 1920,
+    URA: 37.5,
+  }
   const marketValue = Object.values(ledger.assets).reduce(
     (sum, asset) => sum + asset.quantity * prices[asset.asset],
     0,
