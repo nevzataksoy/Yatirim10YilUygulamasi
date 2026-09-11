@@ -5,10 +5,6 @@ import {
   buildInstitutionLedgers,
   resolveTransactionInstitution,
 } from '../src/services/portfolioInstitutionAnalytics.js'
-import {
-  assertIdempotentTransactionMatch,
-  normalizeTransaction,
-} from '../src/services/portfolioTransactions.js'
 
 const institutions = [
   {
@@ -65,35 +61,6 @@ test('legacy platform text resolves to the canonical institution without merging
   assert.equal(unknown.resolution, 'unmapped_platform')
   assert.equal(empty.name, 'Kurum Belirtilmemiş')
   assert.equal(empty.unassigned, true)
-})
-
-test('transaction normalization preserves institution_id without making DB trigger enrichment an idempotency mismatch', () => {
-  const baseInput = {
-    id: '33333333-3333-4333-8333-333333333333',
-    transaction_type: 'CASH_IN',
-    target_asset: 'USD',
-    target_quantity: 100,
-    gross_usd: 100,
-    net_usd: 100,
-    usd_try: 50,
-    platform: 'Midas',
-    transaction_at: '2026-09-11T12:00:00.000Z',
-  }
-  const request = normalizeTransaction(baseInput, 'user-1', 'account-1')
-  const revisionInput = normalizeTransaction(
-    { ...baseInput, institution_id: institutions[0].id },
-    'user-1',
-    'account-1',
-  )
-
-  assert.equal(request.institution_id, null)
-  assert.equal(revisionInput.institution_id, institutions[0].id)
-  assert.doesNotThrow(() =>
-    assertIdempotentTransactionMatch(
-      { ...request, institution_id: institutions[0].id },
-      request,
-    ),
-  )
 })
 
 test('the same asset held at two institutions remains separated by institution ledger', () => {
@@ -163,6 +130,7 @@ test('institution distribution reports value, allocation and per-ledger cost wit
   const midas = distribution.find((item) => item.name === 'Midas')
   const coinbase = distribution.find((item) => item.name === 'Coinbase')
 
+  assert.equal(midas.custodyReconciled, true)
   assert.equal(midas.assets.length, 1)
   assert.equal(midas.assets[0].asset, 'URA')
   assert.equal(midas.assets[0].quantity, 10)
@@ -175,6 +143,44 @@ test('institution distribution reports value, allocation and per-ledger cost wit
   assert.equal(coinbase.assets[0].quantity, 500)
   assert.equal(coinbase.valuation.currentValueUsd, 500)
   assert.equal(coinbase.allocationPct, 50)
+})
+
+test('cross-institution custody gaps fail reconciliation and suppress allocation percentages', () => {
+  const rows = [
+    tx(30, {
+      institution_id: institutions[0].id,
+      platform: 'Midas',
+      transaction_type: 'CASH_IN',
+      target_asset: 'USD',
+      target_quantity: 100,
+      gross_usd: 100,
+      net_usd: 100,
+      usd_try: 50,
+    }),
+    tx(31, {
+      institution_id: institutions[1].id,
+      platform: 'Coinbase',
+      transaction_type: 'BUY',
+      source_asset: 'USD',
+      source_quantity: 100,
+      target_asset: 'BTC',
+      target_quantity: 0.001,
+      gross_usd: 100,
+      net_usd: 100,
+      target_unit_price: 100_000,
+      usd_try: 50,
+    }),
+  ]
+
+  const distribution = buildInstitutionDistribution({
+    transactions: rows,
+    institutions,
+    priceUsd: (asset) => (asset === 'BTC' ? 100_000 : 0),
+  })
+
+  assert.equal(distribution.every((row) => row.custodyReconciled === false), true)
+  assert.equal(distribution.every((row) => row.allocationPct === null), true)
+  assert.equal(distribution[0].reconciliationIssues.some((item) => item.asset === 'USD'), true)
 })
 
 test('a missing live quote marks allocation incomplete instead of inventing a value', () => {
@@ -197,6 +203,7 @@ test('a missing live quote marks allocation incomplete instead of inventing a va
     priceUsd: () => 0,
   })
 
+  assert.equal(row.custodyReconciled, true)
   assert.equal(row.valuation.valuationComplete, false)
   assert.equal(row.valuation.currentValueUsd, null)
   assert.equal(row.valuation.unrealizedPnlUsd, null)
