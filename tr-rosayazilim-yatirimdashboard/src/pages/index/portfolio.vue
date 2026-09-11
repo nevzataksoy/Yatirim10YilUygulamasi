@@ -53,6 +53,8 @@
         </div>
       </div>
 
+      <InstitutionDistributionCard class="q-mb-lg" />
+
       <div class="row q-col-gutter-md">
         <div v-for="item in rows" :key="item.asset" class="col-12 col-md-6 col-lg-4">
           <q-card flat class="section-card full-height">
@@ -194,6 +196,7 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import AssetAvatar from '@/components/AssetAvatar.vue'
+import InstitutionDistributionCard from '@/components/InstitutionDistributionCard.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import { useDisplayCurrency } from '@/composables/useDisplayCurrency'
 import { useFormatters } from '@/composables/useFormatters'
@@ -401,7 +404,10 @@ function quoteForAsset(asset) {
 
 function quoteSourceMeta(quote) {
   if (!quote) return { label: 'Bilinmeyen kaynak', icon: 'source' }
-  return QUOTE_SOURCE_META[quote.provider] || { label: quote.provider || 'Bilinmeyen kaynak', icon: 'source' }
+  return QUOTE_SOURCE_META[quote.provider] || {
+    label: quote.provider || 'Bilinmeyen kaynak',
+    icon: 'source',
+  }
 }
 
 function quoteSourceIcon(quote) {
