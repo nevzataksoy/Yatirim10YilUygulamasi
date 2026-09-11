@@ -92,7 +92,6 @@ export function normalizeTransaction(input, userId, accountId) {
     id: input.id || createTransactionRequestId(),
     user_id: userId,
     account_id: accountId,
-    institution_id: input.institution_id || null,
     decision_id: input.decision_id || null,
     transaction_at: input.transaction_at || nowIso(),
     transaction_type: input.transaction_type,
