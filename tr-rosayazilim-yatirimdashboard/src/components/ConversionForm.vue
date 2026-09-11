@@ -147,7 +147,7 @@
             min="0"
             step="any"
             :label="`${form.source_asset} İşlem Fiyatı (USD)`"
-            hint="Geçmiş işlemde işlem anındaki USD fiyatını yaz; güncel fiyat başlangıç değeri olarak gelir."
+            hint="Geçmiş işlemde işlem anındaki USD fiyatını yaz; güncel fiyat yalnız başlangıç değeri olarak gelir."
           >
             <template #append>
               <q-btn flat dense round icon="auto_fix_high" @click="fillSourceUsdPrice" />
@@ -273,6 +273,14 @@
           <q-item-section>USD İşlem Karşılığı</q-item-section>
           <q-item-section side class="amount-strong">{{ formatUsd(grossUsd) }}</q-item-section>
         </q-item>
+        <q-item v-if="isStablecoin(form.source_asset)">
+          <q-item-section>{{ form.source_asset }}/USD</q-item-section>
+          <q-item-section side>{{ sourceUnitPriceUsd.toFixed(6) }}</q-item-section>
+        </q-item>
+        <q-item v-if="isStablecoin(form.target_asset)">
+          <q-item-section>{{ form.target_asset }}/USD (işlemden türetilen)</q-item-section>
+          <q-item-section side>{{ targetUnitPriceUsd.toFixed(6) }}</q-item-section>
+        </q-item>
         <q-item>
           <q-item-section>Kurum</q-item-section>
           <q-item-section side>{{ form.platform || '—' }}</q-item-section>
@@ -319,12 +327,19 @@ import TransactionBalanceContext from '@/components/TransactionBalanceContext.vu
 import { useFormatters } from '@/composables/useFormatters'
 import { ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
+import {
+  actualStablecoinUsdQuote,
+  isStablecoin,
+  stablecoinRatesMetadata,
+} from '@/services/transactionCurrency'
+import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
 const $q = useQuasar()
 const router = useRouter()
 const engine = useEngineStore()
 const portfolio = usePortfolioStore()
+const displayQuotes = useDisplayQuoteStore()
 const { formatDate, formatNumber, formatUsd } = useFormatters()
 const percentages = [25, 50, 75, 100]
 const saving = ref(false)
@@ -378,6 +393,10 @@ const sourceUnitPriceUsd = computed(() => {
   }
   return Number(form.source_unit_price_usd || 0)
 })
+const targetUnitPriceUsd = computed(() => {
+  const rate = Number(form.pair_rate || 0)
+  return rate > 0 && sourceUnitPriceUsd.value > 0 ? sourceUnitPriceUsd.value / rate : 0
+})
 const grossUsd = computed(() => Number(form.source_quantity || 0) * sourceUnitPriceUsd.value)
 const feeUsd = computed(() => assetAmountToUsd(form.fee_asset, Number(form.fee_quantity || 0)))
 const usedPct = computed(() =>
@@ -401,6 +420,7 @@ watch(
     fillSourceUsdPrice()
     fillMarketPairRate()
   },
+  { immediate: true },
 )
 watch(
   () => [form.source_quantity, form.pair_rate, form.fee_asset, form.fee_quantity],
@@ -408,18 +428,24 @@ watch(
     if (!targetManuallyEdited.value) form.target_quantity = calculatedNetTarget.value || null
   },
 )
+function currentAssetUsdPrice(asset) {
+  if (asset === 'USD') return 1
+  if (asset === 'TRY') {
+    const fx = Number(form.usd_try || 0)
+    return fx > 0 ? 1 / fx : 0
+  }
+  if (isStablecoin(asset)) return actualStablecoinUsdQuote(displayQuotes.quotes, asset)
+  return Number(engine.price(asset) || 0)
+}
 function assetAmountToUsd(asset, value) {
   const quantity = Number(value || 0)
   if (!asset || quantity <= 0) return 0
-  if (asset === 'USD') return quantity
-  if (asset === 'TRY') {
-    const fx = Number(form.usd_try || 0)
-    return fx > 0 ? quantity / fx : 0
-  }
-  return quantity * Number(engine.price(asset) || 0)
+  if (asset === form.source_asset) return quantity * sourceUnitPriceUsd.value
+  if (asset === form.target_asset) return quantity * targetUnitPriceUsd.value
+  return quantity * currentAssetUsdPrice(asset)
 }
 function formatQuantity(value, asset) {
-  const digits = asset === 'BTC' ? 8 : asset === 'ETH' ? 6 : asset === 'URA' ? 4 : 2
+  const digits = asset === 'BTC' ? 8 : asset === 'ETH' ? 6 : asset === 'URA' ? 4 : isStablecoin(asset) ? 6 : 2
   return formatNumber(value, digits)
 }
 function usePercentage(pct) {
@@ -431,27 +457,13 @@ function usePercentage(pct) {
 }
 function fillSourceUsdPrice() {
   if (!needsSourceUsdPrice.value) return
-  const value = Number(engine.price(form.source_asset) || 0)
-  if (value > 0) form.source_unit_price_usd = value
+  const value = currentAssetUsdPrice(form.source_asset)
+  form.source_unit_price_usd = value > 0 ? value : null
 }
 function fillMarketPairRate() {
   if (!form.source_asset || !form.target_asset) return
-  const sourceUsd =
-    form.source_asset === 'TRY'
-      ? Number(form.usd_try || 0) > 0
-        ? 1 / Number(form.usd_try)
-        : 0
-      : form.source_asset === 'USD'
-        ? 1
-        : Number(engine.price(form.source_asset) || 0)
-  const targetUsd =
-    form.target_asset === 'TRY'
-      ? Number(form.usd_try || 0) > 0
-        ? 1 / Number(form.usd_try)
-        : 0
-      : form.target_asset === 'USD'
-        ? 1
-        : Number(engine.price(form.target_asset) || 0)
+  const sourceUsd = sourceUnitPriceUsd.value || currentAssetUsdPrice(form.source_asset)
+  const targetUsd = currentAssetUsdPrice(form.target_asset)
   if (sourceUsd > 0 && targetUsd > 0) {
     form.pair_rate = sourceUsd / targetUsd
     targetManuallyEdited.value = false
@@ -480,6 +492,9 @@ function validate() {
   if (needsSourceUsdPrice.value && sourceUnitPriceUsd.value <= 0) {
     return `${form.source_asset} işlem fiyatı (USD) gerekli.`
   }
+  if (isStablecoin(form.target_asset) && targetUnitPriceUsd.value <= 0) {
+    return `${form.target_asset}/USD işlem değeri pariteden türetilemedi.`
+  }
   if (sourceDebit.value > availableSource.value + 1e-10) {
     return `${form.source_asset} bakiyesi yetersiz. Toplam düşüş ${formatQuantity(sourceDebit.value, form.source_asset)} ${form.source_asset}.`
   }
@@ -507,10 +522,7 @@ async function save() {
       target_quantity: Number(form.target_quantity),
       price_currency: 'USD',
       source_unit_price: sourceUnitPriceUsd.value,
-      target_unit_price:
-        Number(form.target_quantity || 0) > 0
-          ? grossUsd.value / Number(form.target_quantity)
-          : null,
+      target_unit_price: targetUnitPriceUsd.value,
       usd_try: Number(form.usd_try),
       gross_usd: grossUsd.value,
       fee_usd: feeUsd.value,
@@ -529,6 +541,10 @@ async function save() {
         fee_asset: form.fee_asset,
         fee_quantity: Number(form.fee_quantity || 0),
         source_portfolio_pct: usedPct.value,
+        ...stablecoinRatesMetadata([
+          [form.source_asset, sourceUnitPriceUsd.value],
+          [form.target_asset, targetUnitPriceUsd.value],
+        ]),
       },
     })
     summaryOpen.value = false
