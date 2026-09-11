@@ -32,14 +32,14 @@ test('USD display conversion uses canonical quote directions', () => {
   assert.ok(Math.abs(convertUsdWithQuotes(100.02, 'USDC', quotes) - 100) < 1e-12)
 })
 
-test('priceUsdForAsset derives TRY and stablecoin USD prices', () => {
+test('priceUsdForAsset derives TRY and stablecoin USD prices without inventing a peg', () => {
   assert.equal(priceUsdForAsset(quotes, 'TRY'), 1 / 44)
   assert.equal(priceUsdForAsset(quotes, 'EUR'), 1.1)
   assert.equal(priceUsdForAsset(quotes, 'URA'), 45)
   assert.equal(priceUsdForAsset(quotes, 'USDT'), 0.9995)
   assert.equal(priceUsdForAsset(quotes, 'USDC'), 1.0002)
-  assert.equal(priceUsdForAsset({}, 'USDT'), 1)
-  assert.equal(priceUsdForAsset({}, 'USDC'), 1)
+  assert.equal(priceUsdForAsset({}, 'USDT'), 0)
+  assert.equal(priceUsdForAsset({}, 'USDC'), 0)
 })
 
 test('Coinbase parsers normalize spot, EUR and stablecoin directions', () => {
