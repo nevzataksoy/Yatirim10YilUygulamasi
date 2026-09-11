@@ -160,6 +160,17 @@ const rawRows = computed(() =>
     institutions: institutions.institutions,
     priceUsd,
   }).map((row) => {
+    if (!row.custodyReconciled) {
+      return {
+        ...row,
+        currentValueDisplay: null,
+        costBasisDisplay: null,
+        realizedPnlDisplay: null,
+        unrealizedPnlDisplay: null,
+        totalPnlDisplay: null,
+      }
+    }
+
     const currentValueDisplay =
       row.valuation.currentValueUsd === null || !displayConversionAvailable()
         ? null
@@ -204,6 +215,7 @@ const unassignedTransactionCount = computed(() =>
     .filter((row) => row.unassigned)
     .reduce((sum, row) => sum + row.transactionCount, 0),
 )
+const reconciliationIssues = computed(() => rawRows.value[0]?.reconciliationIssues || [])
 
 const dataQualityMessage = computed(() => {
   const parts = []
@@ -213,7 +225,15 @@ const dataQualityMessage = computed(() => {
   if (unassignedTransactionCount.value > 0) {
     parts.push(`${unassignedTransactionCount.value} işlemde kurum bilgisi yok`)
   }
-  return parts.length ? `${parts.join('; ')}. Dağılım gösteriliyor ancak veri kalitesi kontrol edilmeli.` : ''
+  if (reconciliationIssues.value.length > 0) {
+    const assets = reconciliationIssues.value.map((item) => item.asset).join(', ')
+    parts.push(
+      `kurum alt-ledger toplamları ana portföyle ${assets} varlıklarında mutabık değil; kurumlar arası transfer kaydı eksik olabilir`,
+    )
+  }
+  return parts.length
+    ? `${parts.join('; ')}. Güvenilir olmayan kurum yüzde/tutar/K-Z değerleri gösterilmiyor.`
+    : ''
 })
 
 onMounted(async () => {
@@ -243,7 +263,7 @@ function institutionIcon(type) {
 }
 
 function formatMaybe(value) {
-  return value === null || value === undefined ? 'Fiyat bekleniyor' : formatAssetValue(value)
+  return value === null || value === undefined ? '—' : formatAssetValue(value)
 }
 
 function formatPercent(value) {
