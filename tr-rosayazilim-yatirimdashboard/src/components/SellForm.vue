@@ -313,7 +313,7 @@ import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
-import { INVESTMENT_ASSETS } from '@/services/portfolioAnalytics'
+import { TRADEABLE_ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
 import {
   actualStablecoinUsdQuote,
@@ -358,7 +358,7 @@ const form = reactive({
 })
 
 const sourceOptions = computed(() =>
-  INVESTMENT_ASSETS.filter((asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001),
+  TRADEABLE_ASSETS.filter((asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001),
 )
 const stablecoinTarget = computed(() => isStablecoin(form.target_asset))
 const targetUnitUsd = computed(() =>
@@ -378,6 +378,9 @@ const netProceedsTarget = computed(() => Number(form.net_proceeds || 0))
 const grossUsd = computed(() => targetToUsd(grossProceedsTarget.value))
 const feeUsd = computed(() => targetToUsd(Number(form.fee_target || 0)))
 const netUsd = computed(() => targetToUsd(netProceedsTarget.value))
+const sourceUnitPriceUsd = computed(() =>
+  Number(form.source_quantity || 0) > 0 ? grossUsd.value / Number(form.source_quantity) : 0,
+)
 
 watch(
   sourceOptions,
@@ -420,7 +423,7 @@ function targetToUsd(value) {
 }
 
 function formatQuantity(value, asset) {
-  const digits = asset === 'BTC' ? 8 : asset === 'ETH' ? 6 : asset === 'URA' ? 4 : 2
+  const digits = asset === 'BTC' ? 8 : asset === 'ETH' ? 6 : asset === 'URA' ? 4 : isStablecoin(asset) ? 6 : 2
   return formatNumber(value, digits)
 }
 
@@ -434,8 +437,14 @@ function usePercentage(pct) {
   form.net_proceeds = calculatedNetProceeds.value || null
 }
 
+function currentAssetUsdPrice(asset) {
+  const enginePrice = Number(engine.price(asset) || 0)
+  if (enginePrice > 0) return enginePrice
+  return Number(displayQuotes.priceUsd(asset) || 0)
+}
+
 function fillMarketPrice() {
-  const priceUsd = Number(engine.price(form.source_asset) || 0)
+  const priceUsd = currentAssetUsdPrice(form.source_asset)
   const unitUsd = targetUnitUsd.value
   if (priceUsd <= 0 || unitUsd <= 0) return
   form.unit_price = priceUsd / unitUsd
@@ -491,10 +500,7 @@ async function save() {
       source_quantity: Number(form.source_quantity),
       target_quantity: netProceedsTarget.value,
       price_currency: form.target_asset,
-      source_unit_price:
-        Number(form.source_quantity || 0) > 0
-          ? grossUsd.value / Number(form.source_quantity)
-          : null,
+      source_unit_price: sourceUnitPriceUsd.value || null,
       target_unit_price: targetUnitUsd.value,
       usd_try: Number(form.usd_try),
       gross_usd: grossUsd.value,
@@ -511,7 +517,10 @@ async function save() {
         fee_target: Number(form.fee_target || 0),
         calculated_net_target: calculatedNetProceeds.value,
         net_manually_edited: netManuallyEdited.value,
-        ...stablecoinRatesMetadata([[form.target_asset, form.target_stablecoin_usd]]),
+        ...stablecoinRatesMetadata([
+          [form.source_asset, sourceUnitPriceUsd.value],
+          [form.target_asset, form.target_stablecoin_usd],
+        ]),
       },
     })
     summaryOpen.value = false
