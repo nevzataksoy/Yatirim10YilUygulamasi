@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ASSETS, INVESTMENT_ASSETS, SETTLEMENT_ASSETS } from '../src/services/portfolioAnalytics.js'
+import {
+  ASSETS,
+  SETTLEMENT_ASSETS,
+  TRADEABLE_ASSETS,
+} from '../src/services/portfolioAnalytics.js'
 import {
   assertTransactionRequestShape,
   normalizeTransaction,
@@ -24,14 +28,15 @@ function transaction(id, input) {
   )
 }
 
-test('asset taxonomy contains stablecoins as settlement assets', () => {
-  assert.deepEqual(INVESTMENT_ASSETS, ['BTC', 'ETH', 'URA'])
+test('asset taxonomy treats stablecoins as both tradeable and settlement assets', () => {
+  assert.deepEqual(TRADEABLE_ASSETS, ['BTC', 'ETH', 'URA', 'USDT', 'USDC'])
   assert.deepEqual(SETTLEMENT_ASSETS, ['USD', 'TRY', 'USDT', 'USDC'])
   assert.ok(ASSETS.includes('USDT'))
   assert.ok(ASSETS.includes('USDC'))
+  assert.equal(new Set(ASSETS).size, ASSETS.length)
 })
 
-test('USDT and USDC are accepted in cash, buy and sell transaction shapes', () => {
+test('USDT and USDC are accepted as cash, buy targets, buy sources and sell sources', () => {
   const cashInUsdt = transaction('30000000-0000-4000-8000-000000000001', {
     transaction_type: 'CASH_IN',
     target_asset: 'USDT',
@@ -41,7 +46,19 @@ test('USDT and USDC are accepted in cash, buy and sell transaction shapes', () =
     gross_usd: 999.5,
     net_usd: 999.5,
   })
-  const buyFromUsdt = transaction('30000000-0000-4000-8000-000000000002', {
+  const buyUsdtFromTry = transaction('30000000-0000-4000-8000-000000000002', {
+    transaction_type: 'BUY',
+    source_asset: 'TRY',
+    source_quantity: 4_850,
+    target_asset: 'USDT',
+    target_quantity: 100,
+    price_currency: 'TRY',
+    source_unit_price: 1,
+    target_unit_price: 1,
+    gross_usd: 100,
+    net_usd: 100,
+  })
+  const buyBtcFromUsdt = transaction('30000000-0000-4000-8000-000000000003', {
     transaction_type: 'BUY',
     source_asset: 'USDT',
     source_quantity: 250,
@@ -53,7 +70,19 @@ test('USDT and USDC are accepted in cash, buy and sell transaction shapes', () =
     gross_usd: 249.875,
     net_usd: 249.875,
   })
-  const sellToUsdc = transaction('30000000-0000-4000-8000-000000000003', {
+  const sellUsdcToUsd = transaction('30000000-0000-4000-8000-000000000004', {
+    transaction_type: 'SELL',
+    source_asset: 'USDC',
+    source_quantity: 100,
+    target_asset: 'USD',
+    target_quantity: 100.02,
+    price_currency: 'USD',
+    source_unit_price: 1.0002,
+    target_unit_price: 1,
+    gross_usd: 100.02,
+    net_usd: 100.02,
+  })
+  const sellBtcToUsdc = transaction('30000000-0000-4000-8000-000000000005', {
     transaction_type: 'SELL',
     source_asset: 'BTC',
     source_quantity: 0.001,
@@ -66,9 +95,9 @@ test('USDT and USDC are accepted in cash, buy and sell transaction shapes', () =
     net_usd: 100.02,
   })
 
-  assert.doesNotThrow(() => assertTransactionRequestShape(cashInUsdt))
-  assert.doesNotThrow(() => assertTransactionRequestShape(buyFromUsdt))
-  assert.doesNotThrow(() => assertTransactionRequestShape(sellToUsdc))
+  for (const row of [cashInUsdt, buyUsdtFromTry, buyBtcFromUsdt, sellUsdcToUsd, sellBtcToUsdc]) {
+    assert.doesNotThrow(() => assertTransactionRequestShape(row))
+  }
 })
 
 test('stablecoin balance replay remains quantity based', () => {
