@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js'
-import { ASSETS, INVESTMENT_ASSETS, SETTLEMENT_ASSETS } from './portfolioAnalytics.js'
+import { ASSETS, SETTLEMENT_ASSETS, TRADEABLE_ASSETS } from './portfolioAnalytics.js'
 
 const BALANCE_EPSILON = new Decimal('0.0000000001')
 const NUMERIC_FIELDS = [
@@ -220,19 +220,19 @@ export function assertTransactionRequestShape(row) {
         !hasSource ||
         !hasTarget ||
         !SETTLEMENT_ASSETS.includes(sourceAsset) ||
-        !INVESTMENT_ASSETS.includes(targetAsset)
+        !TRADEABLE_ASSETS.includes(targetAsset)
       )
-        throw new Error('BUY, settlement bakiyesinden BTC/ETH/URA varlığına yapılmalıdır.')
+        throw new Error('BUY, ödeme varlığından BTC/ETH/URA/USDT/USDC varlığına yapılmalıdır.')
       break
     case 'SELL':
     case 'EXIT':
       if (
         !hasSource ||
         !hasTarget ||
-        !INVESTMENT_ASSETS.includes(sourceAsset) ||
+        !TRADEABLE_ASSETS.includes(sourceAsset) ||
         !SETTLEMENT_ASSETS.includes(targetAsset)
       )
-        throw new Error('SELL/EXIT, BTC/ETH/URA varlığından settlement bakiyesine yapılmalıdır.')
+        throw new Error('SELL/EXIT, BTC/ETH/URA/USDT/USDC varlığından ödeme varlığına yapılmalıdır.')
       break
     case 'CONVERSION':
       if (!hasSource || !hasTarget)
