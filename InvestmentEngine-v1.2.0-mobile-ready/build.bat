@@ -7,12 +7,16 @@ echo ============================================================
 echo Rosa Investment Engine - OneDir Build
 echo ============================================================
 
-:: Build ve Inno Setup islemleri yonetici olarak calisir.
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Yonetici izinleri gerekli. Pencere yukseltiliyor...
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%ComSpec%' -ArgumentList '/c ""%~f0""' -Verb RunAs"
-    exit /b
+:: Build-time elevation yasaktir. PyInstaller normal kullanici tokeni ile
+:: calistirilir; runtime elevation --uac-admin ve installer
+:: PrivilegesRequired=admin sozlesmeleriyle ayri tutulur.
+powershell -NoProfile -Command "$identity=[Security.Principal.WindowsIdentity]::GetCurrent(); $principal=New-Object Security.Principal.WindowsPrincipal($identity); if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo ERROR: build.bat yonetici terminalinde calistirilmamalidir.
+    echo Normal bir PowerShell veya Komut Istemi acip build.bat dosyasini tekrar calistirin.
+    echo NOT: Installer ve Windows Service kurulumundaki UAC/yetki sozlesmesi degismemistir.
+    pause
+    exit /b 1
 )
 
 :: Python secimi
