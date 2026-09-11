@@ -4,12 +4,6 @@ function quoteValue(quotes, key) {
   return Number.isFinite(value) && value > 0 ? value : 0
 }
 
-function stablecoinUsdPrice(quotes, key) {
-  // Provider quote'u varsa gerçek piyasa değerini kullan. Provider geçici olarak
-  // yoksa yalnız UI/display değerlemesinin sıfıra düşmemesi için 1 USD peg fallback uygula.
-  return quoteValue(quotes, key) || 1
-}
-
 export function priceUsdForAsset(quotes, asset) {
   if (asset === 'USD') return 1
   if (asset === 'TRY') {
@@ -20,8 +14,8 @@ export function priceUsdForAsset(quotes, asset) {
   if (asset === 'BTC') return quoteValue(quotes, 'BTC_USD')
   if (asset === 'ETH') return quoteValue(quotes, 'ETH_USD')
   if (asset === 'URA') return quoteValue(quotes, 'URA_USD')
-  if (asset === 'USDT') return stablecoinUsdPrice(quotes, 'USDT_USD')
-  if (asset === 'USDC') return stablecoinUsdPrice(quotes, 'USDC_USD')
+  if (asset === 'USDT') return quoteValue(quotes, 'USDT_USD')
+  if (asset === 'USDC') return quoteValue(quotes, 'USDC_USD')
   return 0
 }
 
