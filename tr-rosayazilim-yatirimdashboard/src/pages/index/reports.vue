@@ -120,26 +120,38 @@
       </div>
 
       <q-card flat class="section-card q-mb-lg">
-        <q-card-section>
-          <div class="text-h6 text-weight-bold">Enstrüman Performansı</div>
-          <div class="text-caption text-grey-7">
-            BTC, ETH, URA, USDT ve USDC için pozisyon, maliyet ve K/Z ayrımı.
+        <q-card-section class="row items-start justify-between q-col-gutter-md">
+          <div class="col-12 col-md">
+            <div class="text-h6 text-weight-bold">Enstrüman Performansı</div>
+            <div class="text-caption text-grey-7">
+              Açık pozisyon maliyeti, güncel değer ve gerçekleşen/gerçekleşmeyen K/Z ayrı gösterilir.
+            </div>
+          </div>
+          <div class="col-auto">
+            <q-toggle
+              v-model="hideZeroPerformanceRows"
+              color="primary"
+              label="Sıfır bakiyeli enstrümanları gizle"
+              dense
+            />
           </div>
         </q-card-section>
         <q-separator />
         <q-list separator>
-          <q-item v-for="row in performanceRows" :key="row.asset" class="q-py-md">
+          <q-item v-for="row in performanceRows" :key="row.asset" class="q-py-md performance-row">
             <q-item-section avatar><AssetAvatar :asset="row.asset" /></q-item-section>
             <q-item-section>
               <q-item-label class="text-weight-bold">{{ row.asset }}</q-item-label>
               <q-item-label caption>{{ formatAssetQuantity(row.quantity, row.asset) }}</q-item-label>
               <q-item-label caption class="q-mt-xs">
-                Maliyet {{ formatMaybe(row.basisDisplay) }} · Güncel {{ formatMaybe(row.currentValueDisplay) }}
+                Açık Pozisyon Maliyeti {{ formatMaybe(row.basisDisplay) }} · Güncel Değer
+                {{ formatMaybe(row.currentValueDisplay) }}
               </q-item-label>
             </q-item-section>
-            <q-item-section side class="items-end">
+            <q-item-section side class="items-end performance-row__side">
               <div :class="row.realizedDisplay >= 0 ? 'amount-positive' : 'amount-negative'">
-                Gerç. {{ formatAssetValue(row.realizedDisplay) }}
+                <span class="performance-label">Gerçekleşmiş K/Z</span>
+                {{ formatAssetValue(row.realizedDisplay) }}
               </div>
               <div
                 :class="
@@ -150,7 +162,11 @@
                       : 'amount-negative'
                 "
               >
-                Gerç. değil {{ formatMaybe(row.unrealizedDisplay) }}
+                <span class="performance-label">Gerçekleşmemiş K/Z</span>
+                {{ formatMaybe(row.unrealizedDisplay) }}
+                <span v-if="row.unrealizedPct !== null" class="q-ml-xs">
+                  ({{ formatPnlPercent(row.unrealizedPct) }})
+                </span>
               </div>
               <div
                 class="text-weight-bold"
@@ -162,8 +178,14 @@
                       : 'amount-negative'
                 "
               >
-                Toplam {{ formatMaybe(row.totalPnlDisplay) }}
+                <span class="performance-label">Toplam K/Z</span>
+                {{ formatMaybe(row.totalPnlDisplay) }}
               </div>
+            </q-item-section>
+          </q-item>
+          <q-item v-if="!performanceRows.length">
+            <q-item-section class="text-center q-pa-lg text-grey-6">
+              Gösterilecek açık pozisyon veya gerçekleşmiş enstrüman performansı yok.
             </q-item-section>
           </q-item>
         </q-list>
@@ -307,7 +329,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import AssetAvatar from '@/components/AssetAvatar.vue'
 import InstitutionDistributionCard from '@/components/InstitutionDistributionCard.vue'
 import MetricCard from '@/components/MetricCard.vue'
@@ -324,6 +346,7 @@ import { usePortfolioStore } from '@/stores/portfolio'
 
 const POSITION_EPSILON = 0.0000000001
 const portfolio = usePortfolioStore()
+const hideZeroPerformanceRows = ref(true)
 const { displayAsset, convertUsd, formatAssetValue, formatDisplay, historicalValue, priceUsd } =
   useDisplayCurrency()
 
@@ -401,7 +424,7 @@ const totalPnlDisplay = computed(() =>
   unrealizedPnlDisplay.value === null ? null : realizedPnlDisplay.value + unrealizedPnlDisplay.value,
 )
 
-const performanceRows = computed(() =>
+const allPerformanceRows = computed(() =>
   TRADEABLE_ASSETS.map((asset) => {
     const item = portfolio.ledger.assets[asset]
     const unitUsd = priceUsd(asset)
@@ -421,6 +444,10 @@ const performanceRows = computed(() =>
       currentValueDisplay === null || basisDisplay === null ? null : currentValueDisplay - basisDisplay
     const totalPnlDisplay =
       unrealizedDisplay === null ? null : realizedDisplay + unrealizedDisplay
+    const unrealizedPct =
+      unrealizedDisplay !== null && Number(basisDisplay || 0) > 0
+        ? (unrealizedDisplay / Number(basisDisplay)) * 100
+        : null
 
     return {
       asset,
@@ -429,8 +456,17 @@ const performanceRows = computed(() =>
       currentValueDisplay,
       realizedDisplay,
       unrealizedDisplay,
+      unrealizedPct,
       totalPnlDisplay,
     }
+  }),
+)
+
+const performanceRows = computed(() =>
+  allPerformanceRows.value.filter((row) => {
+    if (!hideZeroPerformanceRows.value) return true
+    if (row.quantity > POSITION_EPSILON) return true
+    return Math.abs(Number(row.realizedDisplay || 0)) > POSITION_EPSILON
   }),
 )
 
@@ -516,4 +552,39 @@ const assetActivity = computed(() =>
 function formatMaybe(value) {
   return value === null || value === undefined ? '—' : formatAssetValue(value)
 }
+
+function formatPnlPercent(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return '—'
+  const normalized = Math.abs(number) < 0.005 ? 0 : number
+  const sign = normalized > 0 ? '+' : ''
+  return `${sign}${new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 2 }).format(normalized)}%`
+}
 </script>
+
+<style scoped>
+.performance-row__side {
+  min-width: 270px;
+  gap: 2px;
+}
+
+.performance-label {
+  color: var(--q-grey-7);
+  font-weight: 500;
+  margin-right: 8px;
+}
+
+@media (max-width: 599px) {
+  .performance-row {
+    flex-wrap: wrap;
+  }
+
+  .performance-row__side {
+    min-width: 0;
+    width: 100%;
+    padding-left: 58px;
+    padding-top: 8px;
+    align-items: flex-start;
+  }
+}
+</style>
