@@ -211,7 +211,7 @@
               <AppPopupSelect
                 v-model="form.cash_asset"
                 :options="cashAssets"
-                label="Para Birimi"
+                label="Para / Ödeme Varlığı"
                 :searchable="false"
               />
             </div>
@@ -292,6 +292,17 @@
               min="0"
               step="any"
               label="USD/TRY Kuru"
+            />
+          </div>
+          <div v-if="revisionStablecoinAsset" class="col-12 col-sm-6">
+            <q-input
+              v-model.number="form.stablecoin_usd_rate"
+              outlined
+              type="number"
+              min="0"
+              step="any"
+              :label="`${revisionStablecoinAsset}/USD İşlem Kuru`"
+              hint="Revize edilen işlemin gerçekleştiği andaki stablecoin/USD değeridir."
             />
           </div>
           <div class="col-12 col-sm-6">
@@ -377,9 +388,17 @@ import { useQuasar } from 'quasar'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
-import { ASSETS } from '@/services/portfolioAnalytics'
+import { ASSETS, INVESTMENT_ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
 import { transactionTypeLabel } from '@/services/presentation'
+import {
+  isStablecoin,
+  SETTLEMENT_ASSET_OPTIONS,
+  settlementAmountToUsd,
+  settlementUsdUnitPrice,
+  stablecoinRateFromMetadata,
+  stablecoinRatesMetadata,
+} from '@/services/transactionCurrency'
 import { usePortfolioStore } from '@/stores/portfolio'
 
 const props = defineProps({
@@ -393,8 +412,8 @@ const portfolio = usePortfolioStore()
 const { formatUsd } = useFormatters()
 const saving = ref(false)
 const revisionRequestId = ref(createTransactionRequestId())
-const cashAssets = ['TRY', 'USD']
-const investmentAssets = ['BTC', 'ETH', 'URA']
+const cashAssets = SETTLEMENT_ASSET_OPTIONS
+const investmentAssets = INVESTMENT_ASSETS
 const allAssets = ASSETS
 
 const form = reactive({
@@ -410,6 +429,7 @@ const form = reactive({
   cash_asset: 'TRY',
   cash_quantity: null,
   source_unit_price_usd: null,
+  stablecoin_usd_rate: null,
   price_currency: 'USD',
   usd_try: null,
   transaction_at: '',
@@ -435,12 +455,34 @@ const conversionTargetOptions = computed(() =>
 )
 const conversionFeeOptions = computed(() => [form.source_asset, form.target_asset].filter(Boolean))
 const conversionNeedsUsdPrice = computed(() => !['USD', 'TRY'].includes(form.source_asset))
+const revisionStablecoinAsset = computed(() => {
+  if (type.value === 'BUY' && isStablecoin(form.source_asset)) return form.source_asset
+  if ((type.value === 'SELL' || type.value === 'EXIT') && isStablecoin(form.target_asset))
+    return form.target_asset
+  if ((type.value === 'CASH_IN' || type.value === 'CASH_OUT') && isStablecoin(form.cash_asset))
+    return form.cash_asset
+  if (type.value === 'OPENING' && isStablecoin(form.price_currency)) return form.price_currency
+  return null
+})
 
 function localDateTime(value) {
   const date = new Date(value || Date.now())
   if (Number.isNaN(date.getTime())) return ''
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
   return local.toISOString().slice(0, 16)
+}
+
+function transactionStablecoinAsset(tx) {
+  if (!tx) return null
+  if (tx.transaction_type === 'BUY' && isStablecoin(tx.source_asset)) return tx.source_asset
+  if ((tx.transaction_type === 'SELL' || tx.transaction_type === 'EXIT') && isStablecoin(tx.target_asset))
+    return tx.target_asset
+  if ((tx.transaction_type === 'CASH_IN' || tx.transaction_type === 'CASH_OUT')) {
+    const asset = tx.target_asset || tx.source_asset
+    return isStablecoin(asset) ? asset : null
+  }
+  if (tx.transaction_type === 'OPENING' && isStablecoin(tx.price_currency)) return tx.price_currency
+  return null
 }
 
 function initialize(tx) {
@@ -470,6 +512,16 @@ function initialize(tx) {
   form.platform = tx.platform || ''
   form.note = tx.note || ''
   form.revision_reason = ''
+  const stableAsset = transactionStablecoinAsset(tx)
+  form.stablecoin_usd_rate = stableAsset
+    ? stablecoinRateFromMetadata(metadata, stableAsset) ||
+      Number(
+        tx.transaction_type === 'SELL' || tx.transaction_type === 'EXIT'
+          ? tx.target_unit_price
+          : tx.source_unit_price || tx.target_unit_price || 0,
+      ) ||
+      null
+    : null
 
   if (tx.transaction_type === 'BUY') {
     const fee = Number(metadata.fee_source || 0)
@@ -495,6 +547,10 @@ function initialize(tx) {
       ) || null
     form.fee_asset = metadata.fee_asset || tx.target_asset || tx.source_asset
     form.fee_amount = Number(metadata.fee_quantity || 0)
+    if (isStablecoin(tx.source_asset)) {
+      form.source_unit_price_usd =
+        stablecoinRateFromMetadata(metadata, tx.source_asset) || Number(tx.source_unit_price || 0) || null
+    }
   }
 
   if (tx.transaction_type === 'SELL' || tx.transaction_type === 'EXIT') {
@@ -524,12 +580,29 @@ watch(
   { immediate: true },
 )
 
+watch(
+  revisionStablecoinAsset,
+  (asset, previous) => {
+    if (!asset) {
+      form.stablecoin_usd_rate = null
+      return
+    }
+    if (asset !== previous) {
+      const stored = stablecoinRateFromMetadata(props.transaction?.metadata || {}, asset)
+      form.stablecoin_usd_rate = stored || null
+    }
+  },
+)
+
 function assetToUsd(asset, value) {
   const amount = Number(value || 0)
   if (asset === 'USD') return amount
   if (asset === 'TRY') {
     const fx = Number(form.usd_try || 0)
     return fx > 0 ? amount / fx : 0
+  }
+  if (asset === revisionStablecoinAsset.value && Number(form.stablecoin_usd_rate || 0) > 0) {
+    return amount * Number(form.stablecoin_usd_rate)
   }
   if (asset === form.source_asset && Number(form.source_unit_price_usd || 0) > 0) {
     return amount * Number(form.source_unit_price_usd)
@@ -551,7 +624,15 @@ const sourceUnitPriceUsd = computed(() => {
     const fx = Number(form.usd_try || 0)
     return fx > 0 ? 1 / fx : 0
   }
+  if (type.value === 'BUY' && isStablecoin(form.source_asset)) {
+    return Number(form.stablecoin_usd_rate || 0)
+  }
   return Number(form.source_unit_price_usd || 0)
+})
+
+const conversionTargetUnitPriceUsd = computed(() => {
+  const rate = Number(form.pair_rate || 0)
+  return rate > 0 && sourceUnitPriceUsd.value > 0 ? sourceUnitPriceUsd.value / rate : 0
 })
 
 const calculated = computed(() => {
@@ -605,7 +686,10 @@ const calculated = computed(() => {
 
   if (type.value === 'OPENING') {
     const localCost = Number(form.target_quantity || 0) * Number(form.unit_price || 0)
-    const grossUsd = form.price_currency === 'TRY' ? assetToUsd('TRY', localCost) : localCost
+    const grossUsd = settlementAmountToUsd(localCost, form.price_currency, {
+      usdTry: form.usd_try,
+      stablecoinUsd: form.stablecoin_usd_rate,
+    })
     return { grossUsd, feeUsd: 0, netUsd: grossUsd }
   }
 
@@ -669,6 +753,8 @@ function validate() {
   if (!props.transaction) return 'Düzenlenecek işlem bulunamadı.'
   if (!Number(form.usd_try || 0) || Number(form.usd_try) <= 0)
     return 'USD/TRY kuru sıfırdan büyük olmalı.'
+  if (revisionStablecoinAsset.value && Number(form.stablecoin_usd_rate || 0) <= 0)
+    return `${revisionStablecoinAsset.value}/USD işlem kuru sıfırdan büyük olmalı.`
 
   if (type.value === 'BUY') {
     if (!form.source_asset || !form.target_asset) return 'Kaynak ve hedef varlık seçilmeli.'
@@ -689,6 +775,8 @@ function validate() {
       return 'Miktar, parite ve net hedef sıfırdan büyük olmalı.'
     if (conversionNeedsUsdPrice.value && sourceUnitPriceUsd.value <= 0)
       return `${form.source_asset} işlem fiyatı (USD) gerekli.`
+    if (isStablecoin(form.target_asset) && conversionTargetUnitPriceUsd.value <= 0)
+      return `${form.target_asset}/USD işlem değeri pariteden türetilemedi.`
     if (Number(calculated.value.sourceDebit || 0) > available(form.source_asset) + 1e-10)
       return `${form.source_asset} bakiyesi revize işlem için yetersiz.`
   }
@@ -745,7 +833,7 @@ function buildReplacement() {
       source_quantity: Number(calculated.value.sourceDebit),
       target_quantity: targetQty,
       price_currency: form.source_asset,
-      source_unit_price: 1,
+      source_unit_price: isStablecoin(form.source_asset) ? Number(form.stablecoin_usd_rate) : 1,
       target_unit_price: targetQty > 0 ? Number(calculated.value.grossUsd) / targetQty : null,
       gross_usd: Number(calculated.value.grossUsd),
       fee_usd: Number(calculated.value.feeUsd),
@@ -757,6 +845,7 @@ function buildReplacement() {
         trade_cost_source: tradeCost,
         fee_source: Number(form.fee_amount || 0),
         source_balance_debit: Number(calculated.value.sourceDebit),
+        ...stablecoinRatesMetadata([[form.source_asset, form.stablecoin_usd_rate]]),
       },
     }
   }
@@ -773,7 +862,7 @@ function buildReplacement() {
       target_asset: form.target_asset,
       source_quantity: Number(calculated.value.sourceDebit),
       target_quantity: targetQty,
-      price_currency: form.target_asset,
+      price_currency: 'USD',
       source_unit_price: sourceUnitPriceUsd.value,
       target_unit_price: targetQty > 0 ? grossUsd / targetQty : null,
       gross_usd: grossUsd,
@@ -790,6 +879,10 @@ function buildReplacement() {
         target_manually_edited: true,
         fee_asset: form.fee_asset,
         fee_quantity: Number(form.fee_amount || 0),
+        ...stablecoinRatesMetadata([
+          [form.source_asset, sourceUnitPriceUsd.value],
+          [form.target_asset, conversionTargetUnitPriceUsd.value],
+        ]),
       },
     }
   }
@@ -798,6 +891,10 @@ function buildReplacement() {
     const sourceQty = Number(form.source_quantity)
     const grossUsd = Number(calculated.value.grossUsd)
     const netUsd = Number(calculated.value.netUsd)
+    const targetUnitUsd = settlementUsdUnitPrice(form.target_asset, {
+      usdTry: form.usd_try,
+      stablecoinUsd: form.stablecoin_usd_rate,
+    })
     return {
       ...shared,
       transaction_type: type.value,
@@ -807,7 +904,7 @@ function buildReplacement() {
       target_quantity: Number(form.net_proceeds),
       price_currency: form.target_asset,
       source_unit_price: sourceQty > 0 ? grossUsd / sourceQty : null,
-      target_unit_price: form.target_asset === 'USD' ? 1 : 1 / Number(form.usd_try),
+      target_unit_price: targetUnitUsd,
       gross_usd: grossUsd,
       fee_usd: Number(calculated.value.feeUsd),
       net_usd: netUsd,
@@ -819,6 +916,7 @@ function buildReplacement() {
         fee_target: Number(form.fee_amount || 0),
         calculated_net_target: Number(calculated.value.grossTarget) - Number(form.fee_amount || 0),
         net_manually_edited: true,
+        ...stablecoinRatesMetadata([[form.target_asset, form.stablecoin_usd_rate]]),
       },
     }
   }
@@ -826,7 +924,10 @@ function buildReplacement() {
   if (type.value === 'CASH_IN' || type.value === 'CASH_OUT') {
     const incoming = type.value === 'CASH_IN'
     const qty = Number(form.cash_quantity)
-    const unitUsd = form.cash_asset === 'USD' ? 1 : 1 / Number(form.usd_try)
+    const unitUsd = settlementUsdUnitPrice(form.cash_asset, {
+      usdTry: form.usd_try,
+      stablecoinUsd: form.stablecoin_usd_rate,
+    })
     return {
       ...shared,
       transaction_type: type.value,
@@ -835,8 +936,8 @@ function buildReplacement() {
       source_quantity: incoming ? null : qty,
       target_quantity: incoming ? qty : null,
       price_currency: form.cash_asset,
-      source_unit_price: unitUsd,
-      target_unit_price: unitUsd,
+      source_unit_price: incoming ? null : unitUsd,
+      target_unit_price: incoming ? unitUsd : null,
       gross_usd: Number(calculated.value.grossUsd),
       fee_usd: Number(calculated.value.feeUsd),
       net_usd: Number(calculated.value.grossUsd),
@@ -844,12 +945,14 @@ function buildReplacement() {
         entry_flow: incoming ? 'INVESTMENT_BUDGET_TRANSFER' : 'CAPITAL_WITHDRAWAL',
         entered_fee_asset: form.cash_asset,
         entered_fee_amount: Number(form.fee_amount || 0),
+        ...stablecoinRatesMetadata([[form.cash_asset, form.stablecoin_usd_rate]]),
       },
     }
   }
 
   if (type.value === 'OPENING') {
     const targetQty = Number(form.target_quantity)
+    const targetUsdRate = targetQty > 0 ? Number(calculated.value.grossUsd) / targetQty : 0
     return {
       ...shared,
       transaction_type: 'OPENING',
@@ -863,7 +966,13 @@ function buildReplacement() {
       gross_usd: Number(calculated.value.grossUsd),
       fee_usd: 0,
       net_usd: Number(calculated.value.grossUsd),
-      metadata: { entry_flow: 'OPENING_BALANCE' },
+      metadata: {
+        entry_flow: 'OPENING_BALANCE',
+        ...stablecoinRatesMetadata([
+          [form.price_currency, form.stablecoin_usd_rate],
+          [form.target_asset, isStablecoin(form.target_asset) ? targetUsdRate : 0],
+        ]),
+      },
     }
   }
 
