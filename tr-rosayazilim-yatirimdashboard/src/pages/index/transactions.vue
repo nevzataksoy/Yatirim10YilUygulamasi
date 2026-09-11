@@ -209,6 +209,7 @@ import TransactionCancelDialog from '@/components/TransactionCancelDialog.vue'
 import TransactionRevisionDialog from '@/components/TransactionRevisionDialog.vue'
 import { useDisplayCurrency } from '@/composables/useDisplayCurrency'
 import { useFormatters } from '@/composables/useFormatters'
+import { formatAssetQuantity } from '@/services/assetFormatting'
 import { ASSETS } from '@/services/portfolioAnalytics'
 import {
   TRANSACTION_TYPE_LABELS,
@@ -219,7 +220,7 @@ import {
 import { usePortfolioStore } from '@/stores/portfolio'
 
 const portfolio = usePortfolioStore()
-const { formatNumber, formatDate } = useFormatters()
+const { formatDate } = useFormatters()
 const { displayAsset, formatHistorical } = useDisplayCurrency()
 const search = ref('')
 const typeFilter = ref(null)
@@ -296,11 +297,11 @@ function describe(tx) {
     return `İptal: ${tx.metadata?.cancellation_reason || 'Neden belirtilmedi'}`
   const source =
     tx.source_asset && tx.source_quantity
-      ? `${formatNumber(tx.source_quantity, 8)} ${tx.source_asset}`
+      ? formatAssetQuantity(tx.source_quantity, tx.source_asset)
       : ''
   const target =
     tx.target_asset && tx.target_quantity
-      ? `${formatNumber(tx.target_quantity, 8)} ${tx.target_asset}`
+      ? formatAssetQuantity(tx.target_quantity, tx.target_asset)
       : ''
   if (source && target) return `${source} → ${target}`
   return target || source || '—'
