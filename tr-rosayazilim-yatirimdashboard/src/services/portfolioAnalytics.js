@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js'
-import { stablecoinRateFromMetadata } from './transactionCurrency.js'
+import { stablecoinRateFromTransaction } from './transactionCurrency.js'
 
 export const TRADEABLE_ASSETS = Object.freeze(['BTC', 'ETH', 'URA', 'USDT', 'USDC'])
 // Geriye dönük import uyumluluğu; yeni kod TRADEABLE_ASSETS kullanmalı.
@@ -33,7 +33,7 @@ function historicalValuesFromUsd(tx, usdValue) {
   else values.TRY.complete = false
 
   for (const asset of ['USDT', 'USDC']) {
-    const rate = amount(stablecoinRateFromMetadata(tx?.metadata, asset))
+    const rate = amount(stablecoinRateFromTransaction(tx, asset))
     if (rate.gt(0)) values[asset].value = usd.div(rate)
     else values[asset].complete = false
   }
