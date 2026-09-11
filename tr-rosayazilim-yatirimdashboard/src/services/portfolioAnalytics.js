@@ -228,12 +228,15 @@ export function buildPortfolioLedger(transactions) {
     }
 
     if (tx.transaction_type === 'CASH_OUT' && tx.source_asset && tx.source_quantity) {
-      removeBasis(tx.source_asset, amount(tx.source_quantity))
+      const removed = removeBasis(tx.source_asset, amount(tx.source_quantity))
+      const withdrawalHistorical = historicalValuesFromUsd(tx, gross)
+      const pnl = gross.minus(removed.usd)
+      const pnlHistorical = subtractHistoricalValues(withdrawalHistorical, removed.historical)
+      recordRealized(tx.source_asset, pnl, pnlHistorical)
       cashOutUsd = cashOutUsd.plus(gross)
       netContributedUsd = netContributedUsd.minus(gross)
-      const historicalGross = historicalValuesFromUsd(tx, gross)
-      mergeHistoricalValues(historicalMetrics.cashOut, historicalGross)
-      mergeHistoricalValues(historicalMetrics.netContributed, historicalGross, -1)
+      mergeHistoricalValues(historicalMetrics.cashOut, withdrawalHistorical)
+      mergeHistoricalValues(historicalMetrics.netContributed, withdrawalHistorical, -1)
       continue
     }
 
