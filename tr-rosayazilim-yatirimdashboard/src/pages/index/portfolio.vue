@@ -5,8 +5,8 @@
         <div class="col-12 col-md">
           <div class="page-title">Portföy</div>
           <div class="page-subtitle q-mt-xs">
-            {{ portfolio.selectedAccount?.name || 'Yatırım hesabı' }} · varlık miktarları, ortalama
-            maliyetler, güncel değer ve dağılım. Görünüm: {{ displayAsset }}.
+            {{ portfolio.selectedAccount?.name || 'Yatırım hesabı' }} · maliyetler işlem-anı
+            kurlarıyla, güncel değerler piyasa fiyatlarıyla hesaplanır. Görünüm: {{ displayAsset }}.
           </div>
         </div>
         <div class="col-auto">
@@ -24,14 +24,14 @@
         <div class="col-12 col-sm-4">
           <MetricCard
             label="Toplam Değer"
-            :value="formatDisplay(totalValue)"
+            :value="formatAssetValue(totalValueDisplay)"
             icon="account_balance_wallet"
           />
         </div>
         <div class="col-12 col-sm-4">
           <MetricCard
             label="Maliyet"
-            :value="formatDisplay(totalBasis)"
+            :value="formatAssetValue(totalBasisDisplay)"
             icon="receipt_long"
             tone="info"
           />
@@ -144,20 +144,22 @@
               <div class="row q-col-gutter-sm">
                 <div class="col-6">
                   <div class="text-caption text-grey-6">Güncel Değer</div>
-                  <div class="amount-primary">{{ formatDisplay(item.value) }}</div>
+                  <div class="amount-primary">{{ formatAssetValue(item.valueDisplay) }}</div>
                 </div>
                 <div class="col-6">
                   <div class="text-caption text-grey-6">Maliyet</div>
-                  <div class="amount-info">{{ formatDisplay(item.costBasisUsd) }}</div>
+                  <div class="amount-info">{{ formatAssetValue(item.basisDisplay) }}</div>
                 </div>
                 <div class="col-6 q-mt-sm">
                   <div class="text-caption text-grey-6">Ort. Maliyet</div>
-                  <div class="amount-neutral">{{ formatDisplay(item.averageCostUsd) }}</div>
+                  <div class="amount-neutral">
+                    {{ formatAssetValue(item.averageCostDisplay) }}
+                  </div>
                 </div>
                 <div class="col-6 q-mt-sm">
                   <div class="text-caption text-grey-6">K/Z</div>
-                  <div :class="item.pnl >= 0 ? 'amount-positive' : 'amount-negative'">
-                    {{ formatDisplay(item.pnl) }}
+                  <div :class="item.pnlDisplay >= 0 ? 'amount-positive' : 'amount-negative'">
+                    {{ formatAssetValue(item.pnlDisplay) }}
                     <span class="q-ml-xs">({{ formatPnlPercent(item.pnlPercent) }})</span>
                   </div>
                 </div>
@@ -195,7 +197,7 @@ import { usePortfolioStore } from '@/stores/portfolio'
 const portfolio = usePortfolioStore()
 const displayQuotes = useDisplayQuoteStore()
 const { formatNumber, formatDate } = useFormatters()
-const { displayAsset, formatDisplay, priceUsd } = useDisplayCurrency()
+const { displayAsset, convertUsd, formatAssetValue, formatDisplay, priceUsd } = useDisplayCurrency()
 
 const PRICE_CHANGE_FLASH_MS = 3_000
 const priceChangeDirection = reactive({})
@@ -207,6 +209,8 @@ const QUOTE_KEY_BY_ASSET = Object.freeze({
   URA: 'URA_USD',
   TRY: 'USD_TRY',
   EUR: 'EUR_USD',
+  USDT: 'USDT_USD',
+  USDC: 'USDC_USD',
 })
 
 const QUOTE_SOURCE_META = Object.freeze({
@@ -246,33 +250,47 @@ const QUOTE_SOURCE_META = Object.freeze({
   },
 })
 
+function historicalBasisValue(item) {
+  const historical = item.historicalCostBasis?.[displayAsset.value]
+  if (historical !== null && historical !== undefined && Number.isFinite(Number(historical))) {
+    return Number(historical)
+  }
+  return convertUsd(item.costBasisUsd)
+}
+
 const rows = computed(() => {
   const items = Object.values(portfolio.ledger.assets)
     .map((item) => {
       const lastPriceUsd = priceUsd(item.asset)
       const quote = quoteForAsset(item.asset)
-
-      const value = item.quantity * lastPriceUsd
-      const pnl = value - item.costBasisUsd
-      const pnlPercent =
-        item.costBasisUsd > 0
-          ? (pnl / item.costBasisUsd) * 100
-          : null
+      const valueUsd = item.quantity * lastPriceUsd
+      const valueDisplay = convertUsd(valueUsd)
+      const basisDisplay = historicalBasisValue(item)
+      const averageCostDisplay = item.quantity > 0 ? basisDisplay / item.quantity : 0
+      const pnlDisplay = valueDisplay - basisDisplay
+      const pnlPercent = basisDisplay > 0 ? (pnlDisplay / basisDisplay) * 100 : null
 
       return {
         ...item,
-        value,
-        pnl,
+        valueUsd,
+        valueDisplay,
+        basisDisplay,
+        averageCostDisplay,
+        pnlDisplay,
         pnlPercent,
         lastPriceUsd,
         quote,
       }
     })
     .filter((item) => item.quantity > 0.0000000001)
-  const total = items.reduce((sum, item) => sum + item.value, 0)
+
+  const totalUsd = items.reduce((sum, item) => sum + item.valueUsd, 0)
   return items
-    .map((item) => ({ ...item, allocation: total > 0 ? (item.value / total) * 100 : 0 }))
-    .sort((a, b) => b.value - a.value)
+    .map((item) => ({
+      ...item,
+      allocation: totalUsd > 0 ? (item.valueUsd / totalUsd) * 100 : 0,
+    }))
+    .sort((a, b) => b.valueUsd - a.valueUsd)
 })
 
 const watchedLastPrices = computed(() =>
@@ -325,14 +343,18 @@ function lastPriceChangeClass(asset) {
   }
 }
 
-const totalValue = computed(() => rows.value.reduce((sum, item) => sum + item.value, 0))
-const totalBasis = computed(() => rows.value.reduce((sum, item) => sum + item.costBasisUsd, 0))
-const unrealizedPnl = computed(() => totalValue.value - totalBasis.value)
+const totalValueDisplay = computed(() =>
+  rows.value.reduce((sum, item) => sum + item.valueDisplay, 0),
+)
+const totalBasisDisplay = computed(() =>
+  rows.value.reduce((sum, item) => sum + item.basisDisplay, 0),
+)
+const unrealizedPnl = computed(() => totalValueDisplay.value - totalBasisDisplay.value)
 const unrealizedPnlPercent = computed(() =>
-  totalBasis.value > 0 ? (unrealizedPnl.value / totalBasis.value) * 100 : null,
+  totalBasisDisplay.value > 0 ? (unrealizedPnl.value / totalBasisDisplay.value) * 100 : null,
 )
 const unrealizedPnlDisplay = computed(
-  () => `${formatDisplay(unrealizedPnl.value)} (${formatPnlPercent(unrealizedPnlPercent.value)})`,
+  () => `${formatAssetValue(unrealizedPnl.value)} (${formatPnlPercent(unrealizedPnlPercent.value)})`,
 )
 
 function formatPnlPercent(value) {
@@ -348,7 +370,7 @@ function formatPnlPercent(value) {
 
 function digitsFor(asset) {
   if (asset === 'BTC') return 8
-  if (asset === 'ETH') return 6
+  if (asset === 'ETH' || asset === 'USDT' || asset === 'USDC') return 6
   if (asset === 'URA') return 4
   return 2
 }
