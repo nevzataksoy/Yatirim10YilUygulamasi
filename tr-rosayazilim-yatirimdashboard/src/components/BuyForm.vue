@@ -29,7 +29,7 @@
         <div class="col-12 col-sm-6">
           <AppPopupSelect
             v-model="form.target_asset"
-            :options="investmentAssets"
+            :options="tradeableAssets"
             label="Alınan Varlık"
             :searchable="false"
           />
@@ -275,7 +275,7 @@ import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
-import { INVESTMENT_ASSETS } from '@/services/portfolioAnalytics'
+import { TRADEABLE_ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
 import {
   actualStablecoinUsdQuote,
@@ -298,7 +298,7 @@ const displayQuotes = useDisplayQuoteStore()
 const { formatDate, formatNumber, formatUsd } = useFormatters()
 
 const cashAssets = SETTLEMENT_ASSET_OPTIONS
-const investmentAssets = INVESTMENT_ASSETS
+const tradeableAssets = TRADEABLE_ASSETS
 const saving = ref(false)
 const summaryOpen = ref(false)
 const transactionRequestId = createTransactionRequestId()
@@ -370,8 +370,14 @@ function formatSource(value) {
   return formatSettlementAmount(value, form.source_asset, isStablecoin(form.source_asset) ? 6 : 2)
 }
 
+function currentAssetUsdPrice(asset) {
+  const enginePrice = Number(engine.price(asset) || 0)
+  if (enginePrice > 0) return enginePrice
+  return Number(displayQuotes.priceUsd(asset) || 0)
+}
+
 function fillMarketPrice() {
-  const priceUsd = Number(engine.price(form.target_asset) || 0)
+  const priceUsd = currentAssetUsdPrice(form.target_asset)
   const unitUsd = sourceUnitUsd.value
   if (priceUsd <= 0 || unitUsd <= 0) return
   form.unit_price = priceUsd / unitUsd
@@ -432,7 +438,10 @@ async function save() {
         fee_source: Number(form.fee_source || 0),
         source_balance_debit: sourceDebit.value,
         implied_target_unit_price_usd: unitPriceUsd.value,
-        ...stablecoinRatesMetadata([[form.source_asset, form.source_stablecoin_usd]]),
+        ...stablecoinRatesMetadata([
+          [form.source_asset, form.source_stablecoin_usd],
+          [form.target_asset, unitPriceUsd.value],
+        ]),
       },
     })
     summaryOpen.value = false
