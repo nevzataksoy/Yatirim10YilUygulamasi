@@ -169,6 +169,8 @@
         </q-list>
       </q-card>
 
+      <InstitutionDistributionCard detailed include-closed-history class="q-mb-lg" />
+
       <div class="row q-col-gutter-lg">
         <div class="col-12 col-lg-7">
           <q-card flat class="section-card">
@@ -307,6 +309,7 @@
 <script setup>
 import { computed } from 'vue'
 import AssetAvatar from '@/components/AssetAvatar.vue'
+import InstitutionDistributionCard from '@/components/InstitutionDistributionCard.vue'
 import MetricCard from '@/components/MetricCard.vue'
 import SemanticPill from '@/components/SemanticPill.vue'
 import { useDisplayCurrency } from '@/composables/useDisplayCurrency'
