@@ -53,6 +53,29 @@ export function stablecoinRateFromMetadata(metadata, asset) {
   return Number.isFinite(value) && value > 0 ? value : 0
 }
 
+export function stablecoinRateFromTransaction(transaction, asset) {
+  const symbol = String(asset || '').toUpperCase()
+  if (!isStablecoin(symbol)) return 0
+
+  const metadataRate = stablecoinRateFromMetadata(transaction?.metadata, symbol)
+  if (metadataRate > 0) return metadataRate
+
+  // OPENING target_unit_price işlem para biriminde tutulabilir; USD olduğu varsayılmaz.
+  if (transaction?.transaction_type === 'OPENING') return 0
+
+  if (transaction?.source_asset === symbol) {
+    const value = Number(transaction?.source_unit_price || 0)
+    if (Number.isFinite(value) && value > 0) return value
+  }
+
+  if (transaction?.target_asset === symbol) {
+    const value = Number(transaction?.target_unit_price || 0)
+    if (Number.isFinite(value) && value > 0) return value
+  }
+
+  return 0
+}
+
 export function formatSettlementAmount(value, asset, maximumFractionDigits = 2) {
   const symbol = String(asset || '').toUpperCase()
   const amount = Number(value || 0)
