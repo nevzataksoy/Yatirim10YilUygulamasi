@@ -18,9 +18,9 @@
         :searchable="accountOptions.length > 6"
         class="transaction-context__account-select"
       />
-      <q-badge v-else outline color="primary"
-        >{{ portfolio.selectedAccount?.base_currency || 'USD' }} BASE</q-badge
-      >
+      <q-badge v-else outline color="primary">
+        {{ portfolio.selectedAccount?.base_currency || 'USD' }} BASE
+      </q-badge>
     </div>
 
     <div class="transaction-context__flow">
@@ -39,18 +39,18 @@
         <div v-if="sourceAsset" class="transaction-context__numbers">
           <div>
             <span>Önce</span>
-            <strong>{{ formatQuantity(sourceBefore, sourceAsset) }}</strong>
+            <strong>{{ formatAssetQuantity(sourceBefore, sourceAsset) }}</strong>
           </div>
           <div>
             <span>İşlem</span>
             <strong :class="sourceDelta < 0 ? 'amount-negative' : 'amount-positive'">
-              {{ signedQuantity(sourceDelta, sourceAsset) }}
+              {{ formatSignedAssetQuantity(sourceDelta, sourceAsset) }}
             </strong>
           </div>
           <div>
             <span>Sonra</span>
             <strong :class="sourceAfter < -epsilon ? 'amount-negative' : 'amount-strong'">
-              {{ formatQuantity(sourceAfter, sourceAsset) }}
+              {{ formatAssetQuantity(sourceAfter, sourceAsset) }}
             </strong>
           </div>
         </div>
@@ -76,18 +76,18 @@
         <div v-if="targetAsset" class="transaction-context__numbers">
           <div>
             <span>Önce</span>
-            <strong>{{ formatQuantity(targetBefore, targetAsset) }}</strong>
+            <strong>{{ formatAssetQuantity(targetBefore, targetAsset) }}</strong>
           </div>
           <div>
             <span>İşlem</span>
             <strong :class="targetDelta < 0 ? 'amount-negative' : 'amount-positive'">
-              {{ signedQuantity(targetDelta, targetAsset) }}
+              {{ formatSignedAssetQuantity(targetDelta, targetAsset) }}
             </strong>
           </div>
           <div>
             <span>Sonra</span>
             <strong :class="targetAfter < -epsilon ? 'amount-negative' : 'amount-strong'">
-              {{ formatQuantity(targetAfter, targetAsset) }}
+              {{ formatAssetQuantity(targetAfter, targetAsset) }}
             </strong>
           </div>
         </div>
@@ -106,8 +106,7 @@
 import { computed } from 'vue'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import AssetAvatar from '@/components/AssetAvatar.vue'
-import { useFormatters } from '@/composables/useFormatters'
-import { isStablecoin } from '@/services/transactionCurrency'
+import { formatAssetQuantity, formatSignedAssetQuantity } from '@/services/assetFormatting'
 import { usePortfolioStore } from '@/stores/portfolio'
 
 const props = defineProps({
@@ -123,7 +122,6 @@ const props = defineProps({
 })
 
 const portfolio = usePortfolioStore()
-const { formatNumber } = useFormatters()
 const epsilon = 1e-10
 
 const accountOptions = computed(() =>
@@ -157,22 +155,4 @@ const hasNegativeBalance = computed(
     (props.sourceAsset && sourceAfter.value < -epsilon) ||
     (props.targetAsset && targetAfter.value < -epsilon),
 )
-
-function digitsFor(asset) {
-  if (asset === 'BTC') return 8
-  if (asset === 'ETH') return 6
-  if (asset === 'URA') return 4
-  if (isStablecoin(asset)) return 6
-  return 2
-}
-
-function formatQuantity(value, asset) {
-  return `${formatNumber(value, digitsFor(asset))} ${asset}`
-}
-
-function signedQuantity(value, asset) {
-  const numeric = Number(value || 0)
-  const prefix = numeric > 0 ? '+' : ''
-  return `${prefix}${formatNumber(numeric, digitsFor(asset))} ${asset}`
-}
 </script>
