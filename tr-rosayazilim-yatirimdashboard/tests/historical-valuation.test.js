@@ -89,3 +89,43 @@ test('historical TRY cost basis follows capital through a BUY without current FX
   closeTo(ledger.historical.cashIn.TRY, 5000)
   closeTo(ledger.historical.netContributed.TRY, 5000)
 })
+
+test('historical realized PnL compares sale proceeds with the transferred historical basis', () => {
+  const transactions = [
+    row(7, {
+      transaction_type: 'CASH_IN',
+      target_asset: 'TRY',
+      target_quantity: 5000,
+      usd_try: 50,
+      gross_usd: 100,
+      net_usd: 100,
+    }),
+    row(8, {
+      transaction_type: 'BUY',
+      source_asset: 'TRY',
+      source_quantity: 2000,
+      target_asset: 'BTC',
+      target_quantity: 0.001,
+      usd_try: 50,
+      gross_usd: 40,
+      net_usd: 40,
+    }),
+    row(9, {
+      transaction_type: 'SELL',
+      source_asset: 'BTC',
+      source_quantity: 0.0005,
+      target_asset: 'TRY',
+      target_quantity: 1500,
+      usd_try: 60,
+      gross_usd: 25,
+      net_usd: 25,
+    }),
+  ]
+
+  const ledger = buildPortfolioLedger(transactions)
+  closeTo(ledger.realizedPnlUsd, 5)
+  closeTo(ledger.historical.realizedPnl.TRY, 500)
+  closeTo(ledger.assets.BTC.realizedPnlHistorical.TRY, 500)
+  closeTo(ledger.assets.BTC.historicalCostBasis.TRY, 1000)
+  closeTo(ledger.assets.TRY.historicalCostBasis.TRY, 4500)
+})
