@@ -4,7 +4,7 @@
       <div class="q-mb-lg">
         <div class="page-title">Sermaye Hareketi</div>
         <div class="page-subtitle q-mt-xs">
-          Portföye dışarıdan nakit ekle veya dışarı nakit çıkar.
+          Portföye dışarıdan nakit veya stablecoin ekle ya da dışarı çıkar.
         </div>
       </div>
       <q-form @submit.prevent="openSummary">
@@ -22,7 +22,7 @@
               <AppPopupSelect
                 v-model="form.asset"
                 :options="cashAssets"
-                label="Para Birimi"
+                label="Para / Ödeme Varlığı"
                 :searchable="false"
               />
             </div>
@@ -68,6 +68,23 @@
                 step="any"
                 label="USD/TRY Kuru"
               />
+            </div>
+            <div v-if="stablecoinSelected" class="col-12 col-sm-6">
+              <q-input
+                v-model.number="form.stablecoin_usd"
+                outlined
+                type="number"
+                min="0"
+                step="any"
+                :label="`${form.asset}/USD İşlem Kuru`"
+                hint="İşlem anındaki gerçek stablecoin/USD değerini kaydeder."
+              >
+                <template #append>
+                  <q-btn flat dense round icon="auto_fix_high" @click="fillStablecoinRate">
+                    <q-tooltip>Güncel provider değerini doldur</q-tooltip>
+                  </q-btn>
+                </template>
+              </q-input>
             </div>
             <div class="col-12 col-sm-6">
               <q-input
@@ -176,8 +193,12 @@
             <q-item-section side class="amount-strong">{{ formatUsd(grossUsd) }}</q-item-section>
           </q-item>
           <q-item>
-            <q-item-section>Kur</q-item-section>
+            <q-item-section>USD/TRY</q-item-section>
             <q-item-section side>{{ Number(form.usd_try || 0).toFixed(4) }}</q-item-section>
+          </q-item>
+          <q-item v-if="stablecoinSelected">
+            <q-item-section>{{ form.asset }}/USD</q-item-section>
+            <q-item-section side>{{ Number(form.stablecoin_usd || 0).toFixed(6) }}</q-item-section>
           </q-item>
           <q-item>
             <q-item-section>Kurum</q-item-section>
@@ -213,7 +234,7 @@
   </q-page>
 </template>
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
@@ -221,17 +242,28 @@ import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
+import {
+  actualStablecoinUsdQuote,
+  isStablecoin,
+  SETTLEMENT_ASSET_OPTIONS,
+  settlementAmountToUsd,
+  settlementUsdUnitPrice,
+  stablecoinRatesMetadata,
+} from '@/services/transactionCurrency'
+import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
+
 const $q = useQuasar()
 const router = useRouter()
 const engine = useEngineStore()
 const portfolio = usePortfolioStore()
+const displayQuotes = useDisplayQuoteStore()
 const { formatDate, formatNumber, formatUsd } = useFormatters()
 const saving = ref(false)
 const summaryOpen = ref(false)
 const transactionRequestId = createTransactionRequestId()
-const cashAssets = ['TRY', 'USD']
+const cashAssets = SETTLEMENT_ASSET_OPTIONS
 const kindOptions = [
   { label: 'Sermaye Girişi', value: 'CASH_IN', icon: 'south_west' },
   { label: 'Sermaye Çıkışı', value: 'CASH_OUT', icon: 'north_east' },
@@ -242,26 +274,45 @@ const form = reactive({
   asset: 'TRY',
   quantity: null,
   usd_try: marketUsdTry || null,
+  stablecoin_usd: null,
   transaction_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16),
   platform: '',
   note: '',
 })
+const stablecoinSelected = computed(() => isStablecoin(form.asset))
 const availableCash = computed(() => Number(portfolio.quantities[form.asset] || 0))
-const grossUsd = computed(() => {
-  const amount = Number(form.quantity || 0)
-  if (form.asset === 'USD') return amount
-  const fx = Number(form.usd_try || 0)
-  return fx > 0 ? amount / fx : 0
-})
+const grossUsd = computed(() =>
+  settlementAmountToUsd(form.quantity, form.asset, {
+    usdTry: form.usd_try,
+    stablecoinUsd: form.stablecoin_usd,
+  }),
+)
 const remaining = computed(
   () =>
     availableCash.value +
     (form.kind === 'CASH_IN' ? Number(form.quantity || 0) : -Number(form.quantity || 0)),
 )
+
+watch(
+  () => form.asset,
+  () => {
+    if (!stablecoinSelected.value) {
+      form.stablecoin_usd = null
+      return
+    }
+    fillStablecoinRate()
+  },
+  { immediate: true },
+)
+
+function fillStablecoinRate() {
+  const quote = actualStablecoinUsdQuote(displayQuotes.quotes, form.asset)
+  form.stablecoin_usd = quote > 0 ? quote : null
+}
 function formatCash(value) {
-  return `${formatNumber(value, 2)} ${form.asset}`
+  return `${formatNumber(value, isStablecoin(form.asset) ? 6 : 2)} ${form.asset}`
 }
 function usePercentage(pct) {
   form.quantity = Number(((availableCash.value * pct) / 100).toPrecision(12))
@@ -270,6 +321,9 @@ function validate() {
   if (!portfolio.selectedAccountId) return 'Aktif yatırım hesabı seçili değil.'
   if (Number(form.quantity || 0) <= 0) return 'Miktar sıfırdan büyük olmalı.'
   if (Number(form.usd_try || 0) <= 0) return 'USD/TRY kuru zorunlu.'
+  if (stablecoinSelected.value && Number(form.stablecoin_usd || 0) <= 0) {
+    return `${form.asset}/USD işlem kuru zorunlu.`
+  }
   if (form.kind === 'CASH_OUT' && Number(form.quantity) > availableCash.value + 1e-10) {
     return `${form.asset} bakiyesi yetersiz.`
   }
@@ -289,6 +343,10 @@ async function save() {
   saving.value = true
   try {
     const isIn = form.kind === 'CASH_IN'
+    const unitUsd = settlementUsdUnitPrice(form.asset, {
+      usdTry: form.usd_try,
+      stablecoinUsd: form.stablecoin_usd,
+    })
     await portfolio.addTransaction({
       id: transactionRequestId,
       transaction_type: form.kind,
@@ -297,8 +355,8 @@ async function save() {
       source_quantity: isIn ? null : Number(form.quantity),
       target_quantity: isIn ? Number(form.quantity) : null,
       price_currency: form.asset,
-      source_unit_price: isIn ? null : form.asset === 'USD' ? 1 : 1 / Number(form.usd_try),
-      target_unit_price: isIn ? (form.asset === 'USD' ? 1 : 1 / Number(form.usd_try)) : null,
+      source_unit_price: isIn ? null : unitUsd,
+      target_unit_price: isIn ? unitUsd : null,
       usd_try: Number(form.usd_try),
       gross_usd: grossUsd.value,
       fee_usd: 0,
@@ -306,7 +364,10 @@ async function save() {
       platform: form.platform,
       note: form.note,
       transaction_at: new Date(form.transaction_at).toISOString(),
-      metadata: { entry_flow: form.kind },
+      metadata: {
+        entry_flow: form.kind,
+        ...stablecoinRatesMetadata([[form.asset, form.stablecoin_usd]]),
+      },
     })
     summaryOpen.value = false
     $q.notify({ type: 'positive', message: 'Sermaye hareketi kaydedildi.' })
