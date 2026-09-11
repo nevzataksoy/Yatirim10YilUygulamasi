@@ -137,6 +137,23 @@
             label="USD/TRY Kuru"
           />
         </div>
+        <div v-if="stablecoinTarget" class="col-12 col-sm-6">
+          <q-input
+            v-model.number="form.target_stablecoin_usd"
+            outlined
+            type="number"
+            min="0"
+            step="any"
+            :label="`${form.target_asset}/USD İşlem Kuru`"
+            hint="İşlem anındaki gerçek stablecoin/USD değerini kaydeder."
+          >
+            <template #append>
+              <q-btn flat dense round icon="auto_fix_high" @click="fillTargetStablecoinRate">
+                <q-tooltip>Güncel provider değerini doldur</q-tooltip>
+              </q-btn>
+            </template>
+          </q-input>
+        </div>
         <div class="col-12 col-sm-6">
           <q-input
             v-model="form.transaction_at"
@@ -204,8 +221,8 @@
       <q-card-section>
         <div class="text-h6">Satış Özeti</div>
         <div class="text-caption text-grey-7">
-          Satış karşılığı seçili yatırım hesabında nakit olarak kalır; bankaya çekim ayrıca sermaye
-          çıkışıdır.
+          Satış karşılığı seçili yatırım hesabında ödeme varlığı olarak kalır; dışarı transfer ayrıca
+          sermaye çıkışıdır.
         </div>
       </q-card-section>
       <q-separator />
@@ -242,10 +259,14 @@
           <q-item-section side>{{ formatTarget(form.fee_target) }}</q-item-section>
         </q-item>
         <q-item>
-          <q-item-section>Net Nakit Artışı</q-item-section>
+          <q-item-section>Net Ödeme Varlığı Artışı</q-item-section>
           <q-item-section side class="amount-positive">{{
             formatTarget(netProceedsTarget)
           }}</q-item-section>
+        </q-item>
+        <q-item v-if="stablecoinTarget">
+          <q-item-section>{{ form.target_asset }}/USD</q-item-section>
+          <q-item-section side>{{ Number(form.target_stablecoin_usd || 0).toFixed(6) }}</q-item-section>
         </q-item>
         <q-item>
           <q-item-section>Kurum</q-item-section>
@@ -292,7 +313,18 @@ import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
+import { INVESTMENT_ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
+import {
+  actualStablecoinUsdQuote,
+  formatSettlementAmount,
+  isStablecoin,
+  SETTLEMENT_ASSET_OPTIONS,
+  settlementAmountToUsd,
+  settlementUsdUnitPrice,
+  stablecoinRatesMetadata,
+} from '@/services/transactionCurrency'
+import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
 
@@ -300,8 +332,9 @@ const $q = useQuasar()
 const router = useRouter()
 const engine = useEngineStore()
 const portfolio = usePortfolioStore()
+const displayQuotes = useDisplayQuoteStore()
 const { formatDate, formatNumber, formatUsd } = useFormatters()
-const cashAssets = ['TRY', 'USD']
+const cashAssets = SETTLEMENT_ASSET_OPTIONS
 const saving = ref(false)
 const summaryOpen = ref(false)
 const netManuallyEdited = ref(false)
@@ -316,6 +349,7 @@ const form = reactive({
   fee_target: 0,
   net_proceeds: null,
   usd_try: marketUsdTry || null,
+  target_stablecoin_usd: null,
   transaction_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16),
@@ -324,7 +358,14 @@ const form = reactive({
 })
 
 const sourceOptions = computed(() =>
-  ['BTC', 'ETH', 'URA'].filter((asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001),
+  INVESTMENT_ASSETS.filter((asset) => Number(portfolio.quantities[asset] || 0) > 0.0000000001),
+)
+const stablecoinTarget = computed(() => isStablecoin(form.target_asset))
+const targetUnitUsd = computed(() =>
+  settlementUsdUnitPrice(form.target_asset, {
+    usdTry: form.usd_try,
+    stablecoinUsd: form.target_stablecoin_usd,
+  }),
 )
 const availableSource = computed(() => Number(portfolio.quantities[form.source_asset] || 0))
 const grossProceedsTarget = computed(
@@ -351,9 +392,12 @@ watch(
   () => {
     netManuallyEdited.value = false
     form.fee_target = 0
+    if (stablecoinTarget.value) fillTargetStablecoinRate()
+    else form.target_stablecoin_usd = null
     fillMarketPrice()
     form.net_proceeds = calculatedNetProceeds.value || null
   },
+  { immediate: true },
 )
 
 watch(
@@ -363,11 +407,16 @@ watch(
   },
 )
 
+function fillTargetStablecoinRate() {
+  const quote = actualStablecoinUsdQuote(displayQuotes.quotes, form.target_asset)
+  form.target_stablecoin_usd = quote > 0 ? quote : null
+}
+
 function targetToUsd(value) {
-  const amount = Number(value || 0)
-  if (form.target_asset === 'USD') return amount
-  const fx = Number(form.usd_try || 0)
-  return fx > 0 ? amount / fx : 0
+  return settlementAmountToUsd(value, form.target_asset, {
+    usdTry: form.usd_try,
+    stablecoinUsd: form.target_stablecoin_usd,
+  })
 }
 
 function formatQuantity(value, asset) {
@@ -376,11 +425,7 @@ function formatQuantity(value, asset) {
 }
 
 function formatTarget(value) {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: form.target_asset,
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0))
+  return formatSettlementAmount(value, form.target_asset, stablecoinTarget.value ? 6 : 2)
 }
 
 function usePercentage(pct) {
@@ -391,8 +436,9 @@ function usePercentage(pct) {
 
 function fillMarketPrice() {
   const priceUsd = Number(engine.price(form.source_asset) || 0)
-  if (priceUsd <= 0) return
-  form.unit_price = form.target_asset === 'TRY' ? priceUsd * Number(form.usd_try || 0) : priceUsd
+  const unitUsd = targetUnitUsd.value
+  if (priceUsd <= 0 || unitUsd <= 0) return
+  form.unit_price = priceUsd / unitUsd
 }
 
 function onNetEdited() {
@@ -413,6 +459,9 @@ function validate() {
     return 'Gerçekleşen net satış tutarı sıfırdan büyük olmalı.'
   }
   if (Number(form.usd_try || 0) <= 0) return 'USD/TRY kuru zorunlu.'
+  if (stablecoinTarget.value && Number(form.target_stablecoin_usd || 0) <= 0) {
+    return `${form.target_asset}/USD işlem kuru zorunlu.`
+  }
   if (Number(form.source_quantity) > availableSource.value + 1e-10) {
     return `${form.source_asset} bakiyesi yetersiz.`
   }
@@ -446,7 +495,7 @@ async function save() {
         Number(form.source_quantity || 0) > 0
           ? grossUsd.value / Number(form.source_quantity)
           : null,
-      target_unit_price: form.target_asset === 'USD' ? 1 : 1 / Number(form.usd_try),
+      target_unit_price: targetUnitUsd.value,
       usd_try: Number(form.usd_try),
       gross_usd: grossUsd.value,
       fee_usd: feeUsd.value,
@@ -462,10 +511,11 @@ async function save() {
         fee_target: Number(form.fee_target || 0),
         calculated_net_target: calculatedNetProceeds.value,
         net_manually_edited: netManuallyEdited.value,
+        ...stablecoinRatesMetadata([[form.target_asset, form.target_stablecoin_usd]]),
       },
     })
     summaryOpen.value = false
-    $q.notify({ type: 'positive', message: 'Satış kaydedildi; net nakit portföye eklendi.' })
+    $q.notify({ type: 'positive', message: 'Satış kaydedildi; net ödeme varlığı portföye eklendi.' })
     await router.push('/transactions')
   } catch (error) {
     $q.notify({
