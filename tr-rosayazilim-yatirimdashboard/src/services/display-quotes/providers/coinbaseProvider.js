@@ -3,11 +3,13 @@ import { normalizeQuote } from '../quoteNormalizer.js'
 import { parseCoinbaseSpot, parseCoinbaseUsdFx } from '../quoteParsers.js'
 
 const COINBASE_API = 'https://api.coinbase.com/v2'
+const COINBASE_SPOT_ASSETS = Object.freeze(['BTC', 'ETH', 'USDT', 'USDC'])
 
 export async function fetchCoinbaseSpotQuote(asset) {
   const symbol = String(asset || '').toUpperCase()
-  if (symbol !== 'BTC' && symbol !== 'ETH')
+  if (!COINBASE_SPOT_ASSETS.includes(symbol)) {
     throw new Error(`Desteklenmeyen Coinbase varlığı: ${symbol}`)
+  }
 
   const data = await getJson(`${COINBASE_API}/prices/${symbol}-USD/spot`)
   const fetchedAt = new Date().toISOString()
