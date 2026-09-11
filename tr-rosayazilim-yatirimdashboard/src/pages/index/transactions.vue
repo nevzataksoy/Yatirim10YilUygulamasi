@@ -6,7 +6,7 @@
           <div class="page-title">İşlem Geçmişi</div>
           <div class="page-subtitle q-mt-xs">
             Seçili yatırım hesabındaki başlangıç, bütçe, alım, dönüşüm, satış ve sermaye çıkışları.
-            Görünüm: {{ displayAsset }}.
+            Tarihsel tutarlar işlem-anı kurlarıyla gösterilir. Görünüm: {{ displayAsset }}.
           </div>
         </div>
         <div class="col-auto">
@@ -92,7 +92,9 @@
             </div>
           </div>
           <q-space />
-          <div class="text-caption text-grey-6">Tutarlar {{ displayAsset }} görünümünde</div>
+          <div class="text-caption text-grey-6">
+            {{ displayAsset }} · işlem-anı değerleme
+          </div>
         </q-card-section>
         <q-separator />
 
@@ -140,10 +142,10 @@
 
             <q-item-section side class="items-end q-gutter-xs transaction-row__side">
               <div :class="transactionAmountClass(tx.transaction_type)">
-                {{ formatDisplay(tx.gross_usd) }}
+                {{ formatHistorical(tx.gross_usd, tx) }}
               </div>
               <div v-if="Number(tx.fee_usd || 0)" class="text-caption amount-warning">
-                Komisyon {{ formatDisplay(tx.fee_usd) }}
+                Komisyon {{ formatHistorical(tx.fee_usd, tx) }}
               </div>
               <div class="row q-gutter-xs q-mt-xs">
                 <q-btn
@@ -207,6 +209,7 @@ import TransactionCancelDialog from '@/components/TransactionCancelDialog.vue'
 import TransactionRevisionDialog from '@/components/TransactionRevisionDialog.vue'
 import { useDisplayCurrency } from '@/composables/useDisplayCurrency'
 import { useFormatters } from '@/composables/useFormatters'
+import { ASSETS } from '@/services/portfolioAnalytics'
 import {
   TRANSACTION_TYPE_LABELS,
   transactionAmountClass,
@@ -217,7 +220,7 @@ import { usePortfolioStore } from '@/stores/portfolio'
 
 const portfolio = usePortfolioStore()
 const { formatNumber, formatDate } = useFormatters()
-const { displayAsset, formatDisplay } = useDisplayCurrency()
+const { displayAsset, formatHistorical } = useDisplayCurrency()
 const search = ref('')
 const typeFilter = ref(null)
 const assetFilter = ref(null)
@@ -227,7 +230,7 @@ const selectedForEdit = ref(null)
 const cancelDialogOpen = ref(false)
 const selectedForCancel = ref(null)
 
-const assetOptions = ['BTC', 'ETH', 'URA', 'USD', 'TRY'].map((value) => ({ label: value, value }))
+const assetOptions = ASSETS.map((value) => ({ label: value, value }))
 const typeOptions = Object.entries(TRANSACTION_TYPE_LABELS).map(([value, label]) => ({
   value,
   label,
