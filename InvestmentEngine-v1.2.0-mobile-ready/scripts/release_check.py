@@ -27,6 +27,23 @@ def _require_onedir_build(path: str, label: str) -> None:
         raise SystemExit(f"{label} tekrar --onefile kullanıyor; SCM startup timeout riski geri geldi.")
 
 
+def _require_non_elevated_build_launcher(path: str, label: str) -> None:
+    text = (ROOT / path).read_text(encoding="utf-8")
+    lowered = text.lower()
+    if "-verb runas" in lowered or "verb runas" in lowered:
+        raise SystemExit(
+            f"{label} build sürecini yeniden yönetici olarak yükseltiyor; "
+            "PyInstaller normal kullanıcı tokeni ile çalışmalıdır."
+        )
+    for marker in [
+        "WindowsBuiltInRole]::Administrator",
+        "build.bat yonetici terminalinde calistirilmamalidir.",
+        "exit /b 1",
+    ]:
+        if marker not in text:
+            raise SystemExit(f"{label} non-elevated build guard eksik: {marker}")
+
+
 def main() -> int:
     required = [
         "build.bat",
@@ -197,6 +214,7 @@ def main() -> int:
 
     _require_onedir_build("build.bat", "build.bat")
     _require_onedir_build("scripts/build_exe.ps1", "scripts/build_exe.ps1")
+    _require_non_elevated_build_launcher("build.bat", "build.bat")
 
     cmd_text=(ROOT / "InvestmentEngineCLI.cmd").read_text(encoding="utf-8")
     ps1_text=(ROOT / "InvestmentEngineCLI.ps1").read_text(encoding="utf-8")
