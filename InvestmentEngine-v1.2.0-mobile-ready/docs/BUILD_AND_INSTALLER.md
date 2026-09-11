@@ -2,7 +2,11 @@
 
 ## `build.bat`
 
-Yönetici olarak çalıştırıldığında:
+Build zinciri **normal (non-elevated) PowerShell / Komut İstemi** altında çalıştırılır. `build.bat` artık kendisini `RunAs` ile yeniden başlatmaz. Administrator tokenı algılarsa PyInstaller çalışmadan önce açık hata ile durur.
+
+Bu ayrım bilinçlidir: PyInstaller build işleminin elevated çalışması gerekmez ve PyInstaller 7.0 yönünde bu kullanım engellenmektedir. Build-time yetkisi ile üretilen EXE/installer'ın runtime UAC gereksinimi birbirinden ayrı sözleşmelerdir.
+
+Normal terminalde akış:
 
 ```text
 .venv oluştur / kullan
@@ -23,6 +27,35 @@ installer\InvestmentEngineSetup-1.2.0.exe
 ```
 
 Tek ana uygulama binary'si yine `InvestmentEngine.exe`'dir. `InvestmentEngineCLI.cmd` ikinci bir engine değildir; aynı GUI-subsystem EXE'yi terminalde blocking çalıştıran wrapper'dır.
+
+### Build-time ve runtime elevation ayrımı
+
+`build.bat` / PyInstaller / Inno Setup compiler normal kullanıcı tokenı ile çalışır.
+
+PyInstaller'daki `--uac-admin` ise build sürecini yükseltmez; üretilen `InvestmentEngine.exe` için runtime UAC manifestini korur. Bu seçenek şimdilik gereklidir çünkü mevcut mimaride `settings`, `rosalock`, `logs` ve `runtime` kurulum dizini altında bulunur ve güvenlik sınırı LocalSystem + Administrators ACL sözleşmesine dayanır.
+
+Inno Setup içindeki:
+
+```text
+PrivilegesRequired=admin
+```
+
+compiler'ı değil, oluşturulan installer'ın çalıştırılma anını yükseltir. Installer Program Files'a yazar, Windows Service'i durdurur/kurar/başlatır ve bu nedenle runtime'da Administrator yetkisi istemeye devam eder.
+
+Özet sözleşme:
+
+```text
+BUILD
+normal kullanıcı terminali
+  → pytest / release_check
+  → PyInstaller
+  → ISCC compile
+
+RUNTIME / INSTALL
+InvestmentEngine.exe        → --uac-admin manifesti korunur
+InvestmentEngineSetup.exe   → PrivilegesRequired=admin
+Windows Service yönetimi    → elevated installer / admin runtime
+```
 
 ## Neden OneDir?
 
@@ -104,7 +137,7 @@ Installer:
 
 ## Release guard
 
-`scripts/release_check.py` aşağıdaki packaging sözleşmesini zorunlu tutar:
+`scripts/release_check.py` aşağıdaki packaging/build sözleşmesini zorunlu tutar:
 
 - `--onedir`
 - `--contents-directory "_internal"`
@@ -112,21 +145,27 @@ Installer:
 - `dist\InvestmentEngine\InvestmentEngine.exe`
 - installer'da `_internal` ağacının kopyalanması
 - `--onefile` kullanımının yasak olması
+- `build.bat` içinde `-Verb RunAs` ile otomatik yükseltme bulunmaması
+- `build.bat` içinde elevated terminali reddeden non-elevated build guard'ının bulunması
 
-Bu kontrol, SCM startup timeout riskinin yanlışlıkla yeniden release'e girmesini engeller.
+Bu kontroller hem SCM startup timeout riskinin hem de elevated PyInstaller build davranışının yanlışlıkla release zincirine geri dönmesini engeller.
 
 ## Windows-only doğrulama
 
 Container/Linux üzerinde unit/static test yapılabilir; gerçek DPAPI LocalMachine, Windows Service SCM, PyInstaller Windows runtime, Inno Setup ve public WebSocket smoke test Windows makinede doğrulanmalıdır.
 
-OneDir değişikliğinden sonraki kabul testi:
+Build-time elevation hardening sonrası kabul testi:
 
-1. `build.bat` PASS
-2. `release_check: OK`
-3. installer compile PASS
-4. kurulu EXE SHA256 build artefactı ile eşleşmeli
-5. `settings` / `rosalock` korunmalı
-6. `InvestmentEngineCLI.cmd --service-status` startup süresi 30 saniyenin belirgin altında olmalı
-7. installer service start aşaması 1053/7009 vermemeli
-8. service `RUNNING`, exit code 0 olmalı
-9. `--shadow-observability` exit code 0 olmalı
+1. Normal PowerShell / Komut İstemi altında `build.bat` PASS
+2. `pytest` PASS
+3. `release_check: OK`
+4. PyInstaller çıktısında elevated/admin deprecation uyarısı bulunmamalı
+5. installer compile PASS
+6. kurulu EXE SHA256 build artefactı ile eşleşmeli
+7. `settings` / `rosalock` korunmalı
+8. `InvestmentEngineCLI.cmd --service-status` startup süresi 30 saniyenin belirgin altında olmalı
+9. installer service start aşaması 1053/7009 vermemeli
+10. service `RUNNING`, exit code 0 olmalı
+11. `--shadow-observability` exit code 0 olmalı
+
+Administrator terminalinde `build.bat` çalıştırılması ise başarı kriteri değildir; guard'ın PyInstaller başlamadan önce açık hata ile işlemi reddetmesi beklenen davranıştır.
