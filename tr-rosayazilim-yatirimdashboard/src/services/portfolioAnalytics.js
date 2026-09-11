@@ -1,9 +1,11 @@
 import Decimal from 'decimal.js'
 import { stablecoinRateFromMetadata } from './transactionCurrency.js'
 
-export const INVESTMENT_ASSETS = Object.freeze(['BTC', 'ETH', 'URA'])
+export const TRADEABLE_ASSETS = Object.freeze(['BTC', 'ETH', 'URA', 'USDT', 'USDC'])
+// Geriye dönük import uyumluluğu; yeni kod TRADEABLE_ASSETS kullanmalı.
+export const INVESTMENT_ASSETS = TRADEABLE_ASSETS
 export const SETTLEMENT_ASSETS = Object.freeze(['USD', 'TRY', 'USDT', 'USDC'])
-export const ASSETS = Object.freeze([...INVESTMENT_ASSETS, ...SETTLEMENT_ASSETS])
+export const ASSETS = Object.freeze([...new Set([...TRADEABLE_ASSETS, ...SETTLEMENT_ASSETS])])
 const EPSILON = new Decimal('0.000000000001')
 
 function amount(value) {
@@ -56,6 +58,15 @@ function mergeHistoricalValues(target, incoming, sign = 1) {
     target[asset].value = target[asset].value.plus(incoming[asset].value.mul(sign))
     target[asset].complete = target[asset].complete && incoming[asset].complete
   }
+}
+
+function subtractHistoricalValues(left, right) {
+  const result = emptyHistoricalValues()
+  for (const asset of SETTLEMENT_ASSETS) {
+    result[asset].value = left[asset].value.minus(right[asset].value)
+    result[asset].complete = left[asset].complete && right[asset].complete
+  }
+  return result
 }
 
 function historicalValuesToNumbers(values) {
@@ -147,6 +158,14 @@ export function buildPortfolioLedger(transactions) {
     else mergeHistoricalValues(item.historicalBasis, historicalBasis)
   }
 
+  function recordRealized(asset, pnlUsd, pnlHistorical) {
+    if (!state[asset]) return
+    state[asset].realized = state[asset].realized.plus(pnlUsd)
+    mergeHistoricalValues(state[asset].realizedHistorical, pnlHistorical)
+    realizedPnlUsd = realizedPnlUsd.plus(pnlUsd)
+    mergeHistoricalValues(historicalMetrics.realizedPnl, pnlHistorical)
+  }
+
   for (const tx of rows) {
     const fee = amount(tx.fee_usd)
     const gross = amount(tx.gross_usd)
@@ -174,10 +193,18 @@ export function buildPortfolioLedger(transactions) {
       mergeHistoricalValues(historicalMetrics.buyVolume, historicalValuesFromUsd(tx, gross))
 
       if (tx.source_asset && tx.source_quantity) {
-        // source_quantity gerçek hesap düşüşüdür. Komisyon kaynak varlıktan kesildiyse
-        // bu miktara zaten dahildir; maliyet bazına ikinci kez fee eklenmez.
         const removed = removeBasis(tx.source_asset, amount(tx.source_quantity))
-        addPosition(tx.target_asset, amount(tx.target_quantity), removed.usd, removed.historical)
+        const acquisitionBasisUsd = gross.plus(fee)
+        const acquisitionHistorical = historicalValuesFromUsd(tx, acquisitionBasisUsd)
+        const sourcePnl = acquisitionBasisUsd.minus(removed.usd)
+        const sourcePnlHistorical = subtractHistoricalValues(acquisitionHistorical, removed.historical)
+        recordRealized(tx.source_asset, sourcePnl, sourcePnlHistorical)
+        addPosition(
+          tx.target_asset,
+          amount(tx.target_quantity),
+          acquisitionBasisUsd,
+          acquisitionHistorical,
+        )
       } else {
         // Eski BUY kayıtları kaynak bakiyesi tutmadığı için harici fonlama olarak korunur.
         const basis = gross.plus(fee)
@@ -217,10 +244,18 @@ export function buildPortfolioLedger(transactions) {
       tx.source_quantity &&
       tx.target_quantity
     ) {
-      // Her iki miktar da gerçek hesap bakiyesi değişimini temsil eder. Hedef komisyonu
-      // target_quantity'nin netleşmesiyle, kaynak komisyonu source_quantity artışıyla yansır.
       const removed = removeBasis(tx.source_asset, amount(tx.source_quantity))
-      addPosition(tx.target_asset, amount(tx.target_quantity), removed.usd, removed.historical)
+      const targetUnitPriceUsd = amount(tx.target_unit_price)
+      const targetQuantity = amount(tx.target_quantity)
+      const targetBasisUsd =
+        targetUnitPriceUsd.gt(0) && targetQuantity.gt(0)
+          ? targetUnitPriceUsd.mul(targetQuantity)
+          : gross
+      const targetHistorical = historicalValuesFromUsd(tx, targetBasisUsd)
+      const sourcePnl = targetBasisUsd.minus(removed.usd)
+      const sourcePnlHistorical = subtractHistoricalValues(targetHistorical, removed.historical)
+      recordRealized(tx.source_asset, sourcePnl, sourcePnlHistorical)
+      addPosition(tx.target_asset, targetQuantity, targetBasisUsd, targetHistorical)
       conversionVolumeUsd = conversionVolumeUsd.plus(gross)
       mergeHistoricalValues(
         historicalMetrics.conversionVolume,
@@ -237,21 +272,8 @@ export function buildPortfolioLedger(transactions) {
       const removed = removeBasis(tx.source_asset, amount(tx.source_quantity))
       const pnl = net.minus(removed.usd)
       const proceedsHistorical = historicalValuesFromUsd(tx, net)
-      const pnlHistorical = emptyHistoricalValues()
-
-      for (const settlementAsset of SETTLEMENT_ASSETS) {
-        pnlHistorical[settlementAsset].value = proceedsHistorical[settlementAsset].value.minus(
-          removed.historical[settlementAsset].value,
-        )
-        pnlHistorical[settlementAsset].complete =
-          proceedsHistorical[settlementAsset].complete &&
-          removed.historical[settlementAsset].complete
-      }
-
-      state[tx.source_asset].realized = state[tx.source_asset].realized.plus(pnl)
-      mergeHistoricalValues(state[tx.source_asset].realizedHistorical, pnlHistorical)
-      realizedPnlUsd = realizedPnlUsd.plus(pnl)
-      mergeHistoricalValues(historicalMetrics.realizedPnl, pnlHistorical)
+      const pnlHistorical = subtractHistoricalValues(proceedsHistorical, removed.historical)
+      recordRealized(tx.source_asset, pnl, pnlHistorical)
 
       if (tx.target_asset && tx.target_quantity) {
         addPosition(tx.target_asset, amount(tx.target_quantity), net, proceedsHistorical)
