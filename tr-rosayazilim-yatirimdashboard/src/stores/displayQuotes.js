@@ -6,6 +6,7 @@ import {
   DISPLAY_QUOTE_CACHE_WRITE_MS,
   DISPLAY_QUOTE_FALLBACK_LEVEL,
   DISPLAY_QUOTE_KEYS,
+  DISPLAY_QUOTE_REQUIRED_KEYS,
   DISPLAY_QUOTE_STALE_MS,
 } from '@/services/display-quotes/quoteConfig'
 import { isDisplayQuote, normalizeQuote } from '@/services/display-quotes/quoteNormalizer'
@@ -29,7 +30,9 @@ export const useDisplayQuoteStore = defineStore('displayQuotes', () => {
   const hydrated = ref(false)
   let lastPersistAt = 0
 
-  const ready = computed(() => DISPLAY_QUOTE_KEYS.every((key) => isDisplayQuote(quotes.value[key])))
+  const ready = computed(() =>
+    DISPLAY_QUOTE_REQUIRED_KEYS.every((key) => isDisplayQuote(quotes.value[key])),
+  )
 
   function isStale(key, quote = quotes.value[key], now = Date.now()) {
     if (!isDisplayQuote(quote)) return true

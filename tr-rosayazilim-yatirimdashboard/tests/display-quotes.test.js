@@ -18,6 +18,8 @@ const quotes = {
   URA_USD: { value: 45 },
   USD_TRY: { value: 44 },
   EUR_USD: { value: 1.1 },
+  USDT_USD: { value: 0.9995 },
+  USDC_USD: { value: 1.0002 },
 }
 
 test('USD display conversion uses canonical quote directions', () => {
@@ -26,19 +28,29 @@ test('USD display conversion uses canonical quote directions', () => {
   assert.ok(Math.abs(convertUsdWithQuotes(110, 'EUR', quotes) - 100) < 1e-12)
   assert.equal(convertUsdWithQuotes(100_000, 'BTC', quotes), 1)
   assert.equal(convertUsdWithQuotes(8_000, 'ETH', quotes), 2)
+  assert.ok(Math.abs(convertUsdWithQuotes(99.95, 'USDT', quotes) - 100) < 1e-12)
+  assert.ok(Math.abs(convertUsdWithQuotes(100.02, 'USDC', quotes) - 100) < 1e-12)
 })
 
-test('priceUsdForAsset derives TRY USD price and reads canonical assets', () => {
+test('priceUsdForAsset derives TRY and stablecoin USD prices', () => {
   assert.equal(priceUsdForAsset(quotes, 'TRY'), 1 / 44)
   assert.equal(priceUsdForAsset(quotes, 'EUR'), 1.1)
   assert.equal(priceUsdForAsset(quotes, 'URA'), 45)
+  assert.equal(priceUsdForAsset(quotes, 'USDT'), 0.9995)
+  assert.equal(priceUsdForAsset(quotes, 'USDC'), 1.0002)
+  assert.equal(priceUsdForAsset({}, 'USDT'), 1)
+  assert.equal(priceUsdForAsset({}, 'USDC'), 1)
 })
 
-test('Coinbase parsers normalize spot and inverse EUR direction', () => {
+test('Coinbase parsers normalize spot, EUR and stablecoin directions', () => {
   assert.equal(parseCoinbaseSpot({ data: { amount: '101234.56' } }), 101234.56)
-  const fx = parseCoinbaseUsdFx({ data: { rates: { TRY: '44', EUR: '0.9090909091' } } })
+  const fx = parseCoinbaseUsdFx({
+    data: { rates: { TRY: '44', EUR: '0.9090909091', USDT: '1.0005', USDC: '0.9998' } },
+  })
   assert.equal(fx.USD_TRY, 44)
   assert.ok(Math.abs(fx.EUR_USD - 1.1) < 1e-9)
+  assert.ok(Math.abs(fx.USDT_USD - 1 / 1.0005) < 1e-12)
+  assert.ok(Math.abs(fx.USDC_USD - 1 / 0.9998) < 1e-12)
   const partialFx = parseCoinbaseUsdFx({ data: { rates: { TRY: '44' } } })
   assert.deepEqual(partialFx, { USD_TRY: 44 })
 })

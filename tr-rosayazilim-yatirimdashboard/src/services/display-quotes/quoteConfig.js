@@ -4,6 +4,18 @@ export const DISPLAY_QUOTE_KEYS = Object.freeze([
   'URA_USD',
   'USD_TRY',
   'EUR_USD',
+  'USDT_USD',
+  'USDC_USD',
+])
+
+// Stablecoin quote'ları display için desteklenir ancak provider geçici olarak
+// erişilemezse uygulamanın temel quote readiness durumunu bloklamaz.
+export const DISPLAY_QUOTE_REQUIRED_KEYS = Object.freeze([
+  'BTC_USD',
+  'ETH_USD',
+  'URA_USD',
+  'USD_TRY',
+  'EUR_USD',
 ])
 
 export const DISPLAY_QUOTE_FALLBACK_LEVEL = Object.freeze({
@@ -26,6 +38,8 @@ export const DISPLAY_QUOTE_STALE_MS = Object.freeze({
   URA_USD: 5 * 60_000,
   USD_TRY: 5 * 60_000,
   EUR_USD: 5 * 60_000,
+  USDT_USD: 2 * 60_000,
+  USDC_USD: 2 * 60_000,
 })
 
 export const DISPLAY_QUOTE_BACKOFF_MS = Object.freeze([60_000, 120_000, 300_000, 900_000])

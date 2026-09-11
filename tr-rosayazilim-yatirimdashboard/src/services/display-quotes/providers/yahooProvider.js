@@ -6,6 +6,8 @@ const YAHOO_CHART_API = 'https://query1.finance.yahoo.com/v8/finance/chart'
 const FX_SYMBOLS = Object.freeze({
   USD_TRY: 'TRY=X',
   EUR_USD: 'EURUSD=X',
+  USDT_USD: 'USDT-USD',
+  USDC_USD: 'USDC-USD',
 })
 
 async function fetchYahooChartQuote({ key, symbol, quality }) {

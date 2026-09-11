@@ -19,9 +19,13 @@ export function parseCoinbaseUsdFx(data) {
   const result = {}
   const usdTry = optionalPositiveNumber(rates.TRY)
   const usdEur = optionalPositiveNumber(rates.EUR)
+  const usdUsdt = optionalPositiveNumber(rates.USDT)
+  const usdUsdc = optionalPositiveNumber(rates.USDC)
 
   if (usdTry) result.USD_TRY = usdTry
   if (usdEur) result.EUR_USD = 1 / usdEur
+  if (usdUsdt) result.USDT_USD = 1 / usdUsdt
+  if (usdUsdc) result.USDC_USD = 1 / usdUsdc
   return requireAtLeastOne(result, 'Coinbase')
 }
 

@@ -33,7 +33,7 @@ export async function fetchCryptoDisplayQuotes() {
 }
 
 export async function fetchFxDisplayQuotes() {
-  const missing = new Set(['USD_TRY', 'EUR_USD'])
+  const missing = new Set(['USD_TRY', 'EUR_USD', 'USDT_USD', 'USDC_USD'])
   const quotes = []
   const errors = {}
   const providers = [
