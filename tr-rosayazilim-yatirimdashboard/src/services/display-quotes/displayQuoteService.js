@@ -13,27 +13,48 @@ function withFallbackLevel(quote, fallbackLevel) {
 }
 
 export async function fetchCryptoDisplayQuotes() {
-  const results = await Promise.allSettled([
-    fetchCoinbaseSpotQuote('BTC'),
-    fetchCoinbaseSpotQuote('ETH'),
-  ])
+  const assets = ['BTC', 'ETH', 'USDT', 'USDC']
+  const results = await Promise.allSettled(assets.map((asset) => fetchCoinbaseSpotQuote(asset)))
   const quotes = []
   const errors = {}
+  const missingStablecoins = []
 
   results.forEach((result, index) => {
-    const key = index === 0 ? 'BTC_USD' : 'ETH_USD'
+    const asset = assets[index]
+    const key = `${asset}_USD`
     if (result.status === 'fulfilled') {
       quotes.push(withFallbackLevel(result.value, DISPLAY_QUOTE_FALLBACK_LEVEL.PRIMARY))
     } else {
-      errors[key] = errorMessage(result.reason)
+      errors[`coinbase:${key}`] = errorMessage(result.reason)
+      if (asset === 'USDT' || asset === 'USDC') missingStablecoins.push(key)
+      else errors[key] = errorMessage(result.reason)
     }
   })
+
+  if (missingStablecoins.length) {
+    try {
+      const yahooQuotes = await fetchYahooFxQuotes(missingStablecoins)
+      const recovered = new Set()
+      for (const quote of yahooQuotes) {
+        if (!missingStablecoins.includes(quote.key)) continue
+        quotes.push(withFallbackLevel(quote, DISPLAY_QUOTE_FALLBACK_LEVEL.PROVIDER_FALLBACK))
+        recovered.add(quote.key)
+      }
+      for (const key of missingStablecoins) {
+        if (!recovered.has(key)) errors[key] = 'Coinbase Spot ve Yahoo stablecoin fiyatı alınamadı.'
+      }
+    } catch (error) {
+      for (const key of missingStablecoins) {
+        errors[key] = `Coinbase Spot ve Yahoo stablecoin fiyatı alınamadı: ${errorMessage(error)}`
+      }
+    }
+  }
 
   return { quotes, errors }
 }
 
 export async function fetchFxDisplayQuotes() {
-  const missing = new Set(['USD_TRY', 'EUR_USD', 'USDT_USD', 'USDC_USD'])
+  const missing = new Set(['USD_TRY', 'EUR_USD'])
   const quotes = []
   const errors = {}
   const providers = [
