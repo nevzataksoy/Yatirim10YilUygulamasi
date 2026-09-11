@@ -226,7 +226,8 @@
       <q-card-section>
         <div class="text-h6">Dönüşüm Özeti</div>
         <div class="text-caption text-grey-7">
-          Yeni sermaye oluşmaz; seçili hesaptaki kaynak maliyet bazı net hedef varlığa taşınır.
+          Yeni sermaye oluşmaz; kaynak pozisyonun performansı gerçekleşir, hedef varlık işlem-anı
+          değeriyle yeni maliyet bazı oluşturur.
         </div>
       </q-card-section>
       <q-separator />
@@ -327,11 +328,7 @@ import TransactionBalanceContext from '@/components/TransactionBalanceContext.vu
 import { useFormatters } from '@/composables/useFormatters'
 import { ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
-import {
-  actualStablecoinUsdQuote,
-  isStablecoin,
-  stablecoinRatesMetadata,
-} from '@/services/transactionCurrency'
+import { isStablecoin, stablecoinRatesMetadata } from '@/services/transactionCurrency'
 import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
@@ -347,6 +344,7 @@ const summaryOpen = ref(false)
 const targetManuallyEdited = ref(false)
 const transactionRequestId = createTransactionRequestId()
 const marketUsdTry = Number(engine.market.find((item) => item.symbol === 'USD/TRY')?.value || 0)
+const initialBtcPrice = Number(engine.price('BTC') || displayQuotes.priceUsd('BTC') || 0)
 const form = reactive({
   source_asset: 'BTC',
   target_asset: 'ETH',
@@ -355,7 +353,7 @@ const form = reactive({
   target_quantity: null,
   fee_asset: 'ETH',
   fee_quantity: 0,
-  source_unit_price_usd: Number(engine.price('BTC') || 0) || null,
+  source_unit_price_usd: initialBtcPrice || null,
   usd_try: marketUsdTry || null,
   transaction_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
@@ -434,8 +432,9 @@ function currentAssetUsdPrice(asset) {
     const fx = Number(form.usd_try || 0)
     return fx > 0 ? 1 / fx : 0
   }
-  if (isStablecoin(asset)) return actualStablecoinUsdQuote(displayQuotes.quotes, asset)
-  return Number(engine.price(asset) || 0)
+  const enginePrice = Number(engine.price(asset) || 0)
+  if (enginePrice > 0) return enginePrice
+  return Number(displayQuotes.priceUsd(asset) || 0)
 }
 function assetAmountToUsd(asset, value) {
   const quantity = Number(value || 0)
