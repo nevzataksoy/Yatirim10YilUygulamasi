@@ -22,13 +22,13 @@ Kullanıcının yerel repo yolu:
 D:\wamp64\www\Yatirim10YilUygulamasi
 ```
 
-11 Eylül 2026 Oturum15 başlangıcında kullanıcı tarafından verilen kontrol sonucu:
+11 Eylül 2026 Oturum15 içinde kullanıcı tarafından verilen son branch senkronizasyon kontrolü:
 
 ```text
-LOCAL_HEAD   aadefba
-REMOTE_HEAD  aadefba
+LOCAL_HEAD   792e565
+REMOTE_HEAD  792e565
 BRANCH       agent/portfolio-audit-reset
-STATUS       clean
+STATUS       build öncesi clean
 ```
 
 Bu yalnız kontrol anındaki yerel durumu kanıtlar. Yeni sohbet yine remote HEAD'i ve kullanıcı local worktree durumunu yeniden doğrulamalıdır.
@@ -406,29 +406,52 @@ beklenmektedir. Bu yalnız forward operational observation'dır; P2.7 kapanış 
 
 ## 9. Güncel Windows runtime / deploy identity
 
-Son build ve development Windows makinesindeki upgrade deployment doğrulaması:
+11 Eylül 2026 Oturum15 build-time elevation hardening sonrası normal-user build ve görünür installer upgrade deployment doğrulaması:
 
 ```text
 Built EXE SHA256
-FA945EDB69B57C0D9CE305430BFB1815CA74780065A91C9BCC8259C8642EF295
+83F793BE56792FD18F750D0416DC73356BFAB65FCF691A69731ECFEBBDFAA2E7
 
 Installer SHA256
-6C52BAAF9A2590AD14FEF72E68A11F87E29E71FA3354A84CA37125B05AB8129D
+FF188BD2B3A9F6144C39BF7B25F2202F66386F972B3140EECB6E5243C1B005DA
+
+Installed EXE SHA256
+83F793BE56792FD18F750D0416DC73356BFAB65FCF691A69731ECFEBBDFAA2E7
 
 EXE_HASH_MATCH=True
 ```
 
-Windows Service:
+Upgrade öncesi kurulu EXE SHA256:
+
+```text
+FA945EDB69B57C0D9CE305430BFB1815CA74780065A91C9BCC8259C8642EF295
+```
+
+`settings` ve `rosalock` exact pre/post hash korunumu:
+
+```text
+SETTINGS_PRE  9B399425AA664EE5ECC94553259DCAF8261EB4FF1490E5E4768DAAFA8463C88B
+SETTINGS_POST 9B399425AA664EE5ECC94553259DCAF8261EB4FF1490E5E4768DAAFA8463C88B
+MATCH
+
+ROSALOCK_PRE  5B3D7A5AA99739516DAD7D816BFB7CBEC695FCD924502EE038B383099F216D9A
+ROSALOCK_POST 5B3D7A5AA99739516DAD7D816BFB7CBEC695FCD924502EE038B383099F216D9A
+MATCH
+```
+
+Windows Service deployment sonrası:
 
 ```text
 Name       RosaInvestmentEngine
 State      Running
 StartMode  Auto
-ProcessId  6272
-StartTime  10.09.2026 23:34:28 Europe/Istanbul
+ProcessId  7352
+WIN32_EXIT_CODE   0
+SERVICE_EXIT_CODE 0
+SERVICE_STATUS_EXIT_CODE=0
 ```
 
-Kurulu runtime üzerinden model validation:
+Yeni runtime üzerinde model validation bu packaging-only deploy turunda tekrar çalıştırılmadı. Önceki doğrulanmış runtime model-validation baseline'ı:
 
 ```text
 model_validation: OK
@@ -436,12 +459,11 @@ core=OK
 observations=1423
 shadow=READY
 VALIDATION_EXIT_CODE=0
-SERVICE_PID_UNCHANGED=True
 ```
 
-Bu deployment'da settings/rosalock korunmuştur.
+Packaging hardening model, scheduler veya karar motoru kodunu değiştirmemiştir.
 
-Bu güncel runtime identity, eski P1/P2 deployment hash'lerinin yerine current deployed baseline olarak alınmalıdır.
+Bu yeni runtime identity, önceki `FA945...` deployed baseline'ın yerine current development deployed baseline olarak alınmalıdır.
 
 ## 10. LIVE neden hâlâ NO-GO
 
@@ -466,50 +488,72 @@ Aşağıdakiler mevcut kapanışları yeniden OPEN yapmaz:
 
 Doğal scheduler evidence'i manuel job ile taklit edilmez.
 
-## 12. Sıradaki teknik çalışma — Windows build pipeline elevation RCA
+## 12. Windows build pipeline elevation hardening — CLOSED / VERIFIED
 
-İlk yeni bağımsız teknik çalışma, build pipeline'ın zorunlu Administrator elevation davranışını araştırmaktır.
+RCA sonucu: problem `--uac-admin` manifest seçeneği değil, `build.bat` dosyasının PyInstaller dahil tüm build zincirini Administrator terminaline yükseltmesiydi.
 
-Mevcut problem:
-
-```text
-build.bat
-```
-
-build'in tamamını Administrator seviyesine yükseltiyor. Son PyInstaller build sırasında elevated build davranışının deprecated olduğuna ve gelecekte PyInstaller 7 ile engellenebileceğine ilişkin uyarı görülmüştür.
-
-Bu şu anda build'i bozmadı; EXE ve installer başarıyla üretildi ve deploy edildi. Ancak packaging reliability borcudur.
-
-İlk aşamada kod değiştirme.
-
-Önce tamamen incelenecek dosyalar:
+Uygulanan dar değişiklik:
 
 ```text
-build.bat
-installer/investmentengine_setup.iss
-scripts/release_check.py
-docs/BUILD_AND_INSTALLER.md
+build.bat auto-elevation / RunAs          REMOVED
+build.bat elevated-shell guard            ADDED
+PyInstaller --uac-admin                   PRESERVED
+Inno PrivilegesRequired=admin             PRESERVED
+OneDir / _internal / --noupx              PRESERVED
+service install/start semantics           UNCHANGED
+settings/rosalock location + ACL          UNCHANGED
+model/scheduler/SHADOW semantics           UNCHANGED
 ```
 
-Araştırma soruları:
+İlgili commitler:
 
 ```text
-1. PyInstaller build gerçekten Administrator gerektiriyor mu?
-2. Inno Setup compile gerçekten Administrator gerektiriyor mu?
-3. --uac-admin yalnız üretilen EXE manifest davranışı mı?
-4. build.bat içindeki net session / auto-elevation kaldırılabilir mi?
-5. Service install/upgrade elevation yalnız installer runtime aşamasında bırakılabilir mi?
-6. Değişiklik OneDir startup, installer service davranışı, settings/rosalock veya release_check'i etkiler mi?
+def6f2d  Build sırasında zorunlu yönetici yükseltmesini kaldır
+83a0555  Normal kullanıcı build sözleşmesini release guard ile koru
+792e565  Build ve kurulum yetki ayrımını dokümante et
 ```
 
-Hedef mimari:
+Normal kullanıcı Windows build kanıtı:
 
 ```text
-build process             mümkünse normal user
-installer/service install gerektiğinde Administrator
+POWERSHELL_ADMIN=False
+full pytest                  94 passed
+release check                OK
+PyInstaller                  6.21.0 / OneDir PASS
+PyInstaller admin warning    NOT PRESENT
+Inno Setup                   6.4.0 / compile PASS
+BUILD_EXIT_CODE              0
 ```
 
-Bu araştırma model semantics, threshold, weights, K1/K2, scheduler cadence, SHADOW/LIVE veya model version ile ilgili değildir.
+Installer/runtime acceptance kanıtı:
+
+```text
+built EXE == installed EXE   PASS
+settings preserved           PASS (exact SHA256)
+rosalock preserved           PASS (exact SHA256)
+service state                RUNNING
+service start mode           AUTO
+service status exit          0
+```
+
+Kapanış:
+
+```text
+Build-time forced elevation    CLOSED / VERIFIED
+Normal-user PyInstaller build  VERIFIED
+Installer/service admin split  VERIFIED
+PyInstaller admin deprecation  RESOLVED
+Model semantics change         NONE
+```
+
+Build sırasında iki non-blocking warning gözlendi:
+
+```text
+pytest cache/temp cleanup      WinError 183 / WinError 5
+PyInstaller hidden import      "sip" not found
+```
+
+İkisi de full test, PyInstaller build veya Inno compile'ı düşürmedi. Bunlar ancak ayrıca ele alınacak warning-hygiene teknik borcu olabilir; bu kapanışı OPEN yapmaz.
 
 ## 13. Installer kullanım tercihi
 
@@ -598,7 +642,7 @@ cd D:\wamp64\www\Yatirim10YilUygulamasi; git fetch origin; Write-Host "LOCAL_HEA
 
 ## 17. Oturum15 güncel kapanış noktası
 
-Oturum15 başlangıcında remote/local branch senkronizasyonu doğrulandı ve `SESSION_HANDOFF.md` güncel runtime/DB/test kanıtlarıyla reconcile edildi.
+Oturum15 içinde branch senkronizasyonu doğrulandı, Shadow/P1/P2 handoff reconcile edildi ve Windows build pipeline elevation hardening RCA → patch → normal-user build → görünür installer deployment → service runtime kabul testi zinciri tamamlandı.
 
 Güncel özet:
 
@@ -610,11 +654,24 @@ Shadow Readiness provenance            CLOSED / VERIFIED
 Transactional decision persistence     CLOSED / VERIFIED
 URA immutable raw source snapshot P1   CLOSED / VERIFIED
 P2.1-P2.7 lifecycle                    CLOSED
+Build-time forced elevation            CLOSED / VERIFIED
+Normal-user PyInstaller build          VERIFIED
+Installer/service runtime deployment   VERIFIED
 Full pytest                            94 PASS
 Release check                          OK
-Installed runtime identity             VERIFIED
-Next technical work                    build.bat Administrator/PyInstaller RCA
+Current installed EXE                  83F793BE...FAA2E7
+Service                                Running / Auto / PID 7352
 Model semantics change                 NONE
 ```
 
-Bu handoff senkronizasyonu yalnız dokümantasyon değişikliğidir. Yeni build, installer, migration, production job veya model davranışı değişikliği gerektirmez.
+Açık kalanlar yalnız forward observation veya non-blocking teknik borç niteliğindedir:
+
+```text
+1 Oct natural monthly lifecycle observation
+future second post-0014 URA snapshot linkage
+GitHub Issue #2 historical pool timeout observation
+optional pytest cache/temp warning hygiene
+optional PyInstaller sip warning hygiene
+```
+
+Bunların hiçbiri mevcut CLOSED başlıkları yeniden OPEN yapmaz ve LIVE kararı ayrıca manuel review gerektirir.
