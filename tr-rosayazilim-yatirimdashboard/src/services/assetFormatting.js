@@ -31,6 +31,12 @@ export function formatAssetQuantity(value, asset, locale = 'tr-TR') {
   }).format(amount)} ${symbol}`
 }
 
+export function formatSignedAssetQuantity(value, asset, locale = 'tr-TR') {
+  const numeric = Number(value || 0)
+  const formatted = formatAssetQuantity(numeric, asset, locale)
+  return numeric > 0 ? `+${formatted}` : formatted
+}
+
 export function formatAssetNumber(value, asset, locale = 'tr-TR') {
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: 0,
