@@ -191,7 +191,7 @@ test('100,000 TRY ledger matches capital, fee and profit regression values', () 
   closeTo(ledger.assets.ETH.quantity, 0.2852)
   closeTo(ledger.assets.URA.quantity, 10)
   closeTo(ledger.netContributedUsd, 1582.2784810126582)
-  closeTo(ledger.realizedPnlUsd, 19.26901860603975)
+  closeTo(ledger.realizedPnlUsd, 25.351442838122975)
   closeTo(ledger.totalFeesUsd, 1.946954936708861)
 
   const prices = {
@@ -215,7 +215,8 @@ test('100,000 TRY ledger matches capital, fee and profit regression values', () 
   const totalPnl = unrealizedPnl + ledger.realizedPnlUsd
 
   closeTo(marketValue, 1629.919408, 1e-6)
-  closeTo(unrealizedPnl, 28.371908, 1e-6)
+  closeTo(remainingBasis, 1607.629924, 1e-6)
+  closeTo(unrealizedPnl, 22.289484, 1e-6)
   closeTo(totalPnl, 47.640927, 1e-6)
 })
 
