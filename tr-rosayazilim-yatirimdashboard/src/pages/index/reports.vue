@@ -5,8 +5,8 @@
         <div class="col-12 col-md">
           <div class="page-title">Raporlar</div>
           <div class="page-subtitle q-mt-xs">
-            Seçili hesaptaki yatırım bütçesi, sermaye hareketleri, maliyet ve işlem hacmi. Tutarlar
-            {{ displayAsset }} cinsinde gösteriliyor.
+            Seçili hesaptaki yatırım bütçesi, sermaye hareketleri, maliyet ve işlem hacmi. Tarihsel
+            tutarlar işlem-anı kurlarıyla {{ displayAsset }} görünümünde gösteriliyor.
           </div>
         </div>
         <div class="col-auto">
@@ -20,14 +20,14 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Başlangıç Sermayesi"
-            :value="formatDisplay(portfolio.ledger.openingCapitalUsd)"
+            :value="formatAssetValue(openingCapitalDisplay)"
             icon="inventory_2"
           />
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Yatırım Bütçesi Girişi"
-            :value="formatDisplay(portfolio.ledger.cashInUsd)"
+            :value="formatAssetValue(cashInDisplay)"
             icon="south_west"
             tone="positive"
           />
@@ -35,7 +35,7 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Sermaye Çıkışı"
-            :value="formatDisplay(portfolio.ledger.cashOutUsd)"
+            :value="formatAssetValue(cashOutDisplay)"
             icon="north_east"
             tone="warning"
           />
@@ -43,7 +43,7 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Net Yeni Bütçe"
-            :value="formatDisplay(netBudgetUsd)"
+            :value="formatAssetValue(netBudgetDisplay)"
             icon="savings"
             tone="info"
           />
@@ -54,22 +54,22 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Net Sermaye"
-            :value="formatDisplay(portfolio.ledger.netContributedUsd)"
+            :value="formatAssetValue(netContributedDisplay)"
             icon="account_balance_wallet"
           />
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Gerçekleşen K/Z"
-            :value="formatDisplay(portfolio.ledger.realizedPnlUsd)"
+            :value="formatAssetValue(realizedPnlDisplay)"
             icon="paid"
-            :tone="portfolio.ledger.realizedPnlUsd >= 0 ? 'positive' : 'negative'"
+            :tone="realizedPnlDisplay >= 0 ? 'positive' : 'negative'"
           />
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Komisyonlar"
-            :value="formatDisplay(portfolio.ledger.totalFeesUsd)"
+            :value="formatAssetValue(totalFeesDisplay)"
             icon="receipt"
             tone="warning"
           />
@@ -121,9 +121,9 @@
                     </div>
                   </div>
                   <div class="text-right">
-                    <div class="amount-positive">{{ formatDisplay(row.cashIn) }}</div>
-                    <div :class="row.net >= 0 ? 'amount-primary' : 'amount-negative'">
-                      Net {{ formatDisplay(row.net) }}
+                    <div class="amount-positive">{{ formatAssetValue(row.cashInDisplay) }}</div>
+                    <div :class="row.netDisplay >= 0 ? 'amount-primary' : 'amount-negative'">
+                      Net {{ formatAssetValue(row.netDisplay) }}
                     </div>
                   </div>
                 </div>
@@ -135,8 +135,8 @@
                   track-color="grey-3"
                 />
                 <div class="row q-gutter-md text-caption q-mt-xs">
-                  <span class="amount-positive">Giriş {{ formatDisplay(row.cashIn) }}</span>
-                  <span class="amount-negative">Çıkış {{ formatDisplay(row.cashOut) }}</span>
+                  <span class="amount-positive">Giriş {{ formatAssetValue(row.cashInDisplay) }}</span>
+                  <span class="amount-negative">Çıkış {{ formatAssetValue(row.cashOutDisplay) }}</span>
                   <span class="text-grey-6">{{ row.count }} sermaye hareketi</span>
                 </div>
               </div>
@@ -161,10 +161,10 @@
               <q-item>
                 <q-item-section
                   ><q-item-label>Alım Hacmi</q-item-label
-                  ><q-item-label caption>TRY/USD → yatırım varlığı</q-item-label></q-item-section
+                  ><q-item-label caption>TRY/USD/USDT/USDC → yatırım varlığı</q-item-label></q-item-section
                 >
                 <q-item-section side class="amount-primary">{{
-                  formatDisplay(portfolio.ledger.buyVolumeUsd)
+                  formatAssetValue(buyVolumeDisplay)
                 }}</q-item-section>
               </q-item>
               <q-item>
@@ -173,7 +173,7 @@
                   ><q-item-label caption>Mevcut varlıklar arası</q-item-label></q-item-section
                 >
                 <q-item-section side class="amount-info">{{
-                  formatDisplay(portfolio.ledger.conversionVolumeUsd)
+                  formatAssetValue(conversionVolumeDisplay)
                 }}</q-item-section>
               </q-item>
             </q-list>
@@ -196,7 +196,7 @@
                   <q-item-label caption class="q-mt-xs">{{ row.count }} kayıt</q-item-label>
                 </q-item-section>
                 <q-item-section side :class="transactionAmountClass(row.type)">{{
-                  formatDisplay(row.volume)
+                  formatAssetValue(row.volumeDisplay)
                 }}</q-item-section>
               </q-item>
             </q-list>
@@ -218,7 +218,7 @@
                   ><q-item-label caption>{{ row.count }} işlem</q-item-label></q-item-section
                 >
                 <q-item-section side class="amount-strong">{{
-                  formatDisplay(row.volume)
+                  formatAssetValue(row.volumeDisplay)
                 }}</q-item-section>
               </q-item>
             </q-list>
@@ -228,8 +228,8 @@
 
       <q-banner rounded class="surface-soft q-mt-lg">
         <template #avatar><q-icon name="analytics" color="primary" /></template>
-        Görüntüleme birimi yalnız sunumu değiştirir; muhasebe defteri USD normalize maliyet bazını
-        korur.
+        Muhasebe defteri canonical USD değerlerini korur. TRY/USDT/USDC tarihsel tutarlar işlem-anı
+        kurlarıyla; güncel portföy değerleri ise canlı piyasa kurlarıyla gösterilir.
       </q-banner>
     </div>
   </q-page>
@@ -252,7 +252,42 @@ import { usePortfolioStore } from '@/stores/portfolio'
 
 const portfolio = usePortfolioStore()
 const engine = useEngineStore()
-const { displayAsset, formatDisplay } = useDisplayCurrency()
+const { displayAsset, convertUsd, formatAssetValue, formatDisplay, historicalValue } =
+  useDisplayCurrency()
+
+function ledgerHistoricalValue(key, usdFallback) {
+  const historical = portfolio.ledger.historical?.[key]?.[displayAsset.value]
+  if (historical !== null && historical !== undefined && Number.isFinite(Number(historical))) {
+    return Number(historical)
+  }
+  return convertUsd(usdFallback)
+}
+
+const openingCapitalDisplay = computed(() =>
+  ledgerHistoricalValue('openingCapital', portfolio.ledger.openingCapitalUsd),
+)
+const cashInDisplay = computed(() =>
+  ledgerHistoricalValue('cashIn', portfolio.ledger.cashInUsd),
+)
+const cashOutDisplay = computed(() =>
+  ledgerHistoricalValue('cashOut', portfolio.ledger.cashOutUsd),
+)
+const netBudgetDisplay = computed(() => cashInDisplay.value - cashOutDisplay.value)
+const netContributedDisplay = computed(() =>
+  ledgerHistoricalValue('netContributed', portfolio.ledger.netContributedUsd),
+)
+const realizedPnlDisplay = computed(() =>
+  ledgerHistoricalValue('realizedPnl', portfolio.ledger.realizedPnlUsd),
+)
+const totalFeesDisplay = computed(() =>
+  ledgerHistoricalValue('totalFees', portfolio.ledger.totalFeesUsd),
+)
+const buyVolumeDisplay = computed(() =>
+  ledgerHistoricalValue('buyVolume', portfolio.ledger.buyVolumeUsd),
+)
+const conversionVolumeDisplay = computed(() =>
+  ledgerHistoricalValue('conversionVolume', portfolio.ledger.conversionVolumeUsd),
+)
 
 const monthlyBudgetTargetUsd = computed(() => {
   const settings = portfolio.settings || {}
@@ -280,8 +315,6 @@ const budgetPlanLabel = computed(() => {
   return `${formatDisplay(monthlyBudgetTargetUsd.value)} eşdeğeri`
 })
 
-const netBudgetUsd = computed(() => portfolio.ledger.cashInUsd - portfolio.ledger.cashOutUsd)
-
 const monthlyBudgetRows = computed(() => {
   const grouped = new Map()
   for (const tx of portfolio.selectedTransactions) {
@@ -292,15 +325,24 @@ const monthlyBudgetRows = computed(() => {
     const row = grouped.get(key) || {
       month: key,
       label: key,
-      cashIn: 0,
-      cashOut: 0,
-      net: 0,
+      cashInUsd: 0,
+      cashOutUsd: 0,
+      cashInDisplay: 0,
+      cashOutDisplay: 0,
+      netDisplay: 0,
       count: 0,
     }
-    const gross = Number(tx.gross_usd || 0)
-    if (tx.transaction_type === 'CASH_IN') row.cashIn += gross
-    if (tx.transaction_type === 'CASH_OUT') row.cashOut += gross
-    row.net = row.cashIn - row.cashOut
+    const grossUsd = Number(tx.gross_usd || 0)
+    const grossDisplay = historicalValue(grossUsd, tx)
+    if (tx.transaction_type === 'CASH_IN') {
+      row.cashInUsd += grossUsd
+      row.cashInDisplay += grossDisplay
+    }
+    if (tx.transaction_type === 'CASH_OUT') {
+      row.cashOutUsd += grossUsd
+      row.cashOutDisplay += grossDisplay
+    }
+    row.netDisplay = row.cashInDisplay - row.cashOutDisplay
     row.count += 1
     grouped.set(key, row)
   }
@@ -308,7 +350,7 @@ const monthlyBudgetRows = computed(() => {
     .map((row) => ({
       ...row,
       completionPct:
-        monthlyBudgetTargetUsd.value > 0 ? (row.cashIn / monthlyBudgetTargetUsd.value) * 100 : 0,
+        monthlyBudgetTargetUsd.value > 0 ? (row.cashInUsd / monthlyBudgetTargetUsd.value) * 100 : 0,
     }))
     .sort((a, b) => b.month.localeCompare(a.month))
     .slice(0, 24)
@@ -320,13 +362,16 @@ const typeRows = computed(() => {
     const row = grouped.get(tx.transaction_type) || {
       type: tx.transaction_type,
       count: 0,
-      volume: 0,
+      volumeUsd: 0,
+      volumeDisplay: 0,
     }
+    const grossUsd = Number(tx.gross_usd || 0)
     row.count += 1
-    row.volume += Number(tx.gross_usd || 0)
+    row.volumeUsd += grossUsd
+    row.volumeDisplay += historicalValue(grossUsd, tx)
     grouped.set(tx.transaction_type, row)
   }
-  return [...grouped.values()].sort((a, b) => b.volume - a.volume)
+  return [...grouped.values()].sort((a, b) => b.volumeUsd - a.volumeUsd)
 })
 
 const assetActivity = computed(() =>
@@ -337,7 +382,11 @@ const assetActivity = computed(() =>
     return {
       asset,
       count: rows.length,
-      volume: rows.reduce((sum, tx) => sum + Number(tx.gross_usd || 0), 0),
+      volumeUsd: rows.reduce((sum, tx) => sum + Number(tx.gross_usd || 0), 0),
+      volumeDisplay: rows.reduce(
+        (sum, tx) => sum + historicalValue(Number(tx.gross_usd || 0), tx),
+        0,
+      ),
     }
   }).filter((row) => row.count > 0),
 )
