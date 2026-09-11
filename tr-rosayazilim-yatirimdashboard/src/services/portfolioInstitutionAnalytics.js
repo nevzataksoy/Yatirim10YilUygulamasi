@@ -118,6 +118,33 @@ export function positiveInstitutionAssets(ledger, epsilon = POSITION_EPSILON) {
     .filter((item) => Number(item.quantity || 0) > epsilon)
 }
 
+export function reconcileInstitutionLedgers(
+  transactions = [],
+  groups = [],
+  epsilon = POSITION_EPSILON,
+) {
+  const globalLedger = buildPortfolioLedger(transactions)
+  const issues = []
+
+  for (const asset of ASSETS) {
+    const globalQuantity = Number(globalLedger.assets?.[asset]?.quantity || 0)
+    const institutionQuantity = groups.reduce(
+      (sum, group) => sum + Number(group.ledger?.assets?.[asset]?.quantity || 0),
+      0,
+    )
+    const difference = institutionQuantity - globalQuantity
+    if (Math.abs(difference) > epsilon) {
+      issues.push({ asset, globalQuantity, institutionQuantity, difference })
+    }
+  }
+
+  return {
+    reconciled: issues.length === 0,
+    issues,
+    globalLedger,
+  }
+}
+
 export function valueInstitutionLedgerUsd(ledger, priceUsd) {
   const assets = positiveInstitutionAssets(ledger)
   let currentValueUsd = 0
@@ -154,15 +181,18 @@ export function buildInstitutionDistribution({ transactions = [], institutions =
     assets: positiveInstitutionAssets(group.ledger),
     valuation: valueInstitutionLedgerUsd(group.ledger, priceUsd),
   }))
-
+  const reconciliation = reconcileInstitutionLedgers(transactions, groups)
   const valuationComplete = groups.every((group) => group.valuation.valuationComplete)
-  const totalCurrentValueUsd = valuationComplete
+  const distributionComplete = reconciliation.reconciled && valuationComplete
+  const totalCurrentValueUsd = distributionComplete
     ? groups.reduce((sum, group) => sum + Number(group.valuation.currentValueUsd || 0), 0)
     : null
 
   return groups
     .map((group) => ({
       ...group,
+      custodyReconciled: reconciliation.reconciled,
+      reconciliationIssues: reconciliation.issues,
       allocationPct:
         totalCurrentValueUsd !== null && totalCurrentValueUsd > 0
           ? (Number(group.valuation.currentValueUsd || 0) / totalCurrentValueUsd) * 100
