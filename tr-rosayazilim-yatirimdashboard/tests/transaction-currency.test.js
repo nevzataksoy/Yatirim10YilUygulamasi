@@ -6,6 +6,7 @@ import {
   settlementAmountToUsd,
   settlementUsdUnitPrice,
   stablecoinRateFromMetadata,
+  stablecoinRateFromTransaction,
   stablecoinRatesMetadata,
 } from '../src/services/transactionCurrency.js'
 
@@ -39,6 +40,45 @@ test('stablecoin audit metadata round-trips both sides of a conversion', () => {
   assert.equal(stablecoinRateFromMetadata(metadata, 'USDT'), 0.9992)
   assert.equal(stablecoinRateFromMetadata(metadata, 'USDC'), 1.0001)
   assert.equal(stablecoinRateFromMetadata(metadata, 'TRY'), 0)
+})
+
+test('historical stablecoin rate falls back to USD unit-price fields on transactional rows', () => {
+  assert.equal(
+    stablecoinRateFromTransaction(
+      {
+        transaction_type: 'BUY',
+        target_asset: 'USDT',
+        target_unit_price: 0.9985,
+        metadata: {},
+      },
+      'USDT',
+    ),
+    0.9985,
+  )
+  assert.equal(
+    stablecoinRateFromTransaction(
+      {
+        transaction_type: 'SELL',
+        source_asset: 'USDC',
+        source_unit_price: 1.0003,
+        metadata: {},
+      },
+      'USDC',
+    ),
+    1.0003,
+  )
+  assert.equal(
+    stablecoinRateFromTransaction(
+      {
+        transaction_type: 'OPENING',
+        target_asset: 'USDT',
+        target_unit_price: 48.5,
+        metadata: {},
+      },
+      'USDT',
+    ),
+    0,
+  )
 })
 
 test('stablecoin amount formatting does not rely on ISO-4217 currency mode', () => {
