@@ -107,6 +107,7 @@ import { computed } from 'vue'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import AssetAvatar from '@/components/AssetAvatar.vue'
 import { useFormatters } from '@/composables/useFormatters'
+import { isStablecoin } from '@/services/transactionCurrency'
 import { usePortfolioStore } from '@/stores/portfolio'
 
 const props = defineProps({
@@ -161,6 +162,7 @@ function digitsFor(asset) {
   if (asset === 'BTC') return 8
   if (asset === 'ETH') return 6
   if (asset === 'URA') return 4
+  if (isStablecoin(asset)) return 6
   return 2
 }
 
