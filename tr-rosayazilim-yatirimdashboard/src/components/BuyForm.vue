@@ -95,6 +95,24 @@
           />
         </div>
 
+        <div v-if="stablecoinSource" class="col-12 col-sm-6">
+          <q-input
+            v-model.number="form.source_stablecoin_usd"
+            outlined
+            type="number"
+            min="0"
+            step="any"
+            :label="`${form.source_asset}/USD İşlem Kuru`"
+            hint="İşlem anındaki gerçek stablecoin/USD değerini kaydeder."
+          >
+            <template #append>
+              <q-btn flat dense round icon="auto_fix_high" @click="fillSourceStablecoinRate">
+                <q-tooltip>Güncel provider değerini doldur</q-tooltip>
+              </q-btn>
+            </template>
+          </q-input>
+        </div>
+
         <div class="col-12 col-sm-6">
           <q-input
             v-model="form.transaction_at"
@@ -208,6 +226,10 @@
             formatSource(sourceDebit)
           }}</q-item-section>
         </q-item>
+        <q-item v-if="stablecoinSource">
+          <q-item-section>{{ form.source_asset }}/USD</q-item-section>
+          <q-item-section side>{{ Number(form.source_stablecoin_usd || 0).toFixed(6) }}</q-item-section>
+        </q-item>
         <q-item>
           <q-item-section>Kurum</q-item-section>
           <q-item-section side>{{ form.platform || '—' }}</q-item-section>
@@ -253,7 +275,18 @@ import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
 import TransactionBalanceContext from '@/components/TransactionBalanceContext.vue'
 import { useFormatters } from '@/composables/useFormatters'
+import { INVESTMENT_ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
+import {
+  actualStablecoinUsdQuote,
+  formatSettlementAmount,
+  isStablecoin,
+  SETTLEMENT_ASSET_OPTIONS,
+  settlementAmountToUsd,
+  settlementUsdUnitPrice,
+  stablecoinRatesMetadata,
+} from '@/services/transactionCurrency'
+import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
 
@@ -261,10 +294,11 @@ const $q = useQuasar()
 const router = useRouter()
 const engine = useEngineStore()
 const portfolio = usePortfolioStore()
+const displayQuotes = useDisplayQuoteStore()
 const { formatDate, formatNumber, formatUsd } = useFormatters()
 
-const cashAssets = ['TRY', 'USD']
-const investmentAssets = ['BTC', 'ETH', 'URA']
+const cashAssets = SETTLEMENT_ASSET_OPTIONS
+const investmentAssets = INVESTMENT_ASSETS
 const saving = ref(false)
 const summaryOpen = ref(false)
 const transactionRequestId = createTransactionRequestId()
@@ -277,6 +311,7 @@ const form = reactive({
   unit_price: null,
   fee_source: 0,
   usd_try: marketUsdTry || null,
+  source_stablecoin_usd: null,
   transaction_at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16),
@@ -284,6 +319,13 @@ const form = reactive({
   note: '',
 })
 
+const stablecoinSource = computed(() => isStablecoin(form.source_asset))
+const sourceUnitUsd = computed(() =>
+  settlementUsdUnitPrice(form.source_asset, {
+    usdTry: form.usd_try,
+    stablecoinUsd: form.source_stablecoin_usd,
+  }),
+)
 const availableSource = computed(() => Number(portfolio.quantities[form.source_asset] || 0))
 const tradeCostSource = computed(
   () => Number(form.target_quantity || 0) * Number(form.unit_price || 0),
@@ -300,34 +342,39 @@ watch(
   () => [form.source_asset, form.target_asset],
   () => {
     form.fee_source = 0
+    if (stablecoinSource.value) fillSourceStablecoinRate()
+    else form.source_stablecoin_usd = null
     fillMarketPrice()
   },
+  { immediate: true },
 )
 
+function fillSourceStablecoinRate() {
+  const quote = actualStablecoinUsdQuote(displayQuotes.quotes, form.source_asset)
+  form.source_stablecoin_usd = quote > 0 ? quote : null
+}
+
 function sourceToUsd(value) {
-  const amount = Number(value || 0)
-  if (form.source_asset === 'USD') return amount
-  const fx = Number(form.usd_try || 0)
-  return fx > 0 ? amount / fx : 0
+  return settlementAmountToUsd(value, form.source_asset, {
+    usdTry: form.usd_try,
+    stablecoinUsd: form.source_stablecoin_usd,
+  })
 }
 
 function formatQuantity(value, asset) {
-  const digits = asset === 'BTC' ? 8 : asset === 'ETH' ? 6 : asset === 'URA' ? 4 : 2
+  const digits = asset === 'BTC' ? 8 : asset === 'ETH' ? 6 : asset === 'URA' ? 4 : isStablecoin(asset) ? 6 : 2
   return formatNumber(value, digits)
 }
 
 function formatSource(value) {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: form.source_asset,
-    maximumFractionDigits: 2,
-  }).format(Number(value || 0))
+  return formatSettlementAmount(value, form.source_asset, isStablecoin(form.source_asset) ? 6 : 2)
 }
 
 function fillMarketPrice() {
   const priceUsd = Number(engine.price(form.target_asset) || 0)
-  if (priceUsd <= 0) return
-  form.unit_price = form.source_asset === 'TRY' ? priceUsd * Number(form.usd_try || 0) : priceUsd
+  const unitUsd = sourceUnitUsd.value
+  if (priceUsd <= 0 || unitUsd <= 0) return
+  form.unit_price = priceUsd / unitUsd
 }
 
 function validate() {
@@ -336,6 +383,9 @@ function validate() {
   if (Number(form.unit_price || 0) <= 0) return 'Birim fiyat sıfırdan büyük olmalı.'
   if (Number(form.fee_source || 0) < 0) return 'Komisyon negatif olamaz.'
   if (Number(form.usd_try || 0) <= 0) return 'USD/TRY kuru zorunlu.'
+  if (stablecoinSource.value && Number(form.source_stablecoin_usd || 0) <= 0) {
+    return `${form.source_asset}/USD işlem kuru zorunlu.`
+  }
   if (sourceDebit.value > availableSource.value + 1e-10) {
     return `${form.source_asset} bakiyesi yetersiz. Toplam gerekli ${formatSource(sourceDebit.value)}, kullanılabilir ${formatSource(availableSource.value)}.`
   }
@@ -365,7 +415,7 @@ async function save() {
       source_quantity: sourceDebit.value,
       target_quantity: Number(form.target_quantity),
       price_currency: form.source_asset,
-      source_unit_price: 1,
+      source_unit_price: stablecoinSource.value ? sourceUnitUsd.value : 1,
       target_unit_price: unitPriceUsd.value,
       usd_try: Number(form.usd_try),
       gross_usd: grossUsd.value,
@@ -382,6 +432,7 @@ async function save() {
         fee_source: Number(form.fee_source || 0),
         source_balance_debit: sourceDebit.value,
         implied_target_unit_price_usd: unitPriceUsd.value,
+        ...stablecoinRatesMetadata([[form.source_asset, form.source_stablecoin_usd]]),
       },
     })
     summaryOpen.value = false
