@@ -44,7 +44,11 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Güncel Portföy Değeri"
-            :value="valuationComplete ? formatAssetValue(currentPortfolioValueDisplay) : 'Fiyat bekleniyor'"
+            :value="
+              valuationComplete
+                ? formatAssetValue(currentPortfolioValueDisplay)
+                : 'Fiyat bekleniyor'
+            "
             icon="account_balance_wallet"
           />
         </div>
@@ -70,17 +74,31 @@
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Gerçekleşmemiş K/Z"
-            :value="unrealizedPnlDisplay === null ? 'Fiyat bekleniyor' : formatAssetValue(unrealizedPnlDisplay)"
+            :value="
+              unrealizedPnlDisplay === null
+                ? 'Fiyat bekleniyor'
+                : formatAssetValue(unrealizedPnlDisplay)
+            "
             icon="show_chart"
-            :tone="unrealizedPnlDisplay === null ? 'info' : unrealizedPnlDisplay >= 0 ? 'positive' : 'negative'"
+            :tone="
+              unrealizedPnlDisplay === null
+                ? 'info'
+                : unrealizedPnlDisplay >= 0
+                  ? 'positive'
+                  : 'negative'
+            "
           />
         </div>
         <div class="col-12 col-sm-6 col-lg-3">
           <MetricCard
             label="Toplam K/Z"
-            :value="totalPnlDisplay === null ? 'Fiyat bekleniyor' : formatAssetValue(totalPnlDisplay)"
-            icon="monitoring"
-            :tone="totalPnlDisplay === null ? 'info' : totalPnlDisplay >= 0 ? 'positive' : 'negative'"
+            :value="
+              totalPnlDisplay === null ? 'Fiyat bekleniyor' : formatAssetValue(totalPnlDisplay)
+            "
+            icon="stacked_line_chart"
+            :tone="
+              totalPnlDisplay === null ? 'info' : totalPnlDisplay >= 0 ? 'positive' : 'negative'
+            "
           />
         </div>
       </div>
@@ -124,7 +142,8 @@
           <div class="col-12 col-md">
             <div class="text-h6 text-weight-bold">Enstrüman Performansı</div>
             <div class="text-caption text-grey-7">
-              Açık pozisyon maliyeti, güncel değer ve gerçekleşen/gerçekleşmeyen K/Z ayrı gösterilir.
+              Açık pozisyon maliyeti, güncel değer ve gerçekleşen/gerçekleşmeyen K/Z ayrı
+              gösterilir.
             </div>
           </div>
           <div class="col-auto">
@@ -142,7 +161,9 @@
             <q-item-section avatar><AssetAvatar :asset="row.asset" /></q-item-section>
             <q-item-section>
               <q-item-label class="text-weight-bold">{{ row.asset }}</q-item-label>
-              <q-item-label caption>{{ formatAssetQuantity(row.quantity, row.asset) }}</q-item-label>
+              <q-item-label caption>{{
+                formatAssetQuantity(row.quantity, row.asset)
+              }}</q-item-label>
               <q-item-label caption class="q-mt-xs">
                 Açık Pozisyon Maliyeti {{ formatMaybe(row.basisDisplay) }} · Güncel Değer
                 {{ formatMaybe(row.currentValueDisplay) }}
@@ -208,7 +229,9 @@
                 <div class="row items-center justify-between q-col-gutter-md">
                   <div>
                     <div class="text-caption text-grey-6">Planlanan Aylık Bütçe</div>
-                    <div class="text-h6 amount-primary">{{ formatDisplay(monthlyBudgetTargetUsd) }}</div>
+                    <div class="text-h6 amount-primary">
+                      {{ formatDisplay(monthlyBudgetTargetUsd) }}
+                    </div>
                   </div>
                   <div class="text-right">
                     <div class="text-caption text-grey-6">Plan Girişi</div>
@@ -242,8 +265,12 @@
                   track-color="grey-3"
                 />
                 <div class="row q-gutter-md text-caption q-mt-xs">
-                  <span class="amount-positive">Giriş {{ formatAssetValue(row.cashInDisplay) }}</span>
-                  <span class="amount-negative">Çıkış {{ formatAssetValue(row.cashOutDisplay) }}</span>
+                  <span class="amount-positive"
+                    >Giriş {{ formatAssetValue(row.cashInDisplay) }}</span
+                  >
+                  <span class="amount-negative"
+                    >Çıkış {{ formatAssetValue(row.cashOutDisplay) }}</span
+                  >
                   <span class="text-grey-6">{{ row.count }} sermaye hareketi</span>
                 </div>
               </div>
@@ -258,7 +285,9 @@
           <q-card flat class="section-card q-mb-lg">
             <q-card-section>
               <div class="text-h6 text-weight-bold">Yatırım Hareketleri</div>
-              <div class="text-caption text-grey-7">Alım ve dönüşüm hacmi yeni sermaye değildir.</div>
+              <div class="text-caption text-grey-7">
+                Alım ve dönüşüm hacmi yeni sermaye değildir.
+              </div>
             </q-card-section>
             <q-separator />
             <q-list separator>
@@ -267,20 +296,26 @@
                   <q-item-label>Alım Hacmi</q-item-label>
                   <q-item-label caption>TRY/USD/USDT/USDC → alınabilir varlık</q-item-label>
                 </q-item-section>
-                <q-item-section side class="amount-primary">{{ formatAssetValue(buyVolumeDisplay) }}</q-item-section>
+                <q-item-section side class="amount-primary">{{
+                  formatAssetValue(buyVolumeDisplay)
+                }}</q-item-section>
               </q-item>
               <q-item>
                 <q-item-section>
                   <q-item-label>Dönüşüm Hacmi</q-item-label>
                   <q-item-label caption>Mevcut varlıklar arası</q-item-label>
                 </q-item-section>
-                <q-item-section side class="amount-info">{{ formatAssetValue(conversionVolumeDisplay) }}</q-item-section>
+                <q-item-section side class="amount-info">{{
+                  formatAssetValue(conversionVolumeDisplay)
+                }}</q-item-section>
               </q-item>
             </q-list>
           </q-card>
 
           <q-card flat class="section-card q-mb-lg">
-            <q-card-section><div class="text-h6 text-weight-bold">İşlem Tipi Dağılımı</div></q-card-section>
+            <q-card-section
+              ><div class="text-h6 text-weight-bold">İşlem Tipi Dağılımı</div></q-card-section
+            >
             <q-separator />
             <q-list separator>
               <q-item v-for="row in typeRows" :key="row.type">
@@ -294,7 +329,9 @@
                   </q-item-label>
                   <q-item-label caption class="q-mt-xs">{{ row.count }} kayıt</q-item-label>
                 </q-item-section>
-                <q-item-section side :class="transactionAmountClass(row.type)">{{ formatAssetValue(row.volumeDisplay) }}</q-item-section>
+                <q-item-section side :class="transactionAmountClass(row.type)">{{
+                  formatAssetValue(row.volumeDisplay)
+                }}</q-item-section>
               </q-item>
             </q-list>
           </q-card>
@@ -302,7 +339,9 @@
           <q-card flat class="section-card">
             <q-card-section>
               <div class="text-h6 text-weight-bold">Varlık Aktivitesi</div>
-              <div class="text-caption text-grey-7">Kaynak veya hedef olarak yer aldığı işlem sayısı</div>
+              <div class="text-caption text-grey-7">
+                Kaynak veya hedef olarak yer aldığı işlem sayısı
+              </div>
             </q-card-section>
             <q-separator />
             <q-list separator>
@@ -312,7 +351,9 @@
                   <q-item-label class="text-weight-bold">{{ row.asset }}</q-item-label>
                   <q-item-label caption>{{ row.count }} işlem</q-item-label>
                 </q-item-section>
-                <q-item-section side class="amount-strong">{{ formatAssetValue(row.volumeDisplay) }}</q-item-section>
+                <q-item-section side class="amount-strong">{{
+                  formatAssetValue(row.volumeDisplay)
+                }}</q-item-section>
               </q-item>
             </q-list>
           </q-card>
@@ -321,8 +362,8 @@
 
       <q-banner rounded class="surface-soft q-mt-lg">
         <template #avatar><q-icon name="analytics" color="primary" /></template>
-        Gerçekleşmiş K/Z, kullanıcının eklediği sermayeye dahil edilmez. Portföy değerinin parçasıdır
-        ve yeniden yatırıma kullanılabilir; performans raporunda ayrı tutulur.
+        Gerçekleşmiş K/Z, kullanıcının eklediği sermayeye dahil edilmez. Portföy değerinin
+        parçasıdır ve yeniden yatırıma kullanılabilir; performans raporunda ayrı tutulur.
       </q-banner>
     </div>
   </q-page>
@@ -421,7 +462,9 @@ const unrealizedPnlDisplay = computed(() =>
   valuationComplete.value ? currentPortfolioValueDisplay.value - openCostBasisDisplay.value : null,
 )
 const totalPnlDisplay = computed(() =>
-  unrealizedPnlDisplay.value === null ? null : realizedPnlDisplay.value + unrealizedPnlDisplay.value,
+  unrealizedPnlDisplay.value === null
+    ? null
+    : realizedPnlDisplay.value + unrealizedPnlDisplay.value,
 )
 
 const allPerformanceRows = computed(() =>
@@ -438,12 +481,13 @@ const allPerformanceRows = computed(() =>
       ? assetHistoricalValue(item, 'historicalCostBasis', item.costBasisUsd)
       : 0
     const realizedDisplay = item
-      ? assetHistoricalValue(item, 'realizedPnlHistorical', item.realizedPnlUsd) ?? 0
+      ? (assetHistoricalValue(item, 'realizedPnlHistorical', item.realizedPnlUsd) ?? 0)
       : 0
     const unrealizedDisplay =
-      currentValueDisplay === null || basisDisplay === null ? null : currentValueDisplay - basisDisplay
-    const totalPnlDisplay =
-      unrealizedDisplay === null ? null : realizedDisplay + unrealizedDisplay
+      currentValueDisplay === null || basisDisplay === null
+        ? null
+        : currentValueDisplay - basisDisplay
+    const totalPnlDisplay = unrealizedDisplay === null ? null : realizedDisplay + unrealizedDisplay
     const unrealizedPct =
       unrealizedDisplay !== null && Number(basisDisplay || 0) > 0
         ? (unrealizedDisplay / Number(basisDisplay)) * 100
