@@ -1,4 +1,4 @@
-import { isStablecoin, stablecoinRateFromMetadata } from './transactionCurrency.js'
+import { isStablecoin, stablecoinRateFromTransaction } from './transactionCurrency.js'
 
 export const EXACT_HISTORICAL_DISPLAY_ASSETS = Object.freeze(['USD', 'TRY', 'USDT', 'USDC'])
 
@@ -12,7 +12,7 @@ export function historicalUsdUnitPrice(transaction, asset) {
   }
 
   if (isStablecoin(symbol)) {
-    return stablecoinRateFromMetadata(transaction?.metadata, symbol)
+    return stablecoinRateFromTransaction(transaction, symbol)
   }
 
   return 0
