@@ -5,6 +5,10 @@ import {
   buildInstitutionLedgers,
   resolveTransactionInstitution,
 } from '../src/services/portfolioInstitutionAnalytics.js'
+import {
+  assertIdempotentTransactionMatch,
+  normalizeTransaction,
+} from '../src/services/portfolioTransactions.js'
 
 const institutions = [
   {
@@ -61,6 +65,35 @@ test('legacy platform text resolves to the canonical institution without merging
   assert.equal(unknown.resolution, 'unmapped_platform')
   assert.equal(empty.name, 'Kurum Belirtilmemiş')
   assert.equal(empty.unassigned, true)
+})
+
+test('transaction normalization preserves institution_id without making DB trigger enrichment an idempotency mismatch', () => {
+  const baseInput = {
+    id: '33333333-3333-4333-8333-333333333333',
+    transaction_type: 'CASH_IN',
+    target_asset: 'USD',
+    target_quantity: 100,
+    gross_usd: 100,
+    net_usd: 100,
+    usd_try: 50,
+    platform: 'Midas',
+    transaction_at: '2026-09-11T12:00:00.000Z',
+  }
+  const request = normalizeTransaction(baseInput, 'user-1', 'account-1')
+  const revisionInput = normalizeTransaction(
+    { ...baseInput, institution_id: institutions[0].id },
+    'user-1',
+    'account-1',
+  )
+
+  assert.equal(request.institution_id, null)
+  assert.equal(revisionInput.institution_id, institutions[0].id)
+  assert.doesNotThrow(() =>
+    assertIdempotentTransactionMatch(
+      { ...request, institution_id: institutions[0].id },
+      request,
+    ),
+  )
 })
 
 test('the same asset held at two institutions remains separated by institution ledger', () => {
