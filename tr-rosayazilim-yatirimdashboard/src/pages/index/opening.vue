@@ -4,8 +4,8 @@
       <div class="q-mb-lg">
         <div class="page-title">Başlangıç Portföyü</div>
         <div class="page-subtitle q-mt-xs">
-          Uygulamayı kullanmaya başladığın tarihte sahip olduğun BTC, ETH, URA ve nakit bakiyelerini
-          kaydet.
+          Uygulamayı kullanmaya başladığın tarihte sahip olduğun BTC, ETH, URA, nakit ve stablecoin
+          bakiyelerini kaydet.
         </div>
       </div>
       <q-banner rounded class="surface-soft q-mb-lg">
@@ -61,6 +61,7 @@
                       label="Maliyet Para Birimi"
                       :searchable="false"
                       :disable="existingOpeningAssets.has(row.asset)"
+                      @update:model-value="onPriceCurrencyChanged(row)"
                     />
                   </div>
                   <div class="col-12 col-sm-6">
@@ -82,6 +83,29 @@
                       label="USD/TRY"
                       :disable="existingOpeningAssets.has(row.asset)"
                     />
+                  </div>
+                  <div v-if="isStablecoin(row.price_currency)" class="col-12 col-sm-6">
+                    <q-input
+                      v-model.number="row.price_currency_stablecoin_usd"
+                      outlined
+                      type="number"
+                      min="0"
+                      step="any"
+                      :label="`${row.price_currency}/USD İşlem Kuru`"
+                      hint="Başlangıç tarihindeki stablecoin/USD değerini yaz."
+                      :disable="existingOpeningAssets.has(row.asset)"
+                    >
+                      <template #append>
+                        <q-btn
+                          flat
+                          dense
+                          round
+                          icon="auto_fix_high"
+                          :disable="existingOpeningAssets.has(row.asset)"
+                          @click="fillStablecoinRate(row)"
+                        />
+                      </template>
+                    </q-input>
                   </div>
                   <div class="col-12">
                     <FinancialInstitutionSelect
@@ -141,14 +165,25 @@ import { useRouter } from 'vue-router'
 import AppPopupSelect from '@/components/AppPopupSelect.vue'
 import AssetAvatar from '@/components/AssetAvatar.vue'
 import FinancialInstitutionSelect from '@/components/FinancialInstitutionSelect.vue'
+import { ASSETS } from '@/services/portfolioAnalytics'
 import { createTransactionRequestId } from '@/services/portfolioTransactions'
+import {
+  actualStablecoinUsdQuote,
+  isStablecoin,
+  SETTLEMENT_ASSET_OPTIONS,
+  settlementAmountToUsd,
+  stablecoinRatesMetadata,
+} from '@/services/transactionCurrency'
+import { useDisplayQuoteStore } from '@/stores/displayQuotes'
 import { useEngineStore } from '@/stores/engine'
 import { usePortfolioStore } from '@/stores/portfolio'
+
 const $q = useQuasar()
 const router = useRouter()
 const engine = useEngineStore()
 const portfolio = usePortfolioStore()
-const cashAssets = ['USD', 'TRY']
+const displayQuotes = useDisplayQuoteStore()
+const cashAssets = SETTLEMENT_ASSET_OPTIONS
 const saving = ref(false)
 const openingDate = ref('2026-07-25')
 const currentFx = Number(engine.market.find((item) => item.symbol === 'USD/TRY')?.value || 0)
@@ -160,24 +195,57 @@ const existingOpeningAssets = computed(
         .map((tx) => tx.target_asset),
     ),
 )
+
+function currentStablecoinRate(asset) {
+  return actualStablecoinUsdQuote(displayQuotes.quotes, asset) || null
+}
+
 const rows = reactive(
-  ['BTC', 'ETH', 'URA', 'USD', 'TRY'].map((asset) => ({
+  ASSETS.map((asset) => ({
     request_id: createTransactionRequestId(),
     asset,
     quantity: null,
     price_currency: asset === 'TRY' ? 'TRY' : 'USD',
-    unit_price: asset === 'USD' || asset === 'TRY' ? 1 : null,
+    unit_price:
+      asset === 'USD' || asset === 'TRY'
+        ? 1
+        : isStablecoin(asset)
+          ? currentStablecoinRate(asset)
+          : null,
+    price_currency_stablecoin_usd: null,
     usd_try: currentFx || null,
     platform: '',
   })),
 )
+
+function fillStablecoinRate(row) {
+  row.price_currency_stablecoin_usd = currentStablecoinRate(row.price_currency)
+}
+
+function onPriceCurrencyChanged(row) {
+  if (isStablecoin(row.price_currency)) fillStablecoinRate(row)
+  else row.price_currency_stablecoin_usd = null
+}
+
 function grossUsd(row) {
   const quantity = Number(row.quantity || 0)
-  if (row.asset === 'USD') return quantity
-  if (row.asset === 'TRY') return row.usd_try ? quantity / Number(row.usd_try) : 0
-  const cost = quantity * Number(row.unit_price || 0)
-  return row.price_currency === 'TRY' ? (row.usd_try ? cost / Number(row.usd_try) : 0) : cost
+  const localCost = quantity * Number(row.unit_price || 0)
+  return settlementAmountToUsd(localCost, row.price_currency, {
+    usdTry: row.usd_try,
+    stablecoinUsd: row.price_currency_stablecoin_usd,
+  })
 }
+
+function validateRow(row) {
+  if (Number(row.quantity || 0) <= 0) return ''
+  if (Number(row.unit_price || 0) <= 0) return `${row.asset} birim maliyeti sıfırdan büyük olmalı.`
+  if (Number(row.usd_try || 0) <= 0) return `${row.asset} için USD/TRY kuru zorunlu.`
+  if (isStablecoin(row.price_currency) && Number(row.price_currency_stablecoin_usd || 0) <= 0) {
+    return `${row.price_currency}/USD işlem kuru zorunlu.`
+  }
+  return ''
+}
+
 async function save() {
   const activeRows = rows.filter(
     (row) => !existingOpeningAssets.value.has(row.asset) && Number(row.quantity || 0) > 0,
@@ -186,24 +254,41 @@ async function save() {
     $q.notify({ type: 'warning', message: 'En az bir varlık miktarı gir.' })
     return
   }
+  for (const row of activeRows) {
+    const error = validateRow(row)
+    if (error) {
+      $q.notify({ type: 'warning', message: error })
+      return
+    }
+  }
   saving.value = true
   try {
     await portfolio.addOpeningPositions(
-      activeRows.map((row) => ({
-        id: row.request_id,
-        target_asset: row.asset,
-        target_quantity: Number(row.quantity),
-        price_currency: row.price_currency,
-        target_unit_price: Number(row.unit_price || 0),
-        usd_try: Number(row.usd_try || 0) || null,
-        gross_usd: grossUsd(row),
-        fee_usd: 0,
-        net_usd: grossUsd(row),
-        platform: row.platform,
-        note: 'Başlangıç portföyü',
-        transaction_at: new Date(`${openingDate.value}T09:00:00`).toISOString(),
-        metadata: { entry_flow: 'OPENING_BALANCE' },
-      })),
+      activeRows.map((row) => {
+        const gross = grossUsd(row)
+        const targetUsdRate = Number(row.quantity || 0) > 0 ? gross / Number(row.quantity) : 0
+        return {
+          id: row.request_id,
+          target_asset: row.asset,
+          target_quantity: Number(row.quantity),
+          price_currency: row.price_currency,
+          target_unit_price: Number(row.unit_price || 0),
+          usd_try: Number(row.usd_try || 0) || null,
+          gross_usd: gross,
+          fee_usd: 0,
+          net_usd: gross,
+          platform: row.platform,
+          note: 'Başlangıç portföyü',
+          transaction_at: new Date(`${openingDate.value}T09:00:00`).toISOString(),
+          metadata: {
+            entry_flow: 'OPENING_BALANCE',
+            ...stablecoinRatesMetadata([
+              [row.price_currency, row.price_currency_stablecoin_usd],
+              [row.asset, isStablecoin(row.asset) ? targetUsdRate : 0],
+            ]),
+          },
+        }
+      }),
     )
     $q.notify({ type: 'positive', message: 'Başlangıç portföyü kaydedildi.' })
     await router.push('/portfolio')
