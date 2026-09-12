@@ -15,6 +15,13 @@ def apply_signal_state(
     Direction/edge may remain ACTION for several closes. ``action_event`` is only
     true when a new executable tranche is created. This prevents repeated daily
     Telegram alerts and execution workers for the same active regime.
+
+    ``reset_counter`` is a market-day rule, not an evaluation-run counter. A
+    market ``as_of`` can be evaluated more than once when supporting inputs are
+    refreshed after the close, so only the first evaluation of a market date may
+    advance the reset counter. Later evaluations of that same market date may
+    still reset the counter to zero if the active direction regains sufficient
+    edge.
     """
     raw = raw_state or {}
     active = raw.get("active_direction")
@@ -22,13 +29,16 @@ def apply_signal_state(
     cumulative = float(raw.get("cumulative_size") or 0)
     last_action = str(raw.get("last_action_date") or "") or None
     reset_counter = int(raw.get("reset_counter") or 0)
+    last_evaluated_as_of = str(raw.get("last_evaluated_as_of") or "") or None
+    same_market_evaluation = decision.as_of == last_evaluated_as_of
 
     if active:
         same_direction = decision.direction == active
         if same_direction and decision.edge_score >= settings.regime_reset_edge:
             reset_counter = 0
         elif decision.status != "ACTION":
-            reset_counter += 1
+            if not same_market_evaluation:
+                reset_counter += 1
         else:
             reset_counter = 0
 
@@ -95,6 +105,7 @@ def apply_signal_state(
         "cumulative_size": cumulative,
         "last_action_date": last_action,
         "reset_counter": reset_counter,
+        "last_evaluated_as_of": decision.as_of,
         "new_action": action_event,
     }
 
@@ -104,4 +115,5 @@ def apply_signal_state(
         "cumulative_size": cumulative,
         "last_action_date": last_action,
         "reset_counter": reset_counter,
+        "last_evaluated_as_of": decision.as_of,
     }

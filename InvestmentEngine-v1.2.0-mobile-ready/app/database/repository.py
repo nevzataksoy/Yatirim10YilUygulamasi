@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from app.database.db import DatabaseService
 from app.database.feature_rows import build_feature_rows
 from app.models import Decision, FactorScore, PriceBar
+from app.schedule_contract import expected_run_counts
 from app.version import MODEL_VERSION
 
 
@@ -52,20 +53,56 @@ class Repository:
             conn.commit()
 
     def upsert_macro(self, observations: list[dict]) -> None:
-        if not observations:
+        """Persist only new current-view value transitions.
+
+        FRED current-view requests change realtime_start/realtime_end with the
+        query real-time date even when the economic value did not change.  A
+        same-value refetch is therefore not a new version and must not create a
+        row or mutate fetched_at.  A real value change is inserted as a new
+        immutable transition row.  The advisory lock serializes concurrent
+        writers per series.  Generic ON CONFLICT keeps this code deployable
+        before migration 0015 removes the legacy realtime_start uniqueness.
+        """
+        rows = [
+            (
+                str(x["series_id"]),
+                x["date"],
+                x["value"],
+                x.get("realtime_start") or x["date"],
+                x.get("realtime_end"),
+            )
+            for x in observations
+        ]
+        if not rows:
             return
+
         sql = """
         insert into macro.observations
           (series_id, observation_date, value, realtime_start, realtime_end)
-        values (%s,%s,%s,%s,%s)
-        on conflict (series_id, observation_date, realtime_start) do update set
-          value=excluded.value, realtime_end=excluded.realtime_end, fetched_at=now()
+        select %s,%s,%s,%s,%s
+        where (
+          select m.value
+          from macro.observations m
+          where m.series_id=%s and m.observation_date=%s
+          order by m.realtime_start desc, m.fetched_at desc, m.id desc
+          limit 1
+        ) is distinct from %s
+        on conflict do nothing
         """
+        insert_rows = [
+            (series_id, observation_date, value, realtime_start, realtime_end,
+             series_id, observation_date, value)
+            for series_id, observation_date, value, realtime_start, realtime_end in rows
+        ]
+        series_ids = sorted({series_id for series_id, *_ in rows})
+
         with self.db.connection() as conn, conn.cursor() as cur:
-            cur.executemany(sql, [
-                (x["series_id"], x["date"], x["value"], x.get("realtime_start") or x["date"], x.get("realtime_end"))
-                for x in observations
-            ])
+            for series_id in series_ids:
+                cur.execute(
+                    "select pg_advisory_xact_lock(hashtextextended(%s,0))",
+                    (f"macro.observations:{series_id}",),
+                )
+            cur.executemany(sql, insert_rows)
             conn.commit()
 
     def upsert_features(self, system: str, as_of: str, features: dict[str, dict]) -> None:
@@ -304,22 +341,33 @@ class Repository:
         }
 
     def get_latest_macro_observations(self, series_ids: list[str], as_of: str | None = None) -> dict[str,dict]:
+        """Return one deterministic latest current-view row per series."""
         out: dict[str,dict] = {}
         with self.db.connection() as conn, conn.cursor() as cur:
             for series_id in series_ids:
                 if as_of:
                     cur.execute("""
-                        select series_id, observation_date, value, fetched_at
+                        select series_id, observation_date, value,
+                               realtime_start, realtime_end, fetched_at
                         from macro.observations
                         where series_id=%s and observation_date <= %s
-                        order by observation_date desc limit 1
+                        order by observation_date desc,
+                                 realtime_start desc,
+                                 fetched_at desc,
+                                 id desc
+                        limit 1
                     """, (series_id, as_of))
                 else:
                     cur.execute("""
-                        select series_id, observation_date, value, fetched_at
+                        select series_id, observation_date, value,
+                               realtime_start, realtime_end, fetched_at
                         from macro.observations
                         where series_id=%s
-                        order by observation_date desc limit 1
+                        order by observation_date desc,
+                                 realtime_start desc,
+                                 fetched_at desc,
+                                 id desc
+                        limit 1
                     """, (series_id,))
                 row=cur.fetchone()
                 if row:
@@ -770,14 +818,23 @@ class Repository:
         ]
 
     def get_macro_history(self, series_ids: list[str]) -> dict[str, list[dict]]:
+        """Return one deterministic latest current-view version per observation date."""
         out: dict[str, list[dict]] = {key: [] for key in series_ids}
         with self.db.connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
-                select series_id,observation_date,value,fetched_at
-                from macro.observations
-                where series_id = any(%s)
-                order by series_id,observation_date
+                select series_id, observation_date, value,
+                       realtime_start, realtime_end, fetched_at
+                from (
+                  select distinct on (series_id, observation_date)
+                         series_id, observation_date, value,
+                         realtime_start, realtime_end, fetched_at, id
+                  from macro.observations
+                  where series_id = any(%s)
+                  order by series_id, observation_date,
+                           realtime_start desc, fetched_at desc, id desc
+                ) latest
+                order by series_id, observation_date
                 """,
                 (series_ids,),
             )
@@ -810,16 +867,58 @@ class Repository:
             """, (MODEL_VERSION,))
             by_system = {str(r["system"]): r for r in cur.fetchall()}
 
+            # Shadow readiness job health must represent natural scheduler
+            # execution only. Manual/test/backfill/dependency/maintenance rows
+            # are observability evidence, not scheduler availability evidence.
+            # The denominator is the scheduler contract's expected fire count
+            # inside the active Shadow Epoch, capped to the released 7-day
+            # readiness window.
+            cur.execute("select now() as now_utc")
+            now_utc = (cur.fetchone() or {}).get("now_utc") or datetime.now(timezone.utc)
             cur.execute("""
-                select count(*) as jobs,
-                       count(*) filter(where status in ('OK','DEGRADED','SKIPPED')) as successful
+                select id, started_at
+                from model.shadow_epochs
+                where status='ACTIVE' and model_version=%s
+                order by started_at desc limit 1
+            """, (MODEL_VERSION,))
+            shadow_epoch = cur.fetchone()
+            if not shadow_epoch:
+                raise RuntimeError(
+                    "Aktif Shadow Epoch bulunamadı. Önce migration 0010 uygulanmalıdır."
+                )
+
+            job_window_start = max(
+                shadow_epoch["started_at"],
+                now_utc - timedelta(days=7),
+            )
+            expected_by_job = expected_run_counts(
+                job_window_start,
+                now_utc,
+                self.db.settings.timezone,
+            )
+            scheduled_job_names = set(expected_by_job)
+
+            cur.execute("""
+                select job_name,status,count(*) as n
                 from system.job_runs
-                where started_at >= now()-interval '7 days'
-                  and job_name not in ('realtime_test')
-            """)
-            jobs = cur.fetchone() or {}
-            job_count = int(jobs.get("jobs") or 0)
-            job_success = int(jobs.get("successful") or 0)
+                where shadow_epoch_id=%s
+                  and started_at >= %s and started_at <= %s
+                  and run_kind = any(%s)
+                group by job_name,status
+            """, (
+                shadow_epoch["id"],
+                job_window_start,
+                now_utc,
+                ["scheduled", "scheduled_legacy"],
+            ))
+            scheduler_rows = cur.fetchall()
+            job_count = sum(int(value or 0) for value in expected_by_job.values())
+            job_success = sum(
+                int(row["n"] or 0)
+                for row in scheduler_rows
+                if str(row["job_name"]) in scheduled_job_names
+                and str(row["status"]) in {"OK", "DEGRADED", "SKIPPED"}
+            )
 
             cur.execute("""
                 select finished_at

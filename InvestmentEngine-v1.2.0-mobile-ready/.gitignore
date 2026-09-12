@@ -3,6 +3,12 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+installer/
 *.spec
 runtime/
+logs/
 *.log
+walk_forward_*.json
+walk_forward_*.txt
+fred_strict_pit_*.json
+fred_strict_pit_*.txt

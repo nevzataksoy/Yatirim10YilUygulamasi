@@ -1,0 +1,199 @@
+@media (max-width: 767px) {
+  html,
+  body,
+  #q-app {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .page-wrap {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .page-wrap .row > [class*='col-'],
+  .q-item__section,
+  .q-card__section {
+    min-width: 0;
+  }
+
+  .q-item__label,
+  .q-banner,
+  .page-subtitle {
+    overflow-wrap: anywhere;
+  }
+
+  .q-dialog__inner--minimized {
+    padding: 12px;
+  }
+
+  .q-dialog__inner--minimized > .q-card {
+    max-width: calc(100vw - 24px) !important;
+  }
+
+  .q-table__container,
+  .q-table__middle {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .app-header {
+    background: linear-gradient(135deg, #0b1324 0%, #123044 58%, #0f766e 140%) !important;
+    color: #f8fafc !important;
+    border-bottom: 1px solid rgba(94, 234, 212, 0.18);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  }
+
+  .app-header .q-btn,
+  .app-header .q-btn-dropdown,
+  .app-header .q-icon,
+  .app-header .q-btn__content {
+    color: #f8fafc !important;
+  }
+
+  .app-header .display-currency-btn {
+    min-width: 76px;
+    min-height: 40px;
+    padding: 0 8px 0 10px;
+    border: 1px solid rgba(226, 232, 240, 0.2);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .app-header .display-currency-btn .q-btn__content {
+    gap: 6px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .display-currency-menu-list {
+    overflow: hidden;
+    border-color: rgba(15, 118, 110, 0.2) !important;
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  }
+
+  .display-currency-menu-list .q-item {
+    min-height: 58px;
+    padding-left: 14px;
+    padding-right: 14px;
+    transition:
+      background-color 0.16s ease,
+      color 0.16s ease;
+  }
+
+  .display-currency-menu-list .q-item:not(.q-item--active):active {
+    background: #f0fdfa;
+  }
+
+  .app-bottom-nav {
+    background: linear-gradient(180deg, #10243a 0%, #0b1324 100%) !important;
+    color: rgba(241, 245, 249, 0.82) !important;
+    border-top: 1px solid rgba(94, 234, 212, 0.16);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.18);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .app-bottom-nav .q-tabs,
+  .app-bottom-nav .q-tabs__content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .app-bottom-nav .q-tabs__content {
+    display: flex;
+    justify-content: stretch;
+  }
+
+  .app-bottom-nav .q-tab {
+    flex: 1 1 20%;
+    width: 20%;
+    max-width: none;
+    min-width: 0;
+    min-height: 58px;
+    padding-inline: 2px;
+    color: rgba(241, 245, 249, 0.82) !important;
+    background: transparent;
+  }
+
+  .app-bottom-nav .q-tab__icon {
+    color: rgba(248, 250, 252, 0.94) !important;
+  }
+
+  .app-bottom-nav .q-tab__label {
+    color: rgba(226, 232, 240, 0.74) !important;
+  }
+
+  .app-bottom-nav .q-tab.q-tab--active {
+    color: #5eead4 !important;
+    background: rgba(20, 184, 166, 0.12);
+  }
+
+  .app-bottom-nav .q-tab.q-tab--active .q-tab__icon,
+  .app-bottom-nav .q-tab.q-tab--active .q-tab__label {
+    color: #5eead4 !important;
+  }
+
+  .app-bottom-nav .q-tab__content {
+    width: 100%;
+  }
+
+  .app-bottom-nav .q-tab__label {
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .app-bottom-nav .q-tab__icon {
+    font-size: 21px;
+  }
+
+  .q-drawer--right {
+    max-width: 100vw;
+  }
+}
+
+@media (max-width: 599px) {
+  .page-title {
+    line-height: 1.15;
+  }
+
+  .section-card > .q-card__section,
+  .glass-card > .q-card__section,
+  .metric-card > .q-card__section {
+    padding: 14px;
+  }
+
+  .q-item {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .q-item__section--side {
+    padding-left: 8px;
+  }
+
+  .q-dialog__inner--bottom {
+    padding: 0;
+  }
+
+  .popup-action-footer {
+    gap: 8px;
+  }
+
+  .app-header .display-currency-btn {
+    min-width: 72px;
+    min-height: 38px;
+    border-radius: 11px;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-bottom-nav .q-tab__label {
+    font-size: 9px;
+  }
+
+  .app-bottom-nav .q-tab__icon {
+    font-size: 20px;
+  }
+}

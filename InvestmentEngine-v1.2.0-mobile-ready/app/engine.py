@@ -21,8 +21,14 @@ from app.collectors.fred import FredCollector
 from app.collectors.globalx_ura import GlobalXUraHoldingsCollector
 from app.collectors.sec import SecCollector
 from app.collectors.tcmb import TcmbCollector
+from app.database.data_lifecycle import read_data_lifecycle_snapshot
 from app.database.db import DatabaseService
+from app.database.decision_persistence import persist_decision_outcome
 from app.database.repository import Repository
+from app.database.ura_holdings_persistence import (
+    get_ura_holdings_snapshot_refs,
+    persist_ura_holdings_snapshot,
+)
 from app.engines.decision import DecisionEngine
 from app.engines.factors import neutral, score_derivatives, score_flow, score_macro, score_momentum, score_trend, score_value, score_volatility
 from app.engines.regime import detect_regime
@@ -171,10 +177,12 @@ class InvestmentEngine:
             # must remain usable if the issuer site is temporarily unavailable.
             try:
                 holdings=self.globalx.fetch(self.settings.ura_holdings_csv_url)
-                self.repo.upsert_ura_holdings(holdings)
+                snapshot_meta=persist_ura_holdings_snapshot(self.db,holdings)
                 breadth_row=self.repo.calculate_and_upsert_ura_breadth(as_of)
                 self.repo.publish_health("URA_HOLDINGS","OK",f"Global X holdings {holdings.holding_date}",{
                     "holding_date":holdings.holding_date,"constituents":len(holdings.holdings),"source_url":holdings.source_url,
+                    "snapshot_id":snapshot_meta["id"],"snapshot_sha256":snapshot_meta["content_sha256"],
+                    "snapshot_fetched_at":snapshot_meta["fetched_at"],
                     "breadth_quality":float((breadth_row or {}).get("quality") or 0),
                 })
             except Exception as holdings_exc:
@@ -189,9 +197,11 @@ class InvestmentEngine:
                 self.sec_event_job()
                 event_health=self.repo.get_health("SEC_EVENTS",max_age_hours=30)
             recent_events=self.repo.recent_events("URA",168)
+            fundamentals_factor=score_ura_holdings_fundamentals(holdings_summary)
+            fundamentals_factor.details["source_snapshots"]=get_ura_holdings_snapshot_refs(self.db,holdings_summary)
             factors={
                 "value":score_value(f),"trend":score_trend(f),"momentum":score_momentum(f),"volatility":score_volatility(f),"macro":macro_factor,
-                "fundamentals":score_ura_holdings_fundamentals(holdings_summary),
+                "fundamentals":fundamentals_factor,
                 "breadth":score_ura_breadth(breadth,as_of),
                 "event":score_event_monitor(event_health,recent_events),
             }
@@ -297,12 +307,14 @@ class InvestmentEngine:
             # holdings/breadth and SEC filing monitoring are refreshed.
             self.macro_job()
             holdings=self.globalx.fetch(self.settings.ura_holdings_csv_url)
-            self.repo.upsert_ura_holdings(holdings)
+            snapshot_meta=persist_ura_holdings_snapshot(self.db,holdings)
             breadth=self.repo.calculate_and_upsert_ura_breadth(holdings.holding_date)
             self.sec_event_job()
             details={
                 "holdings_date":holdings.holding_date,
                 "holdings_count":len(holdings.holdings),
+                "holdings_snapshot_id":snapshot_meta["id"],
+                "holdings_snapshot_sha256":snapshot_meta["content_sha256"],
                 "breadth_quality":float((breadth or {}).get("quality") or 0),
             }
             self.repo.publish_health("WEEKLY","OK","Haftalık veri bakımı tamamlandı",details)
@@ -315,9 +327,27 @@ class InvestmentEngine:
         try:
             performance=self.repo.evaluate_mature_decisions((5,20,60))
             validation=self.model_validation_job(log_job=False)
+            try:
+                lifecycle=read_data_lifecycle_snapshot(
+                    self.db,
+                    full_fidelity_days=90,
+                    timezone_name=self.settings.timezone,
+                )
+            except Exception as lifecycle_exc:
+                LOG.warning("data lifecycle observability failed: %s", lifecycle_exc, exc_info=True)
+                lifecycle={
+                    "status":"DEGRADED",
+                    "error":str(lifecycle_exc)[:500],
+                    "timezone":self.settings.timezone,
+                    "full_fidelity_days":90,
+                    "maintenance_action":"OBSERVABILITY_FAILED_NO_MUTATION",
+                    "mutation_performed":False,
+                    "delete_authorized":False,
+                }
             details={
                 **performance,
                 "validation":validation,
+                "data_lifecycle":lifecycle,
                 "weights_changed":False,
                 "note":"Performance ve validation ölçülür; factor ağırlıkları/thresholdlar otomatik değiştirilmez.",
             }
@@ -452,22 +482,17 @@ class InvestmentEngine:
             raise
 
     def _persist_decision(self, decision: Decision, provider: str) -> None:
-        self._apply_signal_state(decision)
-        decision_id=self.repo.insert_decision(decision)
-        self.repo.publish_decision_history(decision_id,decision,provider)
-        self.repo.publish_decision_snapshot(decision,provider)
+        decision_id=persist_decision_outcome(
+            self.db,
+            decision,
+            provider,
+            lambda raw_state: apply_signal_state(decision,raw_state,self.settings),
+        )
         if decision.action_event:
             if self.settings.engine_mode=="live":
                 self.telegram.send(self._decision_message(decision,decision_id))
             if decision.execution_required:
                 self._start_execution_worker(decision,decision_id)
-
-    def _apply_signal_state(self, decision: Decision) -> None:
-        state=apply_signal_state(decision,self.repo.get_signal_state(decision.system),self.settings)
-        self.repo.upsert_signal_state(
-            decision.system,state["active_direction"],state["stage"],
-            state["cumulative_size"],state["last_action_date"],state["reset_counter"],
-        )
 
     def _decision_message(self, d: Decision, decision_id: int) -> str:
         stage=f"Kademe {d.action_stage}" if d.action_stage else "Yeni kademe yok"

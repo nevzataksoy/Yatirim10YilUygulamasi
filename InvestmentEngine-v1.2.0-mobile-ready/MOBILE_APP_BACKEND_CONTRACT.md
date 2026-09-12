@@ -43,6 +43,11 @@ Desteklenen tipler:
 - `CASH_IN`
 - `CASH_OUT`
 
+İşlem kayıtları authenticated mobil istemci için append-only'dir. Düzeltme veya
+iptal, eski satırı değiştirmek/silmek yerine `metadata.supersedes_transaction_id`
+ile önceki kayda bağlanan yeni bir revizyon satırı ekler. İptal revizyonunda ayrıca
+`metadata.cancelled_at` ve `metadata.cancellation_reason` bulunur.
+
 Örnek BTC→ETH dönüşümü:
 
 ```json
@@ -60,9 +65,21 @@ Desteklenen tipler:
 
 ### `public.portfolio_positions`
 Transaction legs üzerinden türetilmiş kullanıcı/account/asset miktar görünümü.
+Eski revizyonlar ve append-only iptal işaretleri bakiyeye dahil edilmez.
 
 ### `public.user_investment_settings`
-Aylık bütçe, BTC/ETH/URA hedef oranları ve DCA günü.
+Aylık bütçe, plan başlangıç tarihi, BTC/ETH/URA hedef oranları, BTC↔ETH ve
+URA↔USD dönüşüm oranları, DCA günü ve Telegram tercihidir. Yüzde kolonları
+veritabanında `0..1` oranı olarak saklanır; Quasar kullanıcıya `0..100` gösterir.
+Bu ayarlar kullanıcı seviyesindedir; aynı kullanıcının birden çok portföy hesabı
+olursa hesapların tamamında ortak uygulanır. Python karar motoru bu tabloyu okumaz.
+
+### `public.reset_portfolio_transaction_history(uuid, text)`
+
+Oturum sahibinin yalnız kendisine ait aktif bir yatırım hesabındaki bütün işlem ve
+revizyon satırlarını kalıcı olarak temizleyen kontrollü RPC'dir. Genel `DELETE`
+yetkisi kapalı kalır. RPC profil, yatırım ayarları, piyasa/model verileri, kararlar,
+sinyal durumu ve engine health kayıtlarını değiştirmez.
 
 ### `public.decision_snapshot`
 Windows Engine'in son BTC↔ETH / URA↔USD kararları. Authenticated read-only.
@@ -79,6 +96,13 @@ Engine sağlık bilgisi. Authenticated read-only.
 ## RLS
 
 Kullanıcı portföy tablolarında yalnız kendi `user_id` verisine erişebilir. Client tarafından gönderilen `user_id` her insert/update'te `auth.uid()` ile doğrulanır.
+
+`portfolio_transactions` için authenticated rol yalnız `SELECT` ve `INSERT`
+yapabilir. `UPDATE`/`DELETE` politikaları ve yetkileri yoktur. Yatırım hesabı
+silme de audit satırlarının cascade ile kaybolmaması için kapalıdır; hesap
+`is_active=false` ile pasifleştirilir. Bilinçli test verisi temizliği yalnız hesap
+sahipliğini ve tam onay ifadesini sunucu tarafında doğrulayan
+`reset_portfolio_transaction_history` RPC'si üzerinden yapılabilir.
 
 ## Mobilde önerilen veri akışı
 

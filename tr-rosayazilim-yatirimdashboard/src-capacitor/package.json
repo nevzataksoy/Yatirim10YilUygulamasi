@@ -1,0 +1,15 @@
+{
+  "name": "quasar-capacitor-app",
+  "versionCode": 3,
+  "version": "1.0.3",
+  "description": "Quasar Capacitor Folder",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/device": "^8.0.3",
+    "@capacitor/push-notifications": "^8.1.2"
+  }
+}
